@@ -22,20 +22,31 @@ npm run preview      # Preview production build
 
 ## Architecture & Data Flow
 
-### Authentication Context
-All pages require authentication via `src/context/AuthContext.jsx`:
-- `useAuth()` hook provides `user`, `login()`, `logout()`
-- **Currently:** Stores user in memory only (no persistence)
-- **TODO:** Add localStorage persistence, protected routes middleware, actual backend auth
+### Authentication with Supabase
+Authentication is managed by Supabase Auth via `src/context/AuthContext.jsx`:
+- `useAuth()` hook provides `user`, `login()`, `signup()`, `logout()`, `loading`, `error`
+- Automatically persists sessions and checks auth state on app load
+- **Setup required:** Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to `.env.local`
 
 **Example usage in a page:**
 ```jsx
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../hooks/useAuth'
 const MyPage = () => {
-  const { user, logout } = useAuth()
-  // Implement auth checks here
+  const { user, logout, loading } = useAuth()
+  if (loading) return <div>Loading...</div>
+  return <div>Welcome, {user?.email}</div>
 }
 ```
+
+### Supabase Service Layer
+`src/services/supabase.js` provides the initialized Supabase client for direct queries.
+
+### Data Hooks
+Custom React hooks in `src/hooks/` handle data fetching (e.g., `useProducts.js`):
+```jsx
+const { products, loading, error, addProduct, updateProduct, deleteProduct } = useProducts()
+```
+Each hook manages its own state and provides CRUD operations for a data table.
 
 ### Router Structure
 `src/App.jsx` defines all routes (React Router v7):
@@ -49,29 +60,38 @@ const MyPage = () => {
 3. Add `<Route>` in the `<Routes>` block
 4. Consider adding auth guard middleware (not yet implemented)
 
-### Data & Services Layer (Planned)
-Empty directories reserved for backend integration:
-- **`src/services/`** → API calls (fetch/axios to backend)
-- **`src/hooks/`** → Custom React hooks for data fetching, form state
+### Data & Services Layer
+- **`src/services/supabase.js`** → Initialized Supabase client for direct table queries
+- **`src/hooks/`** → Custom React hooks for data fetching (e.g., `useProducts.js`, `useCustomers.js`)
 - **`src/utils/`** → Helper functions, validation, formatting
 
-**Recommended pattern (not yet used):**
+**Pattern for new data hooks:**
 ```jsx
-// src/hooks/useFetchProducts.js
-export function useFetchProducts() {
-  const [products, setProducts] = useState([])
-  useEffect(() => {
-    fetch('/api/products')
-      .then(r => r.json())
-      .then(setProducts)
-  }, [])
-  return products
-}
+// src/hooks/useCustomers.js
+import { useState, useEffect } from 'react'
+import { supabase } from '../services/supabase'
 
-// In a page:
-const Products = () => {
-  const products = useFetchProducts()
-  return <div>{products.map(p => <div key={p.id}>{p.name}</div>)}</div>
+export function useCustomers() {
+  const [customers, setCustomers] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const fetchCustomers = async () => {
+    const { data, error: err } = await supabase.from('customers').select('*')
+    if (err) setError(err.message)
+    else setCustomers(data)
+  }
+
+  useEffect(() => { fetchCustomers() }, [])
+  return { customers, loading, error, refetch: fetchCustomers }
+}
+```
+
+Use in pages:
+```jsx
+const Customers = () => {
+  const { customers } = useCustomers()
+  return <div>{customers.map(c => <div key={c.id}>{c.name}</div>)}</div>
 }
 ```
 
@@ -119,12 +139,16 @@ src/
 ├── index.css            # Global styles
 ├── App.css              # App-level styles
 ├── context/
-│   └── AuthContext.jsx  # Auth provider & hook
-├── pages/               # Route page components (implement here first)
-├── components/          # Reusable UI components (empty, add as needed)
-├── hooks/               # Custom hooks (empty, add as needed)
-├── services/            # API/backend calls (empty, implement)
-└── utils/               # Helpers & utilities (empty, add as needed)
+│   ├── AuthContext.jsx  # Auth provider (Supabase)
+│   └── AuthContextRoot.js # Context definition
+├── services/
+│   └── supabase.js      # Initialized Supabase client
+├── pages/               # Route page components
+├── components/          # Reusable UI components (add as needed)
+├── hooks/               
+│   ├── useAuth.js       # Auth hook
+│   └── useProducts.js   # Products CRUD hook (template)
+└── utils/               # Helpers & utilities (add as needed)
 ```
 
 ---
@@ -150,12 +174,31 @@ src/
 
 ## Known Limitations & TODOs
 
-- ❌ **Auth persistence:** User data lost on refresh; add localStorage + protected routes
-- ❌ **Backend API:** No services layer yet; plan API endpoints before implementing pages
-- ❌ **Form validation:** Implement utility functions in `src/utils/` for field validation
-- ❌ **State management:** Context API only; consider Redux/Zustand for complex state
-- ❌ **Error handling:** No error boundaries or API error handling yet
-- ❌ **Styling system:** No CSS framework; consider Tailwind or CSS-in-JS for consistency
+- ✅ **Auth with Supabase:** Complete with email/password login + signup
+- ✅ **Supabase client:** Initialized and ready for data operations
+- ⚠️ **Protected routes:** Not yet implemented; add `ProtectedRoute` wrapper for secure pages
+- ❌ **RLS policies:** Set up in Supabase dashboard for production security
+- ❌ **Error boundaries:** No error boundaries or API error handling yet
+- ❌ **Real-time subscriptions:** Can be added via `supabase.on()` for live updates
+- ❌ **File storage:** Product images can use Supabase Storage bucket
+
+## Setup & Deployment
+
+### Environment Variables
+Create `.env.local` in the root directory:
+```env
+VITE_SUPABASE_URL=your_project_url
+VITE_SUPABASE_ANON_KEY=your_anon_key
+```
+
+See [SUPABASE_QUICK_START.md](../SUPABASE_QUICK_START.md) for complete setup guide.
+
+### Build
+```bash
+npm run build  # Creates /dist for deployment
+```
+
+When deploying (Vercel, Netlify, etc.), add the same env variables to your hosting platform.
 
 ---
 
