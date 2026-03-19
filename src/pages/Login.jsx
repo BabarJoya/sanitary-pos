@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../services/supabase'
-import { db } from '../services/db'
+import { supabase, rlsSession } from '../services/supabase'
+import { db as localDB } from '../services/db'
 import { hashPassword } from '../utils/authUtils'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Store, ShieldCheck, Zap, PhoneCall, Eye, EyeOff } from 'lucide-react'
+import { ShieldCheck, Zap, PhoneCall, Eye, EyeOff } from 'lucide-react'
 
 function Login() {
   const [username, setUsername] = useState('')
@@ -21,15 +21,13 @@ function Login() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Handle cross-port impersonation via URL
+  // Handle impersonation from superadmin
   useEffect(() => {
     const impId = searchParams.get('impersonateId')
     if (impId) {
       const shopName = searchParams.get('shopName') || 'Impersonated Shop'
       const logoUrl = searchParams.get('logoUrl') || ''
       impersonate(impId, { name: shopName, logo_url: logoUrl })
-
-      // Clear URL params so they don't persist
       setSearchParams({})
       navigate('/dashboard', { replace: true })
     }
@@ -43,96 +41,129 @@ function Login() {
     try {
       const hashedPassword = await hashPassword(password)
 
-      // Try online login first
-      const { data, error: dbError } = await supabase
-        .from('users')
-        .select('*')
-        .or(`username.eq.${username},email.eq.${username}`)
-        .eq('password', hashedPassword)
-        .eq('is_active', true)
-        .single()
+      // Use secure_login RPC (handles auth + shop status check + RLS setup)
+      const { data: loginResult, error: loginError } = await supabase
+        .rpc('secure_login', {
+          p_username: username,
+          p_password_hash: hashedPassword
+        })
 
-      if (dbError || !data) {
-        if (dbError && dbError.message.includes('multiple rows')) {
-          setError('Iss username ke kaayi accounts hain. Meharbani karke Email se login karein.')
+      // Handle RPC errors
+      if (loginError) {
+        console.error('Login RPC error:', loginError)
+        setError('Login failed. Please try again or contact support.')
+        setLoading(false)
+        return
+      }
+
+      // Handle login failure (invalid credentials, suspended account, etc.)
+      if (!loginResult || !loginResult.success) {
+        const errorMsg = loginResult?.error || 'Invalid username or password'
+
+        // User-friendly error messages
+        if (errorMsg.includes('suspended')) {
+          setError('Your account has been suspended. Please contact support: 0301-2616367')
+        } else if (errorMsg.includes('Multiple accounts')) {
+          setError('Multiple accounts found. Please use your email to login.')
         } else {
-          setError('Username ya password galat hai!')
+          setError('Invalid username or password')
         }
+
         setLoading(false)
         return
       }
 
-      // Securely fetch Shop Config (Status, Limits, etc.) via RPC
-      const { data: shopConfig, error: shopError } = await supabase
-        .rpc('get_shop_config', { p_shop_id: data.shop_id })
+      const userData = loginResult.user
+      const shopConfig = loginResult.shop_config
 
-      if (shopError) {
-        throw shopError
-      }
-
-      if (shopConfig.status === 'suspended') {
-        setError('Your account has been suspended. Please contact administrator.')
+      // Validate response data
+      if (!userData.id || !userData.shop_id || !userData.role) {
+        setError('Invalid login response. Please contact support.')
         setLoading(false)
         return
       }
 
-      // Store plan limits for enforcement
+      // Store plan limits for client-side enforcement
       localStorage.setItem('plan_limits', JSON.stringify({
-        product_limit: shopConfig.product_limit || 100,
-        user_limit: shopConfig.user_limit || 3,
-        plan_name: shopConfig.plan_name || 'TRIAL'
+        product_limit: shopConfig?.product_limit || 100,
+        user_limit: shopConfig?.user_limit || 3,
+        plan_name: shopConfig?.plan_name || 'TRIAL',
+        status: shopConfig?.status || 'active'
       }))
 
-      // Save user to local DB for future offline logins
+      // Save user to IndexedDB for offline access
       try {
-        await db.users.put(data)
-      } catch (_) { /* ignore local DB errors */ }
-
-      // Update last active timestamps
-      try {
-        const now = new Date().toISOString()
-        await supabase.from('users').update({ last_sign_in_at: now }).eq('id', data.id)
-        if (data.shop_id) {
-          await supabase.from('shops').update({ last_sign_in_at: now }).eq('id', data.shop_id)
-        }
-      } catch (tsError) {
-        console.warn('Silent fail: could not update last login timestamp', tsError)
+        await localDB.users.put({
+          id: userData.id,
+          username: userData.username,
+          email: userData.email || '',
+          password: hashedPassword,
+          role: userData.role,
+          shop_id: userData.shop_id,
+          is_active: true,
+          permissions: userData.permissions || [],
+          last_sync: new Date().toISOString()
+        })
+      } catch (dbError) {
+        console.warn('Could not save to IndexedDB:', dbError)
+        // Don't fail login if offline storage fails
       }
 
-      login({
-        id: data.id,
-        username: data.username,
-        role: data.role,
-        shop_id: data.shop_id,
-        permissions: data.permissions || []
+      // Set RLS session claims (already done by secure_login, but ensure it's set)
+      await rlsSession.setSession({
+        id: userData.id,
+        shop_id: userData.shop_id,
+        role: userData.role
       })
+
+      // Update React context
+      login({
+        id: userData.id,
+        username: userData.username,
+        email: userData.email || '',
+        role: userData.role,
+        shop_id: userData.shop_id,
+        permissions: userData.permissions || []
+      })
+
+      // Navigate to dashboard
       navigate('/dashboard')
-    } catch (networkErr) {
-      // Offline — try local DB fallback
-      console.log('Online login failed, trying offline fallback...', networkErr)
+
+    } catch (networkError) {
+      console.error('Network error during login:', networkError)
+
+      // Offline fallback - try IndexedDB
       try {
-        const localUser = await db.users
+        const hashedPassword = await hashPassword(password)
+        const localUser = await localDB.users
           .where('username').equals(username)
           .first()
 
         if (localUser && localUser.password === hashedPassword && localUser.is_active !== false) {
-          // In offline mode, we can't fetch the latest shop status, but we should check if we cached it.
-          // For now, if they are offline, we allow it based on their last known local DB state.
-          // True enforcement happens when they come online.
+          // Offline login successful
+          console.log('✅ Offline login successful')
+
           login({
             id: localUser.id,
             username: localUser.username,
+            email: localUser.email || '',
             role: localUser.role,
             shop_id: localUser.shop_id,
             permissions: localUser.permissions || []
           })
-          navigate('/dashboard')
+
+          // Show offline notice
+          setError('⚠️ Logged in offline mode. Some features may be limited.')
+
+          setTimeout(() => {
+            navigate('/dashboard')
+          }, 1500)
         } else {
-          setError('Offline mode: Username ya password galat hai! Pehle online login karein taake credentials save ho sakein.')
+          setError('Offline mode: Invalid credentials. Please connect to internet for first-time login.')
         }
-      } catch (localErr) {
-        console.error('Offline login error:', localErr)
-        setError('Offline login fail ho gaya. Pehle internet connect karke ek baar login karein.')
+      } catch (offlineError) {
+        console.error('Offline login error:', offlineError)
+        setError('Unable to login. Please check your internet connection.')
       }
     } finally {
       setLoading(false)
@@ -141,12 +172,9 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Left Side - Branding & Features (Hidden on Mobile) */}
+      {/* Left Side - Branding */}
       <div className="hidden lg:flex w-1/2 bg-[url('/inventory-bg.png')] bg-cover bg-left relative p-12 flex-col justify-between overflow-hidden">
-        {/* Dark Overlay for Text Legibility */}
         <div className="absolute inset-0 bg-slate-900/60 z-0" />
-
-        {/* Background Gradients (Over the overlay for dramatic effect) */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-600/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
 
@@ -158,7 +186,7 @@ function Login() {
             className="flex items-center gap-3 mb-16"
           >
             <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-2 shadow-xl flex items-center justify-center overflow-hidden">
-              <img src="/edgex_pos_logo_platform.png" alt="EdgeX Digital" className="max-w-full max-h-full object-contain drop-shadow-md" />
+              <img src={logoUrl} alt="EdgeX Digital" className="max-w-full max-h-full object-contain drop-shadow-md" />
             </div>
             <span className="text-2xl font-black text-white tracking-widest uppercase">EdgeX Digital</span>
           </motion.div>
@@ -174,7 +202,7 @@ function Login() {
               <span className="block text-blue-500">Simplified.</span>
             </h1>
             <p className="text-lg text-slate-400 mb-12">
-              The all-in-one point of sale system designed to scale your business, manage inventory, and boost sales.
+              Enterprise-grade POS system with bank-level security and multi-tenant isolation.
             </p>
 
             <div className="space-y-6">
@@ -184,7 +212,7 @@ function Login() {
                 </div>
                 <div>
                   <h3 className="text-white font-semibold">Lightning Fast</h3>
-                  <p className="text-sm text-slate-400">Offline-first local database</p>
+                  <p className="text-sm text-slate-400">Offline-first architecture</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -192,8 +220,8 @@ function Login() {
                   <ShieldCheck className="text-emerald-400" size={20} />
                 </div>
                 <div>
-                  <h3 className="text-white font-semibold">Bank-Level Security</h3>
-                  <p className="text-sm text-slate-400">Role-based access & encryption</p>
+                  <h3 className="text-white font-semibold">Enterprise Security</h3>
+                  <p className="text-sm text-slate-400">Row-level security & data encryption</p>
                 </div>
               </div>
             </div>
@@ -216,9 +244,8 @@ function Login() {
         </motion.div>
       </div>
 
-      {/* Right Side - Login Form (Dark Mode Glassmorphic) */}
+      {/* Right Side - Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-slate-900 relative border-l border-slate-800">
-        {/* Subtle right side glow */}
         <div className="absolute top-1/4 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <motion.div
@@ -227,7 +254,7 @@ function Login() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md relative z-10"
         >
-          {/* Mobile Header (Only visible on small screens) */}
+          {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-10 flex flex-col items-center">
             <div className="w-20 h-20 mb-4 rounded-xl border border-slate-700 p-1 bg-slate-800 shadow-sm flex items-center justify-center overflow-hidden">
               <img src={logoUrl} alt={platformName} className="max-w-full max-h-full object-contain" />
@@ -256,6 +283,7 @@ function Login() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
+                autoComplete="username"
                 className="w-full px-5 py-4 bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-slate-800 transition-all shadow-inner"
               />
             </div>
@@ -269,12 +297,14 @@ function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                   className="w-full px-5 py-4 bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-slate-800 transition-all shadow-inner"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
