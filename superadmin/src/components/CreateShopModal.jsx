@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase, supabaseAdmin } from '../services/supabase'
-import { X, Store, User, Mail, Key } from 'lucide-react'
+import { X, Store, User, Mail, Key, Zap, AlertTriangle } from 'lucide-react'
 import { hashPassword } from '../utils/authUtils'
 
 export default function CreateShopModal({ onClose, onCreated }) {
@@ -14,6 +14,29 @@ export default function CreateShopModal({ onClose, onCreated }) {
   const [ownerEmail, setOwnerEmail] = useState('')
   const [ownerUsername, setOwnerUsername] = useState('')
   const [ownerPassword, setOwnerPassword] = useState('')
+  const [selectedPlanId, setSelectedPlanId] = useState('')
+
+  // Plans
+  const [plans, setPlans] = useState([])
+  const [plansLoading, setPlansLoading] = useState(true)
+
+  useEffect(() => {
+    fetchPlans()
+  }, [])
+
+  const fetchPlans = async () => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('subscription_plans')
+        .select('id, name, price, billing_cycle')
+        .order('price', { ascending: true })
+      if (!error) setPlans(data || [])
+    } catch (err) {
+      console.error('Failed to load plans:', err)
+    } finally {
+      setPlansLoading(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -21,15 +44,19 @@ export default function CreateShopModal({ onClose, onCreated }) {
       setError("Setup Error: Missing VITE_SUPABASE_SERVICE_ROLE_KEY in .env file. Cannot create users without it.")
       return
     }
+    if (!selectedPlanId) {
+      setError('Please select a subscription plan for this shop.')
+      return
+    }
 
     setError('')
     setLoading(true)
 
     try {
-      // 1. Create the Shop
+      // 1. Create the Shop with plan_id
       const { data: shopData, error: shopError } = await supabaseAdmin
         .from('shops')
-        .insert([{ name: shopName, phone, address, email: ownerEmail, status: 'active' }])
+        .insert([{ name: shopName, phone, address, email: ownerEmail, status: 'active', plan_id: selectedPlanId }])
         .select()
         .single()
 
@@ -60,7 +87,7 @@ export default function CreateShopModal({ onClose, onCreated }) {
           id: authData.user.id,
           username: ownerUsername || ownerEmail.split('@')[0],
           email: ownerEmail,
-          password: hashedPassword, // Store hashed for POS compatibility
+          password: hashedPassword,
           role: 'admin',
           shop_id: shopData.id,
           is_active: true
@@ -79,10 +106,12 @@ export default function CreateShopModal({ onClose, onCreated }) {
     }
   }
 
+  const selectedPlan = plans.find(p => p.id === selectedPlanId)
+
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50 shrink-0">
           <div>
             <h2 className="text-xl font-bold text-slate-800">Register New Tenant</h2>
             <p className="text-xs text-slate-500">Create a shop and its owner account instantly.</p>
@@ -92,8 +121,54 @@ export default function CreateShopModal({ onClose, onCreated }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm font-medium border border-red-100">{error}</div>}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
+          {error && (
+            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm font-medium border border-red-100 flex items-start gap-2">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Subscription Plan — first & required */}
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100">
+              <Zap size={18} className="text-amber-500" /> Subscription Plan <span className="text-red-500 text-xs font-bold ml-1">Required</span>
+            </h3>
+            {plansLoading ? (
+              <div className="text-xs text-slate-400 py-2">Loading plans...</div>
+            ) : plans.length === 0 ? (
+              <div className="p-3 bg-amber-50 text-amber-700 rounded-lg text-xs border border-amber-200 font-medium">
+                No plans found. Please create a plan in <strong>Subscription Plans</strong> first.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {plans.map(plan => (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    onClick={() => setSelectedPlanId(plan.id)}
+                    className={`text-left p-3 rounded-xl border-2 transition-all ${
+                      selectedPlanId === plan.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className={`font-bold text-sm ${selectedPlanId === plan.id ? 'text-blue-700' : 'text-slate-800'}`}>
+                      {plan.name}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Rs. {plan.price?.toLocaleString()} / {plan.billing_cycle || 'month'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedPlan && (
+              <p className="text-xs text-blue-600 font-bold mt-2">
+                ✓ Selected: {selectedPlan.name} — Rs. {selectedPlan.price?.toLocaleString()}/{selectedPlan.billing_cycle || 'month'}
+              </p>
+            )}
+          </div>
 
           {/* Shop Details */}
           <div>
@@ -164,7 +239,7 @@ export default function CreateShopModal({ onClose, onCreated }) {
               className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-lg hover:bg-slate-50 transition">
               Cancel
             </button>
-            <button type="submit" disabled={loading}
+            <button type="submit" disabled={loading || !selectedPlanId || plans.length === 0}
               className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-lg shadow-blue-500/30 transition disabled:opacity-50">
               {loading ? 'Creating Tenant...' : 'Initialize Tenant'}
             </button>
