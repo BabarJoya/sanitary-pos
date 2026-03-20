@@ -5,6 +5,7 @@ import { KeyRound, Mail, AlertCircle, Eye, EyeOff, ShieldAlert, CheckCircle } fr
 import { supabase } from '../services/supabase'
 
 const SUPERADMIN_EMAIL = 'babarjoya@gmail.com'
+const SUPERADMIN_URL = import.meta.env.VITE_SUPERADMIN_URL || window.location.origin
 
 export default function Login() {
   const { user, login } = useAuth()
@@ -42,7 +43,7 @@ export default function Login() {
     setResetError('')
     setResetLoading(true)
     try {
-      const redirectTo = `${window.location.origin}/reset-password`
+      const redirectTo = `${SUPERADMIN_URL}/reset-password`
       const { error } = await supabase.auth.resetPasswordForEmail(SUPERADMIN_EMAIL, { redirectTo })
       if (error) throw new Error(error.message)
       setResetSent(true)
