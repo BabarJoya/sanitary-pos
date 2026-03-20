@@ -1,81 +1,65 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, supabaseAdmin } from '../services/supabase'
+import { supabaseAdmin } from '../services/supabase'
+import { hashPassword } from '../utils/authUtils'
 
 const AuthContext = createContext()
+
+const SESSION_KEY = 'superadmin_session'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        await fetchProfile(session.user)
-      } else {
-        setLoading(false)
+    // Restore session from localStorage on page load
+    try {
+      const saved = localStorage.getItem(SESSION_KEY)
+      if (saved) {
+        setUser(JSON.parse(saved))
       }
-    }
-
-    checkSession()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          await fetchProfile(session.user)
-        } else {
-          setUser(null)
-          setLoading(false)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
+    } catch (_) {}
+    setLoading(false)
   }, [])
 
-  const fetchProfile = async (authUser) => {
-    try {
-      if (!supabaseAdmin) {
-        throw new Error('Missing Service Role Key required for Superadmin Auth.')
-      }
-
-      const { data, error } = await supabaseAdmin
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single()
-
-      if (error) throw error
-
-      if (data.role !== 'superadmin') {
-        // Kick them out if they are not superadmin
-        await supabase.auth.signOut()
-        alert('Access Denied. Superadmin privileges required.')
-        setUser(null)
-      } else {
-        setUser({ ...authUser, ...data })
-      }
-    } catch (err) {
-      console.error('Error fetching profile:', err)
-      setUser(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const login = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
-    return data
+    if (!supabaseAdmin) {
+      throw new Error('Setup Error: Missing VITE_SUPABASE_SERVICE_ROLE_KEY in .env file.')
+    }
+
+    const hashed = await hashPassword(password)
+
+    // Query the custom users table directly — no Supabase Auth required
+    const { data, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .eq('password', hashed)
+      .eq('role', 'superadmin')
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (error) throw new Error('Database error: ' + error.message)
+    if (!data) throw new Error('Invalid email or password, or account is not a Superadmin.')
+
+    const sessionUser = {
+      id: data.id,
+      email: data.email,
+      username: data.username,
+      role: data.role,
+      shop_id: data.shop_id,
+    }
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
+    setUser(sessionUser)
+    return sessionUser
   }
 
-  const logout = async () => {
-    await supabase.auth.signOut()
+  const logout = () => {
+    localStorage.removeItem(SESSION_KEY)
     setUser(null)
   }
 
   const impersonate = (shopId, shopData) => {
-    // We create a mocked session for the POS window
     const impersonatedUser = {
       id: `impersonated-${shopId}`,
       username: `Superadmin (${shopData.name})`,
@@ -83,10 +67,8 @@ export function AuthProvider({ children }) {
       shop_id: shopId,
       isImpersonating: true
     }
-
-    // POS context looks for 'user' and 'originalUser' in localstorage
-    localStorage.setItem('originalUser', JSON.stringify(user)) // Save the real superadmin
-    localStorage.setItem('user', JSON.stringify(impersonatedUser)) // Set the fake POS admin
+    localStorage.setItem('originalUser', JSON.stringify(user))
+    localStorage.setItem('user', JSON.stringify(impersonatedUser))
     localStorage.setItem('shop_name', shopData.name)
     if (shopData.logo_url) {
       localStorage.setItem('shop_logo', shopData.logo_url)
