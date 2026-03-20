@@ -20,23 +20,23 @@ function Categories() {
 
   useEffect(() => {
     if (user?.shop_id) {
-        fetchCategories()
-        fetchProducts()
+      fetchCategories()
+      fetchProducts()
     }
   }, [user?.shop_id])
 
   const fetchProducts = async () => {
     try {
-        const localData = await db.products.toArray()
-        const sid = String(user.shop_id)
-        setProducts(localData.filter(x => String(x.shop_id) === sid))
+      const localData = await db.products.toArray()
+      const sid = String(user.shop_id)
+      setProducts(localData.filter(x => String(x.shop_id) === sid))
     } catch (e) {
-        console.error('Local DB Products Error', e)
+      console.error('Local DB Products Error', e)
     }
   }
 
   const getProductCount = (catId) => {
-      return products.filter(p => p.category_id === catId).length
+    return products.filter(p => p.category_id === catId).length
   }
 
   const fetchCategories = async () => {

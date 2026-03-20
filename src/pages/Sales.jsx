@@ -190,7 +190,7 @@ function Sales() {
       }
 
       // Audit Log
-      recordAuditLog(
+      await recordAuditLog(
         'SALE_RETURN',
         'sales',
         selectedSale.id,

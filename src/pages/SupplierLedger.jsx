@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 
 function SupplierLedger() {
     const { id } = useParams()
@@ -201,6 +203,7 @@ function SupplierLedger() {
         }
     }
 
+    if (!hasFeature('supplier_ledger')) return <UpgradeWall feature="supplier_ledger" />
     if (loading) return <div className="p-8">Loading ledger...</div>
     if (!supplier) return <div className="p-8 text-red-500">Supplier not found!</div>
 

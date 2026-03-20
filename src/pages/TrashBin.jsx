@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, restoreFromTrash, addToSyncQueue } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 
 function TrashBin() {
     const { user } = useAuth()
@@ -122,6 +124,8 @@ function TrashBin() {
     const filtered = trashItems.filter(x => filterTable ? x.original_table === filterTable : true)
 
     const uniqueTables = [...new Set(trashItems.map(x => x.original_table))]
+
+    if (!hasFeature('trash_bin')) return <UpgradeWall feature="trash_bin" />
 
     return (
         <div className="space-y-6">

@@ -126,7 +126,9 @@ function EditProduct() {
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
 
-      const { data, error } = await supabase.from('brands').insert([brandData]).select()
+      // Strip the local UUID id — brands.id is SERIAL (integer) in Supabase
+      const { id: _localId, ...supabasePayload } = brandData
+      const { data, error } = await supabase.from('brands').insert([supabasePayload]).select()
       if (error) throw error
 
       setBrands([...brands, data[0]])
@@ -159,9 +161,13 @@ function EditProduct() {
     const updatedProductData = { ...form }
     
     // Ensure numeric fields are parsed correctly, treating empty strings as null/0 based on DB defaults
-    if(updatedProductData.category_id === '') updatedProductData.category_id = null;
-    if(updatedProductData.supplier_id === '') updatedProductData.supplier_id = null;
     if(updatedProductData.c_rate === '') updatedProductData.c_rate = 0;
+
+    // Sanitize integer FK fields — offline-created records have UUID ids which
+    // Supabase cannot cast to INTEGER. Parse to int; if it fails (UUID), set null.
+    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+    updatedProductData.category_id = updatedProductData.category_id ? toIntOrNull(updatedProductData.category_id) : null
+    updatedProductData.supplier_id = updatedProductData.supplier_id ? toIntOrNull(updatedProductData.supplier_id) : null
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')

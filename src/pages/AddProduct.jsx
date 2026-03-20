@@ -93,12 +93,13 @@ function AddProduct() {
   const handleAddBrand = async () => {
     if (!newBrandName.trim()) return
 
-    const brandData = { id: crypto.randomUUID(), name: newBrandName.trim(), shop_id: user.shop_id }
+    // UUID id only for local IndexedDB — Supabase brands.id is SERIAL (integer)
+    const localBrandData = { id: crypto.randomUUID(), name: newBrandName.trim(), shop_id: user.shop_id }
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
 
-      const { data, error } = await supabase.from('brands').insert([brandData]).select()
+      const { data, error } = await supabase.from('brands').insert([{ name: newBrandName.trim(), shop_id: user.shop_id }]).select()
       if (error) throw error
 
       setBrands([...brands, data[0]])
@@ -106,10 +107,10 @@ function AddProduct() {
     } catch (err) {
       const errMsg = err?.message || String(err)
       if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-        await db.brands.add(brandData)
-        await addToSyncQueue('brands', 'INSERT', brandData)
-        setBrands([...brands, brandData])
-        setForm({ ...form, brand: brandData.name })
+        await db.brands.add(localBrandData)
+        await addToSyncQueue('brands', 'INSERT', localBrandData)
+        setBrands([...brands, localBrandData])
+        setForm({ ...form, brand: localBrandData.name })
         alert('Offline mode: Brand added locally. Will sync when online! 🔄')
       } else {
         alert('Error adding brand: ' + errMsg)
@@ -134,6 +135,7 @@ function AddProduct() {
 
     setLoading(true)
 
+    // UUID id only for local IndexedDB — Supabase products.id is SERIAL (integer)
     const productData = { ...form, id: crypto.randomUUID(), shop_id: user.shop_id }
 
     // Phase 4: Enforce Product Limits
@@ -157,7 +159,16 @@ function AddProduct() {
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
 
-      const { error } = await supabase.from('products').insert([productData])
+      // Strip the local UUID id — Supabase will auto-generate the integer PK
+      const { id: _localId, ...supabaseProductData } = productData
+
+      // Sanitize integer FK fields — offline-created records have UUID ids which
+      // Supabase cannot cast to INTEGER. Parse to int; if it fails (UUID), set null.
+      const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+      supabaseProductData.category_id = toIntOrNull(supabaseProductData.category_id)
+      supabaseProductData.supplier_id = toIntOrNull(supabaseProductData.supplier_id)
+
+      const { error } = await supabase.from('products').insert([supabaseProductData])
       if (error) throw error
 
       await recordAuditLog(

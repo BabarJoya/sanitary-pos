@@ -2,7 +2,8 @@ import { db } from './db';
 import { supabase } from './supabase';
 
 // Tables that only exist locally and should NOT be synced to Supabase
-const LOCAL_ONLY_TABLES = ['audit_logs', 'held_carts', 'held_purchases'];
+const LOCAL_ONLY_TABLES = ['held_carts', 'held_purchases']
+// Note: audit_logs intentionally removed — they now sync to Supabase;
 
 export const syncOfflineData = async () => {
     if (!navigator.onLine) return;

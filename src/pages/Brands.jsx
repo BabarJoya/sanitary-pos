@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import * as XLSX from 'xlsx'
 import { db, addToSyncQueue } from '../services/db'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 
 function Brands() {
   const { user } = useAuth()
@@ -250,6 +252,8 @@ function Brands() {
     } catch (err) { console.error('Fetch product history error:', err) }
     finally { setLoadingHistoryId(null) }
   }
+
+  if (!hasFeature('brands')) return <UpgradeWall feature="brands" />
 
   return (
     <div>

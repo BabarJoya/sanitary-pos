@@ -11,13 +11,40 @@ export default function PlanManagement() {
     const [isAdding, setIsAdding] = useState(false)
     const [editingPlan, setEditingPlan] = useState(null)
 
+    const FEATURE_LABELS = {
+        pos:              'POS / Billing Screen',
+        products:         'Product Catalog',
+        categories:       'Categories',
+        customers:        'Customers',
+        sales_history:    'Sales History',
+        discount:         'Discount on POS',
+        brands:           'Brands Management',
+        suppliers:        'Suppliers',
+        purchases:        'Purchases & Orders',
+        customer_ledger:  'Customer Credit Ledger',
+        reports:          'Revenue Reports',
+        data_export:      'Data Export (Backup)',
+        offline_sync:     'Offline Mode & Sync',
+        expenses:         'Expense Tracking',
+        supplier_ledger:  'Supplier Ledger',
+        trash_bin:        'Trash / Restore Deleted',
+        bulk_import:      'Bulk Product Import',
+        audit_logs:       'Audit Trail Logs',
+        advanced_reports: 'Advanced Analytics',
+        whatsapp:         'WhatsApp Messaging',
+        api_access:       'API / Integrations',
+    }
+
+    const DEFAULT_FEATURES = Object.fromEntries(Object.keys(FEATURE_LABELS).map(k => [k, false]))
+
     // Form State
     const [form, setForm] = useState({
         name: '',
         price: 0,
         billing_cycle: 'monthly',
         product_limit: 100,
-        user_limit: 3
+        user_limit: 3,
+        features: { ...DEFAULT_FEATURES, print_templates: 1 }
     })
 
     useEffect(() => {
@@ -82,7 +109,7 @@ export default function PlanManagement() {
     }
 
     const resetForm = () => {
-        setForm({ name: '', price: 0, billing_cycle: 'monthly', product_limit: 100, user_limit: 3 })
+        setForm({ name: '', price: 0, billing_cycle: 'monthly', product_limit: 100, user_limit: 3, features: { ...DEFAULT_FEATURES, print_templates: 1 } })
         setIsAdding(false)
         setEditingPlan(null)
     }
@@ -94,9 +121,14 @@ export default function PlanManagement() {
             price: plan.price,
             billing_cycle: plan.billing_cycle,
             product_limit: plan.product_limit,
-            user_limit: plan.user_limit
+            user_limit: plan.user_limit,
+            features: { ...DEFAULT_FEATURES, print_templates: 1, ...(plan.features || {}) }
         })
         setIsAdding(true)
+    }
+
+    const toggleFeature = (key) => {
+        setForm(f => ({ ...f, features: { ...f.features, [key]: !f.features[key] } }))
     }
 
     if (loading) return <div className="p-8 text-center text-slate-500 font-bold">Loading Plans...</div>
@@ -181,7 +213,51 @@ export default function PlanManagement() {
                                 />
                                 <p className="text-[10px] text-slate-400 mt-1 font-bold">Max sub-users (Cashiers)</p>
                             </div>
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase mb-2 tracking-widest text-[10px]">Print Templates</label>
+                                <select
+                                    className="w-full px-4 py-3 bg-emerald-50/50 border border-emerald-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-900"
+                                    value={form.features?.print_templates || 1}
+                                    onChange={e => setForm(f => ({ ...f, features: { ...f.features, print_templates: Number(e.target.value) } }))}
+                                >
+                                    <option value={1}>1 — Simple only</option>
+                                    <option value={2}>2 — Simple + Classic</option>
+                                    <option value={3}>3 — All Templates</option>
+                                </select>
+                                <p className="text-[10px] text-slate-400 mt-1 font-bold">Billing template options available to shop</p>
+                            </div>
                         </div>
+
+                        {/* Feature Toggles */}
+                        <div className="mt-8 pt-6 border-t border-slate-100">
+                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Feature Access</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                {Object.entries(FEATURE_LABELS).map(([key, label]) => (
+                                    <label
+                                        key={key}
+                                        className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition select-none ${
+                                            form.features?.[key]
+                                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                                : 'bg-slate-50 border-slate-200 text-slate-400'
+                                        }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only"
+                                            checked={!!form.features?.[key]}
+                                            onChange={() => toggleFeature(key)}
+                                        />
+                                        <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-black flex-shrink-0 ${
+                                            form.features?.[key] ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400'
+                                        }`}>
+                                            {form.features?.[key] ? '✓' : '✗'}
+                                        </span>
+                                        <span className="text-xs font-bold leading-tight">{label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="mt-8 flex justify-end gap-3">
                             <button type="button" onClick={resetForm} className="px-6 py-3 font-bold text-slate-500 hover:text-slate-800 transition">Cancel</button>
                             <button type="submit" className="px-8 py-3 bg-blue-600 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition">

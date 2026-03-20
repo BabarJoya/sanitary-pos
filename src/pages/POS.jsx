@@ -4,6 +4,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
+import { buildBillHTML } from '../utils/billTemplates'
+import { hasFeature } from '../utils/featureGate'
 
 function POS() {
   const { user } = useAuth()
@@ -166,6 +168,8 @@ function POS() {
       }
       if (s.data) {
         setForm(prev => {
+          // Always prefer locally saved logo — Supabase may have a stale value
+          const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
           const updated = {
             ...prev,
             name: s.data.name || prev.name,
@@ -175,11 +179,11 @@ function POS() {
             quotation_footer: s.data.quotation_footer || prev.quotation_footer,
             print_size: s.data.print_size || prev.print_size,
             print_mode: s.data.print_mode || prev.print_mode,
-            logo_url: s.data.logo_url || prev.logo_url || localStorage.getItem('shop_logo') || '',
+            logo_url: localLogo || s.data.logo_url || prev.logo_url || '',
             wa_reminder_template: s.data.wa_reminder_template || prev.wa_reminder_template,
             wa_bill_template: s.data.wa_bill_template || prev.wa_bill_template
           }
-          localStorage.setItem('shop_settings_full', JSON.stringify(updated))
+          // Don't overwrite shop_settings_full here — Settings page owns that key
           return updated
         })
       }
@@ -229,12 +233,13 @@ function POS() {
         const localShop = await db.shops.get(sidNumber)
         if (localShop) {
           setForm(prev => {
-            const updated = {
+            const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+            return {
               ...prev,
               name: localShop.name || prev.name,
               phone: localShop.phone || prev.phone,
               address: localShop.address || prev.address,
-              logo_url: localShop.logo_url || prev.logo_url || localStorage.getItem('shop_logo') || '',
+              logo_url: localLogo || localShop.logo_url || prev.logo_url || '',
               invoice_footer: localShop.invoice_footer || prev.invoice_footer,
               quotation_footer: localShop.quotation_footer || prev.quotation_footer,
               print_size: localShop.print_size || prev.print_size,
@@ -242,8 +247,6 @@ function POS() {
               wa_reminder_template: localShop.wa_reminder_template || prev.wa_reminder_template,
               wa_bill_template: localShop.wa_bill_template || prev.wa_bill_template
             }
-            localStorage.setItem('shop_settings_full', JSON.stringify(updated))
-            return updated
           })
         }
       } catch (err) { console.error('Local DB POS Error', err) }
@@ -368,10 +371,13 @@ function POS() {
 
     setSaving(true)
 
+    // Sanitize integer FK — offline-created customers have UUID ids
+    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+
     // Generate Sale Object
     const saleData = {
       shop_id: user.shop_id,
-      customer_id: customerId || null,
+      customer_id: toIntOrNull(customerId),
       customer_name: customerId ? null : walkInName,
       total_amount: subtotal,
       discount: totalDiscount,
@@ -399,7 +405,7 @@ function POS() {
 
       const items = cart.map(i => ({
         sale_id: sale.id,
-        product_id: i.id,
+        product_id: toIntOrNull(i.id),
         product_name: i.name,
         quantity: i.qty,
         unit_price: i.custom_price,
@@ -579,100 +585,28 @@ function POS() {
   }
 
   const buildReceiptHTML = (r, isQuotation = false) => {
-    const isThermal = form.print_size === 'thermal'
-    const footer = isQuotation ? form.quotation_footer : form.invoice_footer
+    // Always read shop settings fresh from localStorage at print time.
+    // This ensures name/phone/address/logo updated in Settings show immediately
+    // without the user needing to refresh the POS page.
+    let saved = {}
+    try { saved = JSON.parse(localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
 
-    return `
-    <html><head><title>${isQuotation ? 'Quotation' : 'Receipt'}</title>
-    <style>
-      body { font-family: monospace; width: ${isThermal ? '320px' : '794px'}; margin: auto; padding: 20px; font-size: 13px; border: ${isThermal ? 'none' : '1px solid #eee'}; }
-      h2, p.center { text-align: center; margin: 2px 0; }
-      hr { border-top: 1px dashed #000; margin: 6px 0; }
-      table { width: 100%; border-collapse: collapse; } 
-      td { padding: 5px 0; vertical-align: top; }
-      .right { text-align: right; } .bold { font-weight: bold; }
-      .logo { display: block; margin: 0 auto 10px; max-width: 100px; }
-      ${!isThermal ? `
-        body { font-family: 'Segoe UI', sans-serif; }
-        table { border: 1px solid #ddd; }
-        th, td { border: 1px solid #ddd; padding: 10px; }
-        .header-box { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-      ` : ''}
-    </style></head><body>
-    ${form.logo_url ? `<img src="${form.logo_url}" class="logo" />` : ''}
-    <h2>${form.name || 'Sanitary POS'}</h2>
-    <p class="center">${form.address || ''}</p>
-    <p class="center">Phone: ${form.phone || ''}</p>
-    <hr/>
-    <p>${isQuotation ? 'QUOTATION' : 'Receipt'} #: ${isQuotation ? 'QT-' : ''}${String(r.sale.id).slice(-8)}</p>
-    <p>Date: ${new Date(r.sale.created_at).toLocaleString('en-PK')}</p>
-    <p>Cashier: ${r.sale.created_by}</p>
-    ${r.customer ? `<p>Customer: ${r.customer.name} | ${r.customer.phone || ''}</p>` : r.walkInName ? `<p>Customer: ${r.walkInName} (Walk-in)</p>` : '<p>Walk-in Customer</p>'}
-    ${!isQuotation ? (
-        r.sale.payment_type === 'split' && r.sale.payment_details
-          ? `<p>Payment: SPLIT</p>
-         ${r.sale.payment_details.map(p => `<p style="margin:0; padding-left:10px;">- ${p.method.toUpperCase()}: Rs. ${Number(p.amount).toFixed(0)}</p>`).join('')}`
-          : `<p>Payment: ${r.paymentType.toUpperCase()}</p>`
-      ) : ''}
-    <hr/>
-    <table>
-      <thead>
-        <tr><th align="left">Item</th><th align="right">Qty</th><th align="right">Rate</th><th align="right">Amt</th></tr>
-      </thead>
-      <tbody>
-        ${r.items.map(i => `<tr>
-          <td>${i.name}${i.brand ? ' (' + i.brand + ')' : ''}</td>
-          <td class="right">${i.qty}</td>
-          <td class="right">${Number(i.custom_price || i.unit_price).toFixed(0)}</td>
-          <td class="right">${((i.custom_price || i.unit_price) * i.qty).toFixed(0)}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-    <hr/>
-    <div style="width: 200px; margin-left: auto;">
-      <table style="border: none;">
-        <tr style="border: none;"><td style="border: none;">Subtotal</td><td class="right" style="border: none;">Rs. ${r.subtotal.toFixed(0)}</td></tr>
-        ${r.totalDiscount > 0 ? `<tr style="border: none;"><td style="border: none;">Discount</td><td class="right" style="border: none;">- Rs. ${r.totalDiscount.toFixed(0)}</td></tr>` : ''}
-        <tr style="border: none;"><td class="bold" style="border: none;">TOTAL</td><td class="right bold" style="border: none;">Rs. ${r.total.toFixed(0)}</td></tr>
-        ${!isQuotation && (r.total - r.sale.paid_amount) > 0 ? `
-          <tr style="border: none; color: red;"><td style="border: none;">Remaining </td><td class="right" style="border: none;">Rs. ${(r.total - r.sale.paid_amount).toFixed(0)}</td></tr>
-        ` : ''}
-      </table>
-    </div>
-    <hr/>
-    <p class="center" style="font-size: 16px; font-weight: bold; margin-top: 10px;">${footer}</p>
-    <script>
-      window.onload = function() {
-        const images = document.getElementsByTagName('img');
-        if (images.length > 0) {
-          let loadedCount = 0;
-          for (let img of images) {
-            if (img.complete) {
-              loadedCount++;
-            } else {
-              img.onload = function() {
-                loadedCount++;
-                if (loadedCount === images.length) {
-                  setTimeout(() => { window.print(); window.close(); }, 300);
-                }
-              };
-              img.onerror = function() { // Print even if logo fails
-                loadedCount++;
-                if (loadedCount === images.length) {
-                  setTimeout(() => { window.print(); window.close(); }, 300);
-                }
-              }
-            }
-          }
-          if (loadedCount === images.length) {
-            setTimeout(() => { window.print(); window.close(); }, 300);
-          }
-        } else {
-          setTimeout(() => { window.print(); window.close(); }, 300);
-        }
-      };
-    </script>
-    </body></html>`
+    const freshLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`)
+      || localStorage.getItem('shop_logo')
+      || saved.logo_url || form.logo_url || ''
+
+    const shopSettings = {
+      ...form,
+      name:             saved.name    || form.name,
+      phone:            saved.phone   || form.phone,
+      address:          saved.address || form.address,
+      invoice_footer:   saved.invoice_footer   || form.invoice_footer,
+      quotation_footer: saved.quotation_footer || form.quotation_footer,
+      print_size:       saved.print_size       || form.print_size,
+      print_mode:       saved.print_mode       || form.print_mode,
+      logo_url:         freshLogo,
+    }
+    return buildBillHTML(r, isQuotation, shopSettings)
   }
 
   const printReceipt = () => {
@@ -686,9 +620,10 @@ function POS() {
     const sub = cart.reduce((s, i) => s + i.custom_price * i.qty, 0)
     const disc = parseFloat(discount) || 0
     const tot = Math.max(0, sub - disc)
+    const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
     const win = window.open('', '_blank')
-    win.document.write(buildReceiptHTML({ items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true))
-    win.document.close(); win.print()
+    win.document.write(buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true))
+    win.document.close()
   }
 
   return (
@@ -857,10 +792,12 @@ function POS() {
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span><span>Rs.{subtotal.toFixed(0)}</span>
               </div>
+              {hasFeature('discount') && (
               <div className="flex items-center justify-between">
                 <label className="text-gray-600">Disc (Rs):</label>
                 <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} className="w-16 px-1 border rounded text-right" min="0" placeholder="0" />
               </div>
+              )}
             </div>
             <div className="flex flex-col justify-end text-right border-l pl-2 border-gray-100">
               <div className="text-gray-500 text-[10px] uppercase">Net Total</div>

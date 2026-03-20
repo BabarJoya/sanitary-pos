@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { db } from '../services/db'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 
 function Reports() {
   const { user } = useAuth()
@@ -272,6 +274,8 @@ function Reports() {
     win.document.close()
     win.print()
   }
+
+  if (!hasFeature('reports')) return <UpgradeWall feature="reports" />
 
   return (
     <div className="space-y-6">

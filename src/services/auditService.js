@@ -12,9 +12,10 @@ import { supabase } from './supabase';
  */
 export const recordAuditLog = async (action, entity, entityId, details, userId, shopId) => {
     const logEntry = {
+        id: crypto.randomUUID(), // UUID so syncService strips it before Supabase INSERT (BIGSERIAL PK)
         action,
         entity,
-        entity_id: entityId,
+        entity_id: String(entityId),
         details,
         user_id: userId,
         shop_id: shopId,

@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
+import { buildSalesReportHTML } from '../utils/billTemplates'
+import { hasFeature } from '../utils/featureGate'
 
 function Settings() {
   const { user } = useAuth()
@@ -30,9 +32,19 @@ function Settings() {
       wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
     }
   })
+  // Logo is managed completely separately from the rest of form state
+  // so fetchShop can never accidentally overwrite it
+  const LOGO_KEY = `shop_logo_${user?.shop_id || 'default'}`
+  const [logoUrl, setLogoUrl] = useState(() => {
+    return localStorage.getItem(LOGO_KEY) || localStorage.getItem('shop_logo') || ''
+  })
+
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [planInfo, setPlanInfo] = useState(null)
+  const [printTemplate, setPrintTemplate] = useState(() => localStorage.getItem('print_template') || '2')
+  const [reportPeriod, setReportPeriod] = useState('today')
+  const [reportLoading, setReportLoading] = useState(false)
 
   useEffect(() => {
     fetchShop()
@@ -71,22 +83,28 @@ function Settings() {
   }
 
   const setSettingsForm = (data) => {
-    setForm(prev => {
-      const updated = {
-        name: data.name || prev.name || localStorage.getItem('shop_name') || 'Sanitary POS',
-        phone: data.phone || prev.phone || '',
-        address: data.address || prev.address || '',
-        logo_url: data.logo_url || prev.logo_url || localStorage.getItem('shop_logo') || '',
-        invoice_footer: data.invoice_footer || prev.invoice_footer || 'شکریہ! دوبارہ تشریف لائیں',
-        quotation_footer: data.quotation_footer || prev.quotation_footer || 'یہ صرف قیمت نامہ ہے',
-        print_size: data.print_size || prev.print_size || 'thermal',
-        print_mode: data.print_mode || prev.print_mode || 'manual',
-        wa_reminder_template: data.wa_reminder_template || prev.wa_reminder_template,
-        wa_bill_template: data.wa_bill_template || prev.wa_bill_template
-      }
-      localStorage.setItem('shop_settings_full', JSON.stringify(updated))
-      return updated
-    })
+    // Read the full saved settings from localStorage — this is what the user last saved.
+    // We only use Supabase data to fill in values that localStorage doesn't have yet.
+    let saved = {}
+    try { saved = JSON.parse(localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
+
+    setForm(prev => ({
+      name:                 saved.name                 || data.name    || prev.name    || 'Sanitary POS',
+      phone:                saved.phone                || data.phone   || prev.phone   || '',
+      address:              saved.address              || data.address || prev.address || '',
+      logo_url:             prev.logo_url, // managed by logoUrl state, never overwrite
+      invoice_footer:       saved.invoice_footer       || prev.invoice_footer       || 'شکریہ! دوبارہ تشریف لائیں',
+      quotation_footer:     saved.quotation_footer     || prev.quotation_footer     || 'یہ صرف قیمت نامہ ہے',
+      print_size:           saved.print_size           || prev.print_size           || 'thermal',
+      print_mode:           saved.print_mode           || prev.print_mode           || 'manual',
+      wa_reminder_template: saved.wa_reminder_template || prev.wa_reminder_template || '',
+      wa_bill_template:     saved.wa_bill_template     || prev.wa_bill_template     || '',
+    }))
+
+    // If no local logo yet, seed from Supabase
+    if (data.logo_url) {
+      setLogoUrl(prev => prev || data.logo_url)
+    }
   }
 
   const fetchPlanInfo = async () => {
@@ -104,6 +122,9 @@ function Settings() {
       if (!error && data) {
         setPlanInfo(data)
         localStorage.setItem('plan_limits', JSON.stringify(data))
+        if (data.features) {
+          localStorage.setItem('plan_features', JSON.stringify(data.features))
+        }
       }
     } catch (e) {
       console.error('Settings Plan Fetch Error', e)
@@ -113,45 +134,79 @@ function Settings() {
   const handleUpdate = async (e) => {
     e.preventDefault()
     setSaving(true)
+
+    const sid = Number(user.shop_id)
+
+    // Merge latest logo into full settings for localStorage / bill printing
+    const fullSettings = { ...form, logo_url: logoUrl }
+
+    // Save everything to localStorage immediately — this is the source of truth
+    // for print preferences, WA templates, footers, print size etc.
+    localStorage.setItem('shop_settings_full', JSON.stringify(fullSettings))
+    localStorage.setItem('shop_name', form.name || 'Sanitary POS')
+
+    // Only send columns that are guaranteed to exist in the shops table to Supabase.
+    // Extra fields (invoice_footer, print_size, wa_templates etc.) may not be DB columns
+    // — storing them in localStorage is sufficient since all features read from there.
+    const supabasePayload = {
+      name: form.name,
+      phone: form.phone,
+      address: form.address,
+    }
+
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
-      const sid = Number(user.shop_id)
-      const { error } = await supabase.from('shops').update(form).eq('id', sid)
-      
-      if (error) {
-        if (error.message?.includes('column') || error.code === 'PGRST116') {
-          throw new Error('Supabase says some columns are missing. Ensure you run the Repair SQL in your Supabase SQL Editor.')
-        }
-        throw error
-      }
-      
-      await db.shops.put({ ...form, id: sid })
-      localStorage.setItem('shop_settings_full', JSON.stringify(form))
-      localStorage.setItem('shop_logo', form.logo_url || '')
-      localStorage.setItem('shop_name', form.name || 'Sanitary POS')
+      const { error } = await supabase.from('shops').update(supabasePayload).eq('id', sid)
+      if (error) throw error
+
+      // Also persist full settings to Dexie for offline reads
+      await db.shops.put({ ...fullSettings, id: sid })
 
       window.dispatchEvent(new Event('storage'))
-      alert('Settings updated successfully! ✅')
+      alert('Settings saved successfully! ✅')
     } catch (err) {
       const errMsg = err?.message || String(err)
       if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-        const sid = Number(user.shop_id)
-        const payload = { ...form, id: sid }
-        await db.shops.put(payload)
-        await addToSyncQueue('shops', 'UPDATE', payload)
-        
-        localStorage.setItem('shop_settings_full', JSON.stringify(form))
-        localStorage.setItem('shop_logo', form.logo_url || '')
-        localStorage.setItem('shop_name', form.name || 'Sanitary POS')
-        
+        await db.shops.put({ ...fullSettings, id: sid })
+        await addToSyncQueue('shops', 'UPDATE', { id: sid, ...supabasePayload })
         window.dispatchEvent(new Event('storage'))
-        alert('Offline mode: Settings saved to device only. 🔄')
+        alert('Offline mode: Settings saved to device. Will sync when online. 🔄')
       } else {
-        alert('Update Failed: ' + errMsg)
+        alert('Save failed: ' + errMsg)
       }
     } finally {
       setSaving(false)
     }
+  }
+
+  // Compress image using canvas — reduces a 2MB photo to ~15-30KB
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const objectUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+        const MAX = 300
+        let w = img.width
+        let h = img.height
+        // Scale down proportionally
+        if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX }
+        else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX }
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+        // JPEG at 75% quality — typically 10-30KB for a logo
+        resolve(canvas.toDataURL('image/jpeg', 0.75))
+      }
+      img.onerror = () => {
+        // Fallback: read as-is if canvas fails
+        const reader = new FileReader()
+        reader.onload = evt => resolve(evt.target.result)
+        reader.readAsDataURL(file)
+      }
+      img.src = objectUrl
+    })
   }
 
   const handleLogoUpload = async (e) => {
@@ -159,55 +214,86 @@ function Settings() {
     const file = e.target.files[0]
     if (!file) return
 
-    // First, convert to base64 and save locally (works offline too)
-    const reader = new FileReader()
-    reader.onload = async (evt) => {
-      const base64 = evt.target.result
+    setSaving(true)
+    try {
+      const compressed = await compressImage(file)
+
+      // 1. Update dedicated logo state immediately — this is the single source of truth
+      setLogoUrl(compressed)
+      localStorage.setItem(LOGO_KEY, compressed)
+      localStorage.setItem('shop_logo', compressed) // legacy key for POS/bill printing
+
+      // 2. Keep form.logo_url in sync so bill printing works
       setForm(prev => {
-        const updated = { ...prev, logo_url: base64 }
+        const updated = { ...prev, logo_url: compressed }
         localStorage.setItem('shop_settings_full', JSON.stringify(updated))
         return updated
       })
-      localStorage.setItem('shop_logo', base64)
-      // Also save to local DB immediately
-      try {
-        await db.shops.update(sid, { logo_url: base64 })
-      } catch (e) { console.warn('Local DB logo save:', e) }
-    }
-    reader.readAsDataURL(file)
 
-    // Then try to upload to Supabase Storage for cloud URL
-    setSaving(true)
-    try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.shop_id}_logo_${Date.now()}.${fileExt}`
+      // 3. Save to Dexie
+      try { await db.shops.update(sid, { logo_url: compressed }) } catch (_) { /* ignore */ }
 
-      const { error: uploadError } = await supabase.storage
-        .from('shop-assets')
-        .upload(fileName, file)
+      // 4. Notify Layout (and any other listener) to refresh logo immediately
+      window.dispatchEvent(new Event('storage'))
 
-      if (!uploadError) {
-        const { data } = supabase.storage
-          .from('shop-assets')
-          .getPublicUrl(fileName)
-        // Replace base64 with public URL (smaller, better for cloud)
-        setForm(prev => {
-          const updated = { ...prev, logo_url: data.publicUrl }
-          localStorage.setItem('shop_settings_full', JSON.stringify(updated))
-          return updated
-        })
-        localStorage.setItem('shop_logo', data.publicUrl)
-        try {
-          await db.shops.update(sid, { logo_url: data.publicUrl })
-        } catch (e) { /* ignore */ }
+      // 5. Try Supabase (best effort — app works fine without it)
+      if (navigator.onLine) {
+        const { error } = await supabase.from('shops').update({ logo_url: compressed }).eq('id', sid)
+        if (error) console.warn('Logo Supabase save failed (non-critical):', error.message)
       }
 
-      alert('Logo saved! Click "Save Settings" to sync to cloud. ✅')
-    } catch (error) {
-      // base64 version already saved locally, so this is non-critical
-      alert('Logo saved locally! Cloud upload failed: ' + error.message)
+      alert('Logo saved! ✅')
+    } catch (err) {
+      console.error('Logo upload error:', err)
+      alert('Logo upload failed: ' + (err?.message || String(err)))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const printSalesReport = async () => {
+    setReportLoading(true)
+    try {
+      const now = new Date()
+      let fromDate
+      if (reportPeriod === 'today') {
+        fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+      } else if (reportPeriod === 'week') {
+        const d = new Date(now); d.setDate(d.getDate() - 6); d.setHours(0,0,0,0)
+        fromDate = d.toISOString()
+      } else {
+        const d = new Date(now.getFullYear(), now.getMonth(), 1)
+        fromDate = d.toISOString()
+      }
+
+      let sales = [], saleItems = []
+      if (navigator.onLine) {
+        const { data: s } = await supabase.from('sales').select('*').eq('shop_id', user.shop_id).gte('created_at', fromDate).order('created_at', { ascending: false })
+        sales = s || []
+        if (sales.length > 0) {
+          const ids = sales.map(s => s.id)
+          const { data: si } = await supabase.from('sale_items').select('*').in('sale_id', ids)
+          saleItems = si || []
+        }
+      } else {
+        sales = await db.sales.where('shop_id').equals(user.shop_id).filter(s => s.created_at >= fromDate).toArray()
+        const ids = sales.map(s => s.id)
+        saleItems = await db.sale_items.where('sale_id').anyOf(ids).toArray()
+      }
+
+      if (sales.length === 0) {
+        alert('No sales found for the selected period.')
+        return
+      }
+
+      const shopSettings = { ...form, print_template: printTemplate }
+      const win = window.open('', '_blank')
+      win.document.write(buildSalesReportHTML(sales, saleItems, reportPeriod, shopSettings))
+      win.document.close()
+    } catch (err) {
+      alert('Report failed: ' + err.message)
+    } finally {
+      setReportLoading(false)
     }
   }
 
@@ -241,46 +327,53 @@ function Settings() {
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-bold text-gray-600 mb-1">Store Logo</label>
-              <div className="flex gap-4 items-start">
-                <div className="flex-1 space-y-2">
-                  <input
-                    type="text"
-                    value={form.logo_url}
-                    onChange={e => setForm({ ...form, logo_url: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                    placeholder="URL: https://example.com/logo.png"
-                  />
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      id="logo-upload"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleLogoUpload}
-                    />
-                    <label
-                      htmlFor="logo-upload"
-                      className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition border border-gray-200"
-                    >
-                      {saving ? 'Uploading...' : '📁 Upload Image'}
-                    </label>
-                    <p className="text-[10px] text-gray-400">Direct upload or paste a link.</p>
-                  </div>
+              <div className="flex gap-4 items-center">
+                {/* Preview — reads from logoUrl state, never from form */}
+                <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {logoUrl
+                    ? <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                    : <span className="text-2xl">🏪</span>
+                  }
                 </div>
-                {form.logo_url && (
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="w-16 h-16 rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                      <img src={form.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
-                    </div>
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="file"
+                    id="logo-upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                  <label
+                    htmlFor="logo-upload"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer transition shadow-sm"
+                  >
+                    {saving ? '⏳ Saving...' : '📁 Upload New Logo'}
+                  </label>
+                  {logoUrl && (
                     <button
                       type="button"
-                      onClick={() => setForm(prev => ({ ...prev, logo_url: '' }))}
-                      className="text-[10px] text-red-500 hover:text-red-700 font-bold uppercase tracking-wide bg-red-50 px-2 py-0.5 rounded"
+                      onClick={async () => {
+                        const sid = Number(user.shop_id)
+                        setLogoUrl('')
+                        localStorage.removeItem(LOGO_KEY)
+                        localStorage.setItem('shop_logo', '')
+                        setForm(prev => {
+                          const updated = { ...prev, logo_url: '' }
+                          localStorage.setItem('shop_settings_full', JSON.stringify(updated))
+                          return updated
+                        })
+                        try { await db.shops.update(sid, { logo_url: '' }) } catch (_) { /* ignore */ }
+                        if (navigator.onLine) {
+                          supabase.from('shops').update({ logo_url: '' }).eq('id', sid).then(() => {})
+                        }
+                      }}
+                      className="text-xs text-red-500 hover:text-red-700 font-bold text-left"
                     >
-                      Remove
+                      ✕ Remove Logo
                     </button>
-                  </div>
-                )}
+                  )}
+                  <p className="text-[10px] text-gray-400 leading-relaxed">JPG, PNG, or SVG. Saved automatically on select.</p>
+                </div>
               </div>
             </div>
             <div>
@@ -400,7 +493,7 @@ function Settings() {
             <p className="text-xs text-gray-400 mt-0.5">Import, export or reset your local store data.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
+            {hasFeature('offline_sync') && <button
               onClick={async () => {
                 if (!navigator.onLine) {
                   alert('Aap abhi offline hain! Pehle internet se connect karein.');
@@ -461,7 +554,7 @@ function Settings() {
               className="px-4 py-2 border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl transition font-bold text-sm shadow-sm disabled:opacity-50"
             >
               {saving ? '⏳ Downloading...' : '⬇️ Download All for Offline'}
-            </button>
+            </button>}
             <button
               onClick={async () => {
                 if (confirm('Local cache clear krne se data re-fetch hoga. Continue?')) {
@@ -483,7 +576,7 @@ function Settings() {
             >
               🧹 Clear All Cache
             </button>
-            <button
+            {hasFeature('offline_sync') && <button
               onClick={async () => {
                 const { syncOfflineData } = await import('../services/syncService')
                 await syncOfflineData()
@@ -493,11 +586,12 @@ function Settings() {
               className="px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition font-bold text-sm shadow-sm"
             >
               🔄 Sync Now
-            </button>
+            </button>}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {hasFeature('data_export') ? (
           <div className="p-4 bg-green-50/50 rounded-2xl border border-green-100 flex flex-col gap-3">
             <div>
               <p className="font-bold text-green-800 text-sm">Export All Data</p>
@@ -582,6 +676,14 @@ function Settings() {
               📊 Export to Excel
             </button>
           </div>
+          ) : (
+          <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-200 flex flex-col gap-3 opacity-60">
+            <div>
+              <p className="font-bold text-gray-500 text-sm flex items-center gap-2">Export All Data <span className="text-xs">🔒</span></p>
+              <p className="text-[10px] text-gray-400">Upgrade your plan to enable data export and backup.</p>
+            </div>
+          </div>
+          )}
 
           <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col gap-3">
             <div>
@@ -661,6 +763,71 @@ function Settings() {
         </div>
       </div>
 
+
+      {/* ── Billing Template Selector ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-gray-50 px-6 py-4 border-b">
+          <h2 className="font-bold text-gray-700">Billing Template</h2>
+          <p className="text-xs text-gray-400">Choose how your receipts and invoices look when printed. Works for both 80mm thermal and A4.</p>
+        </div>
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { id: '1', name: 'Simple', desc: 'Minimal & clean. No logo area, compact spacing. Fast to print.', icon: '📄' },
+            { id: '2', name: 'Classic', desc: 'Standard receipt style with logo, dashed lines and item table. Recommended.', icon: '🧾' },
+            { id: '3', name: 'Professional', desc: 'Full invoice look — letterhead, invoice number box, PAID stamp, signature line.', icon: '📋' },
+          ].map(t => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => { setPrintTemplate(t.id); localStorage.setItem('print_template', t.id) }}
+              className={`text-left p-4 rounded-xl border-2 transition ${printTemplate === t.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+            >
+              <div className="text-2xl mb-2">{t.icon}</div>
+              <div className="font-bold text-gray-800 flex items-center gap-2">
+                {t.name}
+                {printTemplate === t.id && <span className="text-[10px] font-black bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase">Active</span>}
+              </div>
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed">{t.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Sales Reports ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-gray-50 px-6 py-4 border-b">
+          <h2 className="font-bold text-gray-700">Print Sales Report</h2>
+          <p className="text-xs text-gray-400">Generate and print a daily, weekly, or monthly sales summary with revenue breakdown.</p>
+        </div>
+        <div className="p-6">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { id: 'today', label: "📅 Today" },
+                { id: 'week',  label: "📆 This Week" },
+                { id: 'month', label: "🗓️ This Month" },
+              ].map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setReportPeriod(p.id)}
+                  className={`px-4 py-2 rounded-xl border font-bold text-sm transition ${reportPeriod === p.id ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={printSalesReport}
+              disabled={reportLoading}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-100 disabled:opacity-50 text-sm whitespace-nowrap"
+            >
+              {reportLoading ? '⏳ Loading...' : '🖨️ Print Report'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-4">Report includes: total revenue, cash/card/credit breakdown, outstanding balance, discount given, and full transaction list.</p>
+        </div>
+      </div>
 
       {/* Plan & Subscription */}
       {planInfo && (
@@ -757,15 +924,26 @@ function Settings() {
               return
             }
             setClearing(true)
-            const tables = ['products', 'categories', 'brands', 'customers', 'suppliers', 'sales', 'sale_items', 'purchases', 'purchase_items', 'expenses', 'customer_payments', 'supplier_payments']
             try {
               if (navigator.onLine) {
-                for (const t of tables) {
+                // Delete child items first (no shop_id column — must delete by parent IDs)
+                const { data: shopSales } = await supabase.from('sales').select('id').eq('shop_id', user.shop_id)
+                const saleIds = (shopSales || []).map(s => s.id)
+                if (saleIds.length) await supabase.from('sale_items').delete().in('sale_id', saleIds)
+
+                const { data: shopPurchases } = await supabase.from('purchases').select('id').eq('shop_id', user.shop_id)
+                const purchaseIds = (shopPurchases || []).map(p => p.id)
+                if (purchaseIds.length) await supabase.from('purchase_items').delete().in('purchase_id', purchaseIds)
+
+                // Now delete all shop_id-scoped tables
+                const shopIdTables = ['products', 'categories', 'brands', 'customers', 'suppliers', 'sales', 'purchases', 'expenses', 'customer_payments', 'supplier_payments', 'audit_logs']
+                for (const t of shopIdTables) {
                   await supabase.from(t).delete().eq('shop_id', user.shop_id)
                 }
               }
-              // Clear local DB tables
-              for (const t of tables) {
+              // Clear all local Dexie tables
+              const allTables = ['products', 'categories', 'brands', 'customers', 'suppliers', 'sales', 'sale_items', 'purchases', 'purchase_items', 'expenses', 'customer_payments', 'supplier_payments', 'audit_logs']
+              for (const t of allTables) {
                 if (db[t]) await db[t].clear()
               }
               await db.trash.clear()

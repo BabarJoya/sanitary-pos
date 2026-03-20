@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { Link } from 'react-router-dom'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 
 function WhatsAppMessaging() {
   const { user } = useAuth()
@@ -21,6 +23,7 @@ function WhatsAppMessaging() {
       // Fetch Shop Settings (for templates)
       const { data: shopData } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
       setShop(shopData)
+      if (shopData) await db.shops.put(shopData)
 
       // Fetch Customers with outstanding balance
       const { data: custData, error } = await supabase
@@ -72,6 +75,7 @@ function WhatsAppMessaging() {
     (c.phone || '').includes(searchTerm)
   )
 
+  if (!hasFeature('whatsapp')) return <UpgradeWall feature="whatsapp" />
   if (loading) return <div className="p-8">Loading debt list...</div>
 
   return (

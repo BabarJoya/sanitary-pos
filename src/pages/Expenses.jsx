@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 
 function Expenses() {
   const { user } = useAuth()
@@ -190,6 +192,8 @@ function Expenses() {
       setSelected(expenses.map(x => x.id))
     }
   }
+
+  if (!hasFeature('expenses')) return <UpgradeWall feature="expenses" />
 
   return (
     <div className="space-y-6">

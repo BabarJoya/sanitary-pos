@@ -4,7 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
+import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
+import { hasFeature } from '../utils/featureGate'
 
 function Products() {
   const [products, setProducts] = useState([])
@@ -272,12 +274,14 @@ function Products() {
             className="hidden"
             accept=".xlsx, .xls, .csv"
           />
-          <button
-            onClick={() => fileInputRef.current.click()}
-            className="px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm"
-          >
-            <span>📥</span> Import
-          </button>
+          {hasFeature('bulk_import') && (
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm"
+            >
+              <span>📥</span> Import
+            </button>
+          )}
           <button
             onClick={handleExport}
             className="px-4 py-2 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm shadow-blue-50"

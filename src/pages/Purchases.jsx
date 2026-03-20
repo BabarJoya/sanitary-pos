@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
@@ -228,9 +230,11 @@ function Purchases() {
     if (!supplierId) return alert('Pehle supplier select karein!')
 
     setSaving(true)
+    // Sanitize integer FK — offline-created suppliers have UUID ids
+    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
     const purchaseData = {
       shop_id: user.shop_id,
-      supplier_id: supplierId,
+      supplier_id: toIntOrNull(supplierId),
       total_amount: total,
       paid_amount: paymentType === 'cash' ? total : 0,
       payment_type: paymentType,
@@ -247,7 +251,7 @@ function Purchases() {
       // 2. Save Purchase Items
       const items = cart.map(i => ({
         purchase_id: purchase.id,
-        product_id: i.id,
+        product_id: toIntOrNull(i.id),
         product_name: i.name,
         quantity: i.qty,
         unit_price: i.purchase_price,
@@ -350,6 +354,8 @@ function Purchases() {
       (p.brand || '').toLowerCase().includes(search.toLowerCase())) &&
     (selectedBrand ? String(p.brand) === String(selectedBrand) : true)
   )
+
+  if (!hasFeature('purchases')) return <UpgradeWall feature="purchases" />
 
   return (
     <div className="flex flex-col md:flex-row gap-4 overflow-hidden" style={{ height: 'calc(100vh - 112px)' }}>

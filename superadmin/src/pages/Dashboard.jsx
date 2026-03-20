@@ -163,7 +163,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
-        <div className="lg:col-span-4 bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
+        <div className="lg:col-span-4 bg-white rounded-2xl p-6 lg:p-8 shadow-sm border border-slate-100">
           <h2 className="text-xl font-bold text-slate-800 mb-2">Welcome, Superadmin</h2>
           <p className="text-slate-500 mb-6 text-sm">
             Manage your POS platform, monitor GMV, and handle shop subscriptions from one central dashboard.
@@ -186,7 +186,7 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        <div className="lg:col-span-3 bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
+        <div className="lg:col-span-3 bg-white rounded-2xl p-6 lg:p-8 shadow-sm border border-slate-100">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
               <Clock size={24} />
@@ -225,7 +225,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="lg:col-span-5 bg-white rounded-2xl p-8 shadow-sm border border-slate-100 flex flex-col">
+        <div className="lg:col-span-5 bg-white rounded-2xl p-6 lg:p-8 shadow-sm border border-slate-100 flex flex-col">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-orange-100 p-2 rounded-lg text-orange-600">
               <Megaphone size={24} />
@@ -236,7 +236,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <form onSubmit={handlePostAnnouncement} className="mb-6 flex gap-2">
+          <form onSubmit={handlePostAnnouncement} className="mb-6 flex flex-col sm:flex-row gap-2">
             <select
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               value={newAnnouncement.type}

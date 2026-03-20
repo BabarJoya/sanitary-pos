@@ -57,34 +57,13 @@ class RLSSessionManager {
 
             // Validate user data
             if (!user.id || !user.shop_id || !user.role) {
-                console.warn('⚠️ Incomplete user data in localStorage')
                 this.sessionRestored = false
                 return { success: false, reason: 'invalid_user_data' }
             }
 
-            // Set RLS session claims
-            const { error } = await supabase.rpc('set_custom_claims', {
-                user_id: user.id,
-                shop_id: user.shop_id,
-                user_role: user.role
-            })
-
-            if (error) {
-                console.error('❌ Failed to restore RLS session:', error.message)
-                this.sessionRestored = false
-                return { success: false, reason: 'rpc_error', error }
-            }
-
             this.sessionRestored = true
-            console.log('✅ RLS session restored:', {
-                shop_id: user.shop_id,
-                role: user.role,
-                user_id: user.id.substring(0, 8) + '...'
-            })
-
             return { success: true, user }
         } catch (err) {
-            console.error('❌ Error restoring RLS session:', err)
             this.sessionRestored = false
             return { success: false, reason: 'exception', error: err }
         }
@@ -94,24 +73,11 @@ class RLSSessionManager {
      * Set session claims after login
      */
     async setSession(user) {
-        try {
-            const { error } = await supabase.rpc('set_custom_claims', {
-                user_id: user.id,
-                shop_id: user.shop_id,
-                user_role: user.role
-            })
-
-            if (error) {
-                console.error('❌ Failed to set session:', error)
-                return { success: false, error }
-            }
-
+        if (user?.id && user?.shop_id && user?.role) {
             this.sessionRestored = true
             return { success: true }
-        } catch (err) {
-            console.error('❌ Error setting session:', err)
-            return { success: false, error: err }
         }
+        return { success: false, error: 'Invalid user data' }
     }
 
     /**
@@ -124,13 +90,8 @@ class RLSSessionManager {
     /**
      * Check if session is currently active
      */
-    async isActive() {
-        try {
-            const { data, error } = await supabase.rpc('current_shop_id')
-            return !error && data !== null
-        } catch {
-            return false
-        }
+    isActive() {
+        return this.sessionRestored && !!localStorage.getItem('user')
     }
 
     /**
@@ -219,32 +180,14 @@ export const db = {
      * RPC call with automatic session check
      */
     async rpc(functionName, params = {}) {
-        // Don't check session for session management functions themselves
-        const sessionFunctions = ['secure_login', 'set_custom_claims', 'current_shop_id', 'current_role']
-        if (!sessionFunctions.includes(functionName)) {
-            await rlsSession.ensureSession()
-        }
-
+        await rlsSession.ensureSession()
         return supabase.rpc(functionName, params)
     }
 }
 
 // Auto-restore session when module loads
 if (typeof window !== 'undefined') {
-    // Restore immediately
     rlsSession.restore()
-
-    // Re-restore on visibility change (user comes back to tab)
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-            rlsSession.restore()
-        }
-    })
-
-    // Re-restore on focus (extra safety)
-    window.addEventListener('focus', () => {
-        rlsSession.restore()
-    })
 }
 
 // Named exports for backward compatibility

@@ -2,6 +2,7 @@ import { useAuth } from '../context/AuthContext'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../services/supabase'
+import { hasFeature } from '../utils/featureGate'
 
 function Layout({ children }) {
   const { user, logout, stopImpersonating } = useAuth()
@@ -10,7 +11,9 @@ function Layout({ children }) {
 
   const [lowStock, setLowStock] = useState([])
   const [shopName, setShopName] = useState(localStorage.getItem('shop_name') || 'EDGEX POS')
-  const [shopLogo, setShopLogo] = useState('')
+  const [shopLogo, setShopLogo] = useState(
+    localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+  )
   const [announcements, setAnnouncements] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
@@ -42,23 +45,34 @@ function Layout({ children }) {
       if (data?.name) {
         setShopName(data.name)
         localStorage.setItem('shop_name', data.name)
-        if (data.logo_url) {
-          setShopLogo(data.logo_url)
-          localStorage.setItem('shop_logo', data.logo_url)
-        }
-      } else {
-        // Safe fallback if shop data is missing or empty
-        const cachedName = localStorage.getItem('shop_name')
-        if (cachedName) setShopName(cachedName)
+      }
+      // For logo: always prefer the locally-saved version (set immediately on upload)
+      // Only fall back to Supabase value if we have nothing locally
+      const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+      if (localLogo) {
+        setShopLogo(localLogo)
+      } else if (data?.logo_url) {
+        setShopLogo(data.logo_url)
+        localStorage.setItem('shop_logo', data.logo_url)
       }
     } catch (e) {
-      // Fallback to cached values
       const cachedName = localStorage.getItem('shop_name')
       if (cachedName) setShopName(cachedName)
+      const cachedLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+      if (cachedLogo) setShopLogo(cachedLogo)
     }
   }
 
   useEffect(() => {
+    // Re-read logo + shop name whenever Settings saves them to localStorage
+    const handleStorage = () => {
+      const freshLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+      const freshName = localStorage.getItem('shop_name') || ''
+      if (freshLogo) setShopLogo(freshLogo)
+      if (freshName) setShopName(freshName)
+    }
+    window.addEventListener('storage', handleStorage)
+
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
@@ -77,6 +91,7 @@ function Layout({ children }) {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
       document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('storage', handleStorage)
     }
   }, [])
 
@@ -181,7 +196,7 @@ function Layout({ children }) {
               <NavItem to="/categories" icon="🗂️" label="Categories" active={location.pathname === '/categories'} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('brands', ['admin', 'manager']) && (
-              <NavItem to="/brands" icon="🏷️" label="Brands" active={location.pathname === '/brands'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/brands" icon="🏷️" label="Brands" active={location.pathname === '/brands'} locked={!hasFeature('brands')} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('inventory', ['admin', 'manager', 'accountant']) && (
               <NavItem to="/inventory" icon="📋" label="Stock Inventory" active={location.pathname === '/inventory'} onClick={() => setSidebarOpen(false)} />
@@ -192,29 +207,32 @@ function Layout({ children }) {
               <NavItem to="/customers" icon="👥" label="Customers" active={location.pathname === '/customers'} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/whatsapp" icon="📲" label="WhatsApp Reminders" active={location.pathname === '/whatsapp'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/customer-ledger" icon="📒" label="Customer Ledger" active={location.pathname === '/customer-ledger'} locked={!hasFeature('customer_ledger')} onClick={() => setSidebarOpen(false)} />
+            )}
+            {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
+              <NavItem to="/whatsapp" icon="📲" label="WhatsApp Reminders" active={location.pathname === '/whatsapp'} locked={!hasFeature('whatsapp')} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('sales', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/sales" icon="💰" label="Sales History" active={location.pathname === '/sales'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/sales" icon="💰" label="Sales History" active={location.pathname === '/sales'} locked={!hasFeature('sales_history')} onClick={() => setSidebarOpen(false)} />
             )}
 
             <NavHeader label="Procurement" />
             {hasAccess('suppliers', ['admin', 'manager']) && (
-              <NavItem to="/suppliers" icon="🚚" label="Suppliers" active={location.pathname === '/suppliers'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/suppliers" icon="🚚" label="Suppliers" active={location.pathname === '/suppliers'} locked={!hasFeature('suppliers')} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('purchases', ['admin', 'manager']) && (
-              <NavItem to="/purchases" icon="🛍️" label="Purchases" active={location.pathname === '/purchases'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/purchases" icon="🛍️" label="Purchases" active={location.pathname === '/purchases'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('purchase-history', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/purchase-history" icon="📜" label="Purchase History" active={location.pathname === '/purchase-history'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/purchase-history" icon="📜" label="Purchase History" active={location.pathname === '/purchase-history'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} />
             )}
 
             <NavHeader label="Accounts & Admin" />
             {hasAccess('expenses', ['admin']) && (
-              <NavItem to="/expenses" icon="💸" label="Expenses" active={location.pathname === '/expenses'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/expenses" icon="💸" label="Expenses" active={location.pathname === '/expenses'} locked={!hasFeature('expenses')} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('reports', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/reports" icon="📈" label="Reports" active={location.pathname === '/reports'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/reports" icon="📈" label="Reports" active={location.pathname === '/reports'} locked={!hasFeature('reports')} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('users', ['admin']) && (
               <NavItem to="/users" icon="👨‍💼" label="Manage Users" active={location.pathname === '/users'} onClick={() => setSidebarOpen(false)} />
@@ -225,7 +243,7 @@ function Layout({ children }) {
               <NavItem to="/settings" icon="⚙️" label="Settings" active={location.pathname === '/settings'} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('trash', ['admin']) && (
-              <NavItem to="/trash" icon="🗑️" label="Trash Bin" active={location.pathname === '/trash'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/trash" icon="🗑️" label="Trash Bin" active={location.pathname === '/trash'} locked={!hasFeature('trash_bin')} onClick={() => setSidebarOpen(false)} />
             )}
             <NavItem to="/support" icon="🆘" label="Help & Support" active={location.pathname === '/support'} onClick={() => setSidebarOpen(false)} />
           </ul>
@@ -441,19 +459,23 @@ function NavHeader({ label }) {
   )
 }
 
-function NavItem({ to, icon, label, active, onClick }) {
+function NavItem({ to, icon, label, active, onClick, locked }) {
   return (
     <li>
       <Link
         to={to}
         onClick={onClick}
-        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition font-bold text-sm ${active
-          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
-          : 'text-gray-400 hover:bg-gray-800 hover:text-white active:scale-95'
-          }`}
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition font-bold text-sm ${
+          active
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
+            : locked
+              ? 'text-gray-600 opacity-50 hover:bg-gray-800 hover:opacity-70'
+              : 'text-gray-400 hover:bg-gray-800 hover:text-white active:scale-95'
+        }`}
       >
         <span className="text-xl">{icon}</span>
-        <span>{label}</span>
+        <span className="flex-1">{label}</span>
+        {locked && <span className="text-xs ml-auto">🔒</span>}
       </Link>
     </li>
   )

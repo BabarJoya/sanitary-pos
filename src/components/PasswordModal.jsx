@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../services/supabase'
 import { db } from '../services/db'
 import { useAuth } from '../context/AuthContext'
+import { hashPassword } from '../utils/authUtils'
 
 function PasswordModal({ title, message, onConfirm, onCancel }) {
     const { user } = useAuth()
@@ -16,13 +17,16 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
         setError('')
 
         try {
+            // Hash the entered password exactly like Login.jsx does before comparing
+            const hashed = await hashPassword(password)
+
             // Try online verification first
             if (navigator.onLine) {
                 const { data, error: authErr } = await supabase
                     .from('users')
                     .select('id')
                     .eq('id', user.id)
-                    .eq('password', password)
+                    .eq('password', hashed)
                     .single()
 
                 if (authErr || !data) {
@@ -31,9 +35,9 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
                     return
                 }
             } else {
-                // Offline: check from local DB
+                // Offline: compare hash against locally cached user
                 const localUser = await db.users.get(user.id)
-                if (!localUser || localUser.password !== password) {
+                if (!localUser || localUser.password !== hashed) {
                     setError('Incorrect password! ❌')
                     setVerifying(false)
                     return
@@ -44,8 +48,9 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
         } catch (err) {
             // Fallback to local DB if online check fails
             try {
+                const hashed = await hashPassword(password)
                 const localUser = await db.users.get(user.id)
-                if (!localUser || localUser.password !== password) {
+                if (!localUser || localUser.password !== hashed) {
                     setError('Incorrect password! ❌')
                     setVerifying(false)
                     return

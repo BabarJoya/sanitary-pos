@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 
@@ -269,6 +271,8 @@ function Suppliers() {
       setSelected(suppliers.map(x => x.id))
     }
   }
+
+  if (!hasFeature('suppliers')) return <UpgradeWall feature="suppliers" />
 
   return (
     <div>

@@ -142,9 +142,10 @@ export default function ShopsList() {
   const filtered = shops.filter(s => s.name?.toLowerCase().includes(search.toLowerCase()) || s.phone?.includes(search))
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="relative w-96">
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
           <input
             type="text"
@@ -154,129 +155,174 @@ export default function ShopsList() {
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-all active:scale-95 text-sm"
           >
-            <FileText size={20} className="text-emerald-500" />
-            Export Excel
+            <FileText size={18} className="text-emerald-500" />
+            Export
           </button>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-95 text-sm"
           >
-            <Plus size={20} />
-            Register New Shop
+            <Plus size={18} />
+            New Shop
           </button>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="bg-red-50 text-red-600 p-4 border border-red-200 rounded-xl flex items-center gap-2 font-bold">
+        <div className="bg-red-50 text-red-600 p-4 border border-red-200 rounded-xl flex items-center gap-2 font-bold text-sm">
           <AlertTriangle size={20} />
           {errorMsg}
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
-              <th className="p-4 pl-6">Shop ID</th>
-              <th className="p-4">Business Detail</th>
-              <th className="p-4">Location</th>
-              <th className="p-4 text-center">Users</th>
-              <th className="p-4 text-center">Status</th>
-              <th className="p-4 text-center">Joined</th>
-              <th className="p-4 text-center">Last Active</th>
-              <th className="p-4 text-right pr-6">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {loading ? (
-              <tr><td colSpan="7" className="p-8 text-center text-slate-400 line-pulse">Loading tenants...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan="7" className="p-8 text-center text-slate-400">No shops found matching your search.</td></tr>
-            ) : (
-              filtered.map(shop => (
-                <tr key={shop.id} className="hover:bg-slate-50/50 transition">
-                  <td className="p-4 pl-6 font-mono text-xs text-slate-400">
-                    #{typeof shop.id === 'string' && shop.id.includes('-') ? shop.id.split('-')[0] : shop.id}
-                  </td>
-                  <td className="p-4">
-                    <p className="font-bold text-slate-800">{shop.name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{shop.phone || 'No phone'}</p>
-                    <p className="text-[10px] text-blue-600 mt-0.5 font-mono truncate max-w-[150px]" title={shop.email}>{shop.email || 'No email'}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-black uppercase tracking-widest border border-amber-200">
-                        {shop.subscription_plans?.name || shop.subscription_plan || 'TRIAL'}
-                      </span>
-                    </div>
-                    {shop.notes && <p className="text-[10px] text-slate-400 mt-1 italic line-clamp-2" title={shop.notes}>📝 {shop.notes}</p>}
-                  </td>
-                  <td className="p-4 text-slate-600 max-w-[200px] truncate" title={shop.address}>{shop.address || '-'}</td>
-                  <td className="p-4 text-center">
-                    <span className="bg-blue-50 text-blue-600 font-bold px-2.5 py-1 rounded-lg text-xs">
-                      {shop.userCount || 0}
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
+                <th className="p-4 pl-6">ID</th>
+                <th className="p-4">Business Detail</th>
+                <th className="p-4 hidden lg:table-cell">Location</th>
+                <th className="p-4 text-center">Users</th>
+                <th className="p-4 text-center">Status</th>
+                <th className="p-4 text-center hidden lg:table-cell">Joined</th>
+                <th className="p-4 text-center hidden xl:table-cell">Last Active</th>
+                <th className="p-4 text-right pr-6">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {loading ? (
+                <tr><td colSpan="8" className="p-8 text-center text-slate-400">Loading tenants...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan="8" className="p-8 text-center text-slate-400">No shops found.</td></tr>
+              ) : (
+                filtered.map(shop => (
+                  <tr key={shop.id} className="hover:bg-slate-50/50 transition">
+                    <td className="p-4 pl-6 font-mono text-xs text-slate-400">#{shop.id}</td>
+                    <td className="p-4">
+                      <p className="font-bold text-slate-800">{shop.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{shop.phone || 'No phone'}</p>
+                      <p className="text-[10px] text-blue-600 mt-0.5 font-mono truncate max-w-[150px]" title={shop.email}>{shop.email || 'No email'}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-black uppercase tracking-widest border border-amber-200">
+                          {shop.subscription_plans?.name || shop.subscription_plan || 'TRIAL'}
+                        </span>
+                      </div>
+                      {shop.notes && <p className="text-[10px] text-slate-400 mt-1 italic line-clamp-2" title={shop.notes}>📝 {shop.notes}</p>}
+                    </td>
+                    <td className="p-4 text-slate-600 max-w-[180px] truncate hidden lg:table-cell" title={shop.address}>{shop.address || '-'}</td>
+                    <td className="p-4 text-center">
+                      <span className="bg-blue-50 text-blue-600 font-bold px-2.5 py-1 rounded-lg text-xs">{shop.userCount || 0}</span>
+                    </td>
+                    <td className="p-4 text-center">
+                      {shop.status === 'active' || !shop.status ? (
+                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-full text-xs">
+                          <CheckCircle2 size={12} /> Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 font-bold px-2.5 py-1 rounded-full text-xs">
+                          <XCircle size={12} /> Suspended
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-center text-slate-500 text-xs hidden lg:table-cell">
+                      {new Date(shop.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="p-4 text-center text-slate-500 text-xs font-mono hidden xl:table-cell">
+                      {shop.last_sign_in_at ? new Date(shop.last_sign_in_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
+                    </td>
+                    <td className="p-4 pr-6 text-right">
+                      <div className="flex justify-end gap-1.5 flex-wrap">
+                        <button onClick={() => setManagingUsersShop(shop)} className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1">
+                          <Users size={13} /> Users
+                        </button>
+                        <button onClick={() => setEditingShop(shop)} className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1">
+                          <Edit size={13} /> Edit
+                        </button>
+                        <button onClick={() => handleImpersonate(shop)} className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1">
+                          <ExternalLink size={13} /> Login
+                        </button>
+                        <button
+                          onClick={() => toggleStatus(shop.id, shop.status || 'active')}
+                          className={`text-xs font-bold px-2.5 py-1.5 rounded-lg border transition ${shop.status === 'active' || !shop.status ? 'border-orange-200 text-orange-600 hover:bg-orange-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'}`}
+                        >
+                          {shop.status === 'active' || !shop.status ? 'Suspend' : 'Activate'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="bg-white rounded-2xl p-6 text-center text-slate-400 shadow-sm border border-slate-200">Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl p-6 text-center text-slate-400 shadow-sm border border-slate-200">No shops found.</div>
+        ) : (
+          filtered.map(shop => (
+            <div key={shop.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-black text-slate-800 text-base">{shop.name}</p>
+                  <p className="text-xs text-slate-500">{shop.phone || 'No phone'}</p>
+                  <p className="text-[10px] text-blue-600 font-mono truncate">{shop.email || 'No email'}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {shop.status === 'active' || !shop.status ? (
+                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded-full text-xs">
+                      <CheckCircle2 size={11} /> Active
                     </span>
-                  </td>
-                  <td className="p-4 text-center">
-                    {shop.status === 'active' || !shop.status ? (
-                      <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 font-bold px-3 py-1 rounded-full text-xs">
-                        <CheckCircle2 size={14} /> Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 font-bold px-3 py-1 rounded-full text-xs">
-                        <XCircle size={14} /> Suspended
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-4 text-center text-slate-500 text-xs">
-                    {new Date(shop.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="p-4 text-center text-slate-500 text-xs font-mono">
-                    {shop.last_sign_in_at ? new Date(shop.last_sign_in_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
-                  </td>
-                  <td className="p-4 pr-6 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setManagingUsersShop(shop)}
-                        title="Manage Staff/Users"
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1"
-                      >
-                        <Users size={14} /> Users
-                      </button>
-                      <button
-                        onClick={() => setEditingShop(shop)}
-                        title="Edit Shop Details"
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1"
-                      >
-                        <Edit size={14} /> Edit
-                      </button>
-                      <button
-                        onClick={() => handleImpersonate(shop)}
-                        title="Login as this shop"
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
-                      >
-                        <ExternalLink size={14} /> Login
-                      </button>
-                      <button
-                        onClick={() => toggleStatus(shop.id, shop.status || 'active')}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition ${shop.status === 'active' || !shop.status
-                          ? 'border-orange-200 text-orange-600 hover:bg-orange-50'
-                          : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                          }`}
-                      >
-                        {shop.status === 'active' || !shop.status ? 'Suspend' : 'Activate'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full text-xs">
+                      <XCircle size={11} /> Suspended
+                    </span>
+                  )}
+                  <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-black uppercase border border-amber-200">
+                    {shop.subscription_plans?.name || shop.subscription_plan || 'TRIAL'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 text-xs text-slate-500 border-t border-slate-100 pt-2">
+                <span>#{shop.id}</span>
+                <span>•</span>
+                <span>{shop.userCount || 0} users</span>
+                <span>•</span>
+                <span>{new Date(shop.created_at).toLocaleDateString()}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button onClick={() => setManagingUsersShop(shop)} className="text-xs font-bold py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center justify-center gap-1">
+                  <Users size={13} /> Users
+                </button>
+                <button onClick={() => setEditingShop(shop)} className="text-xs font-bold py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition flex items-center justify-center gap-1">
+                  <Edit size={13} /> Edit
+                </button>
+                <button onClick={() => handleImpersonate(shop)} className="text-xs font-bold py-2 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-1">
+                  <ExternalLink size={13} /> Login as Shop
+                </button>
+                <button
+                  onClick={() => toggleStatus(shop.id, shop.status || 'active')}
+                  className={`text-xs font-bold py-2 rounded-lg border transition flex items-center justify-center gap-1 ${shop.status === 'active' || !shop.status ? 'border-orange-200 text-orange-600 hover:bg-orange-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'}`}
+                >
+                  {shop.status === 'active' || !shop.status ? 'Suspend' : 'Activate'}
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {isModalOpen && (

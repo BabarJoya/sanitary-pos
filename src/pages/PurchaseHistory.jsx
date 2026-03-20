@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { hasFeature } from '../utils/featureGate'
+import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
@@ -178,7 +180,7 @@ function PurchaseHistory() {
             }
 
             // Audit Log
-            recordAuditLog(
+            await recordAuditLog(
                 'PURCHASE_RETURN',
                 'purchases',
                 selectedPurchase.id,
@@ -382,6 +384,8 @@ function PurchaseHistory() {
     const totalPurchaseValue = filtered.reduce((sum, p) => sum + Number(p.total_amount || 0), 0)
     const cashCount = filtered.filter(p => p.payment_type === 'cash').length
     const creditCount = filtered.filter(p => p.payment_type === 'credit').length
+
+    if (!hasFeature('purchases')) return <UpgradeWall feature="purchases" />
 
     return (
         <>
