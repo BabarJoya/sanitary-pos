@@ -9,6 +9,7 @@ function Users() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'cashier', is_active: true, permissions: [] })
 
