@@ -264,6 +264,9 @@ function CustomerLedger() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
+                        {ledger.length === 0 && (
+                            <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400 text-sm">No transactions found for this customer.</td></tr>
+                        )}
                         {ledger.map((item, idx) => (
                             <React.Fragment key={idx}>
                                 <tr className="hover:bg-gray-50 transition">

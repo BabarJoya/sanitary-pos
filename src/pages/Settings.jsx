@@ -250,13 +250,18 @@ function Settings() {
       // 4. Notify Layout (and any other listener) to refresh logo immediately
       window.dispatchEvent(new Event('storage'))
 
-      // 5. Try Supabase (best effort — app works fine without it)
+      // 5. Save to Supabase — required so logo shows on other devices
       if (navigator.onLine) {
         const { error } = await supabase.from('shops').update({ logo_url: compressed }).eq('id', sid)
-        if (error) console.warn('Logo Supabase save failed (non-critical):', error.message)
+        if (error) {
+          console.warn('Logo Supabase save failed:', error.message)
+          alert('Logo saved on this device ✅\n⚠️ Could not sync to server: ' + error.message + '\nLogo will not show on other devices until synced.')
+        } else {
+          alert('Logo saved & synced to server ✅')
+        }
+      } else {
+        alert('Logo saved on this device ✅\n(Offline — will sync when connected)')
       }
-
-      alert('Logo saved! ✅')
     } catch (err) {
       console.error('Logo upload error:', err)
       alert('Logo upload failed: ' + (err?.message || String(err)))
