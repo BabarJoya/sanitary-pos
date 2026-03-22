@@ -170,8 +170,16 @@ function Settings() {
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
-      const { error } = await supabase.from('shops').update(supabasePayload).eq('id', sid)
+
+      // Use RPC to bypass RLS (direct table UPDATE is silently blocked)
+      const { data: rpcResult, error } = await supabase.rpc('update_shop_settings', {
+        p_shop_id: sid,
+        p_name: form.name,
+        p_phone: form.phone,
+        p_address: form.address,
+      })
       if (error) throw error
+      if (rpcResult && !rpcResult.success) throw new Error(rpcResult.error || 'Update failed')
 
       // Also persist full settings to Dexie for offline reads
       await db.shops.put({ ...fullSettings, id: sid })
@@ -250,12 +258,16 @@ function Settings() {
       // 4. Notify Layout (and any other listener) to refresh logo immediately
       window.dispatchEvent(new Event('storage'))
 
-      // 5. Save to Supabase — required so logo shows on other devices
+      // 5. Save to Supabase via RPC — required so logo shows on other devices
       if (navigator.onLine) {
-        const { error } = await supabase.from('shops').update({ logo_url: compressed }).eq('id', sid)
-        if (error) {
-          console.warn('Logo Supabase save failed:', error.message)
-          alert('Logo saved on this device ✅\n⚠️ Could not sync to server: ' + error.message + '\nLogo will not show on other devices until synced.')
+        const { data: rpcResult, error } = await supabase.rpc('update_shop_settings', {
+          p_shop_id: sid,
+          p_logo_url: compressed,
+        })
+        if (error || (rpcResult && !rpcResult.success)) {
+          const msg = error?.message || rpcResult?.error || 'Unknown error'
+          console.warn('Logo Supabase save failed:', msg)
+          alert('Logo saved on this device ✅\n⚠️ Could not sync to server: ' + msg + '\nLogo will not show on other devices until synced.')
         } else {
           alert('Logo saved & synced to server ✅')
         }
@@ -382,7 +394,7 @@ function Settings() {
                         window.dispatchEvent(new Event('storage'))
                         try { await db.shops.update(sid, { logo_url: '' }) } catch (_) { /* ignore */ }
                         if (navigator.onLine) {
-                          supabase.from('shops').update({ logo_url: '' }).eq('id', sid).then(() => {})
+                          supabase.rpc('update_shop_settings', { p_shop_id: sid, p_logo_url: '' }).then(() => {})
                         }
                       }}
                       className="text-xs text-red-500 hover:text-red-700 font-bold text-left"
