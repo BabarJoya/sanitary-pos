@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { supabase } from '../services/supabase'
 import { db } from '../services/db'
 import { useAuth } from '../context/AuthContext'
 import { hashPassword } from '../utils/authUtils'
@@ -19,30 +18,23 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
         try {
             const hashed = await hashPassword(password)
 
-            // 1. Try Supabase first (online)
-            if (navigator.onLine) {
-                try {
-                    const { data } = await supabase
-                        .from('users')
-                        .select('id')
-                        .eq('id', user.id)
-                        .eq('password', hashed)
-                        .single()
-                    if (data) { onConfirm(); return }
-                } catch (_) { /* fall through to local checks */ }
-            }
-
-            // 2. Try IndexedDB (offline cache)
-            try {
-                const localUser = await db.users.get(user.id)
-                if (localUser?.password === hashed) { onConfirm(); return }
-            } catch (_) { /* fall through */ }
-
-            // 3. Try localStorage cached hash (set at login time)
+            // 1. localStorage cached hash — set at login, always reliable, works offline
+            //    This is the primary check. No Supabase needed.
             const cachedHash = localStorage.getItem('user_pw_hash')
             if (cachedHash && cachedHash === hashed) { onConfirm(); return }
 
-            // All checks failed
+            // 2. IndexedDB (Dexie) — fallback if localStorage was cleared
+            try {
+                const localUser = await db.users.get(user?.id)
+                if (localUser?.password === hashed) {
+                    // Re-populate localStorage cache for next time
+                    localStorage.setItem('user_pw_hash', hashed)
+                    onConfirm()
+                    return
+                }
+            } catch (_) { /* ignore */ }
+
+            // All checks failed — password is genuinely wrong
             setError('Incorrect password! ❌')
         } catch (err) {
             setError('Verification failed: ' + (err.message || String(err)))

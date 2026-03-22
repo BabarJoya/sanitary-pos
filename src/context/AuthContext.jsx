@@ -1,4 +1,5 @@
-import { createContext, useState, useContext } from 'react'
+import { createContext, useState, useContext, useEffect } from 'react'
+import { db } from '../services/db'
 
 const AuthContext = createContext(null)
 
@@ -8,11 +9,27 @@ export function AuthProvider({ children }) {
     return saved ? JSON.parse(saved) : null
   })
 
-  // To track the superadmin user when they impersonate a shop
   const [originalUser, setOriginalUser] = useState(() => {
     const saved = localStorage.getItem('originalUser')
     return saved ? JSON.parse(saved) : null
   })
+
+  // On every app load: if user is logged in but user_pw_hash is missing
+  // (e.g. existing session before this feature was added), try to restore
+  // the hash from IndexedDB so PasswordModal works without re-login.
+  useEffect(() => {
+    const restoreHash = async () => {
+      if (!user?.id) return
+      if (localStorage.getItem('user_pw_hash')) return // already cached
+      try {
+        const localUser = await db.users.get(user.id)
+        if (localUser?.password) {
+          localStorage.setItem('user_pw_hash', localUser.password)
+        }
+      } catch (_) { /* IndexedDB might be empty — user must re-login once */ }
+    }
+    restoreHash()
+  }, [user?.id])
 
   const login = (userData) => {
     setUser(userData)
@@ -20,11 +37,9 @@ export function AuthProvider({ children }) {
   }
 
   const impersonate = (shopId, shopData) => {
-    // Save the current superadmin
     setOriginalUser(user)
     localStorage.setItem('originalUser', JSON.stringify(user))
 
-    // Create a fake admin session for that shop
     const impersonatedUser = {
       id: `impersonated-${shopId}`,
       username: `Superadmin (${shopData.name})`,
@@ -61,6 +76,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('originalUser')
     localStorage.removeItem('shop_name')
     localStorage.removeItem('shop_logo')
+    localStorage.removeItem('user_pw_hash')
   }
 
   return (
