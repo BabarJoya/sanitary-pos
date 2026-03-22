@@ -597,13 +597,14 @@ function POS() {
 
     const shopSettings = {
       ...form,
-      name:             saved.name    || form.name,
-      phone:            saved.phone   || form.phone,
-      address:          saved.address || form.address,
+      name:             saved.name             || form.name,
+      phone:            saved.phone            || form.phone,
+      address:          saved.address          || form.address,
       invoice_footer:   saved.invoice_footer   || form.invoice_footer,
       quotation_footer: saved.quotation_footer || form.quotation_footer,
-      print_size:       saved.print_size       || form.print_size,
-      print_mode:       saved.print_mode       || form.print_mode,
+      print_size:       saved.print_size       || form.print_size       || 'thermal',
+      print_mode:       saved.print_mode       || form.print_mode       || 'manual',
+      print_template:   localStorage.getItem('print_template')          || '2',
       logo_url:         freshLogo,
     }
     return buildBillHTML(r, isQuotation, shopSettings)

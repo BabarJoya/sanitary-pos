@@ -68,6 +68,7 @@ function template1(r, isQuotation, s) {
   if (isThermal) {
     return `<html><head><title>${isQuotation ? 'Quotation' : 'Receipt'}</title>
     <style>
+      @page{size:80mm auto;margin:2mm}
       *{box-sizing:border-box}
       body{font-family:monospace;width:302px;margin:0 auto;padding:10px 8px;font-size:12px;background:#fff}
       p{margin:2px 0;line-height:1.4}
@@ -99,8 +100,9 @@ function template1(r, isQuotation, s) {
   // A4 Simple
   return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
   <style>
+    @page{size:A4 portrait;margin:12mm}
     *{box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:40px;color:#333;font-size:14px}
+    body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#333;font-size:14px}
     .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:24px}
     .shop-name{font-size:24px;font-weight:800;letter-spacing:-0.5px}
     .inv-box{text-align:right}
@@ -153,6 +155,7 @@ function template2(r, isQuotation, s) {
   if (isThermal) {
     return `<html><head><title>${isQuotation ? 'Quotation' : 'Receipt'}</title>
     <style>
+      @page{size:80mm auto;margin:2mm}
       *{box-sizing:border-box}
       body{font-family:monospace;width:302px;margin:0 auto;padding:12px 8px;font-size:12px;background:#fff}
       p{margin:2px 0;line-height:1.5}
@@ -195,6 +198,7 @@ function template2(r, isQuotation, s) {
   // A4 Classic
   return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
   <style>
+    @page{size:A4 portrait;margin:10mm}
     *{box-sizing:border-box}
     body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:0;color:#333;font-size:14px}
     .page{padding:40px;max-width:794px;margin:auto}
@@ -261,6 +265,7 @@ function template3(r, isQuotation, s) {
   if (isThermal) {
     return `<html><head><title>${isQuotation ? 'Quotation' : 'Receipt'}</title>
     <style>
+      @page{size:80mm auto;margin:2mm}
       *{box-sizing:border-box}
       body{font-family:monospace;width:302px;margin:0 auto;padding:10px 6px;font-size:12px;background:#fff;position:relative}
       p{margin:2px 0;line-height:1.5}
@@ -310,7 +315,7 @@ function template3(r, isQuotation, s) {
   // A4 Professional
   return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
   <style>
-    @page{margin:0} *{box-sizing:border-box}
+    @page{size:A4 portrait;margin:0} *{box-sizing:border-box}
     body{font-family:'Segoe UI',Arial,sans-serif;margin:0;color:#1a1a2e;font-size:14px;background:#fff}
     .page{padding:0;max-width:794px;margin:auto;min-height:1122px;display:flex;flex-direction:column}
     .letterhead{background:linear-gradient(135deg,#1e3a5f 0%,#2d6a9f 100%);padding:30px 40px;color:#fff}

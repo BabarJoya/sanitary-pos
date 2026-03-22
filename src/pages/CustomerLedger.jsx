@@ -35,10 +35,12 @@ function CustomerLedger() {
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
             const [custRes, salesRes, paymentsRes] = await Promise.race([fetchPromise, timeoutPromise])
 
+            // If customer not found, show not-found screen
+            if (!custRes.data) { setLoading(false); return }
             setCustomer(custRes.data)
 
-            const sales = salesRes.data
-            const payments = paymentsRes.data
+            const sales = salesRes.error ? [] : (salesRes.data || [])
+            const payments = paymentsRes.error ? [] : (paymentsRes.data || [])
 
             // 4. Combine into Ledger
             const combined = [
