@@ -68,19 +68,29 @@ function CustomerLedger() {
             // Calculate running balance
             let running = 0
             const withBalance = combined.map(item => {
-                // Sales increase balance, Payments decrease it (amount is negative for payments in DB usually, or handled here)
-                // Implementation choice: DB stores positive amounts for payments.
-                // So Sale item: + amount, Payment item: - amount.
-                // Sales increase balance (if credit), Payments decrease it
                 if (item.type === 'sale') {
                     if (item.payment_type === 'credit') running += item.amount
-                    // Cash sales don't affect balance in a credit ledger, 
-                    // but we show them for history as requested.
                 }
                 else running -= Math.abs(item.amount)
 
                 return { ...item, balance: running }
             })
+
+            // If customer has outstanding balance but no transactions explain it,
+            // add an "Opening Balance" entry so the ledger isn't confusingly empty
+            const ob = custRes.data.outstanding_balance || 0
+            if (withBalance.length === 0 && ob !== 0) {
+                withBalance.push({
+                    id: 'opening',
+                    date: custRes.data.created_at || new Date().toISOString(),
+                    type: 'sale',
+                    payment_type: 'credit',
+                    amount: Math.abs(ob),
+                    note: 'Opening Balance (previous dues)',
+                    items: [],
+                    balance: ob
+                })
+            }
 
             setLedger(withBalance.reverse()) // newest first for display
         } catch (e) {
@@ -128,6 +138,15 @@ function CustomerLedger() {
                     else running -= Math.abs(item.amount)
                     return { ...item, balance: running }
                 })
+                // Opening balance if no transactions but customer has dues
+                const cOb = cust?.outstanding_balance || 0
+                if (withBalance.length === 0 && cOb !== 0) {
+                    withBalance.push({
+                        id: 'opening', date: cust?.created_at || new Date().toISOString(),
+                        type: 'sale', payment_type: 'credit', amount: Math.abs(cOb),
+                        note: 'Opening Balance (previous dues)', items: [], balance: cOb
+                    })
+                }
                 setLedger(withBalance.reverse())
             } catch (err) { console.error('Final CustomerLedger Fallback Error:', err) }
         } finally {
@@ -323,11 +342,6 @@ function CustomerLedger() {
                                 )}
                             </React.Fragment>
                         ))}
-                        {ledger.length === 0 && (
-                            <tr>
-                                <td colSpan="5" className="px-6 py-12 text-center text-gray-400">No transactions found for this customer.</td>
-                            </tr>
-                        )}
                     </tbody>
                 </table>
                 </div>
