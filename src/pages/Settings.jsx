@@ -33,11 +33,22 @@ function Settings() {
     }
   })
   // Logo is managed completely separately from the rest of form state
-  // so fetchShop can never accidentally overwrite it
-  const LOGO_KEY = `shop_logo_${user?.shop_id || 'default'}`
+  // LOGO_KEY is stable once user.shop_id is known
+  const LOGO_KEY = `shop_logo_${user?.shop_id}`
   const [logoUrl, setLogoUrl] = useState(() => {
-    return localStorage.getItem(LOGO_KEY) || localStorage.getItem('shop_logo') || ''
+    const sid = user?.shop_id
+    return (sid ? localStorage.getItem(`shop_logo_${sid}`) : null)
+      || localStorage.getItem('shop_logo')
+      || ''
   })
+
+  // Re-read logo from localStorage whenever user.shop_id becomes available
+  // (handles any edge case where it wasn't ready on first render)
+  useEffect(() => {
+    if (!user?.shop_id) return
+    const saved = localStorage.getItem(`shop_logo_${user.shop_id}`) || localStorage.getItem('shop_logo')
+    if (saved) setLogoUrl(saved)
+  }, [user?.shop_id])
 
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -101,9 +112,12 @@ function Settings() {
       wa_bill_template:     saved.wa_bill_template     || prev.wa_bill_template     || '',
     }))
 
-    // If no local logo yet, seed from Supabase
-    if (data.logo_url) {
-      setLogoUrl(prev => prev || data.logo_url)
+    // Only use Supabase logo if localStorage has absolutely nothing for this shop
+    // Explicitly check localStorage — never rely on prev state (empty string is falsy)
+    const localLogo = (user?.shop_id ? localStorage.getItem(`shop_logo_${user.shop_id}`) : null)
+      || localStorage.getItem('shop_logo')
+    if (!localLogo && data.logo_url) {
+      setLogoUrl(data.logo_url)
     }
   }
 
@@ -220,15 +234,15 @@ function Settings() {
 
       // 1. Update dedicated logo state immediately — this is the single source of truth
       setLogoUrl(compressed)
-      localStorage.setItem(LOGO_KEY, compressed)
-      localStorage.setItem('shop_logo', compressed) // legacy key for POS/bill printing
+      // Always write to BOTH keys so every code path that reads the logo finds it
+      localStorage.setItem(`shop_logo_${sid}`, compressed)   // shop-specific key
+      localStorage.setItem('shop_logo', compressed)           // legacy key for POS/bill printing
 
       // 2. Keep form.logo_url in sync so bill printing works
-      setForm(prev => {
-        const updated = { ...prev, logo_url: compressed }
-        localStorage.setItem('shop_settings_full', JSON.stringify(updated))
-        return updated
-      })
+      // Use functional updater but write localStorage AFTER setForm to avoid race
+      const updatedForm = { ...form, logo_url: compressed }
+      setForm(updatedForm)
+      localStorage.setItem('shop_settings_full', JSON.stringify(updatedForm))
 
       // 3. Save to Dexie
       try { await db.shops.update(sid, { logo_url: compressed }) } catch (_) { /* ignore */ }
@@ -355,13 +369,12 @@ function Settings() {
                       onClick={async () => {
                         const sid = Number(user.shop_id)
                         setLogoUrl('')
-                        localStorage.removeItem(LOGO_KEY)
-                        localStorage.setItem('shop_logo', '')
-                        setForm(prev => {
-                          const updated = { ...prev, logo_url: '' }
-                          localStorage.setItem('shop_settings_full', JSON.stringify(updated))
-                          return updated
-                        })
+                        localStorage.removeItem(`shop_logo_${sid}`)
+                        localStorage.removeItem('shop_logo')
+                        const updatedForm = { ...form, logo_url: '' }
+                        setForm(updatedForm)
+                        localStorage.setItem('shop_settings_full', JSON.stringify(updatedForm))
+                        window.dispatchEvent(new Event('storage'))
                         try { await db.shops.update(sid, { logo_url: '' }) } catch (_) { /* ignore */ }
                         if (navigator.onLine) {
                           supabase.from('shops').update({ logo_url: '' }).eq('id', sid).then(() => {})
