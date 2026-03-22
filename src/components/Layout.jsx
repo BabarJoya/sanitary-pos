@@ -54,6 +54,7 @@ function Layout({ children }) {
       } else if (data?.logo_url) {
         setShopLogo(data.logo_url)
         localStorage.setItem('shop_logo', data.logo_url)
+        if (user?.shop_id) localStorage.setItem(`shop_logo_${user.shop_id}`, data.logo_url)
       }
     } catch (e) {
       const cachedName = localStorage.getItem('shop_name')
