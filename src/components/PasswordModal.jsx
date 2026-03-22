@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { supabase } from '../services/supabase'
 import { db } from '../services/db'
 import { useAuth } from '../context/AuthContext'
 import { hashPassword } from '../utils/authUtils'
@@ -18,23 +19,42 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
         try {
             const hashed = await hashPassword(password)
 
-            // 1. localStorage cached hash — set at login, always reliable, works offline
-            //    This is the primary check. No Supabase needed.
+            // ── Check 1: localStorage cached hash (fastest, set at login) ──
             const cachedHash = localStorage.getItem('user_pw_hash')
-            if (cachedHash && cachedHash === hashed) { onConfirm(); return }
+            if (cachedHash && cachedHash === hashed) {
+                onConfirm()
+                return
+            }
 
-            // 2. IndexedDB (Dexie) — fallback if localStorage was cleared
+            // ── Check 2: Dexie IndexedDB (offline cache from last login) ──
             try {
                 const localUser = await db.users.get(user?.id)
                 if (localUser?.password === hashed) {
-                    // Re-populate localStorage cache for next time
-                    localStorage.setItem('user_pw_hash', hashed)
+                    localStorage.setItem('user_pw_hash', hashed) // re-cache
                     onConfirm()
                     return
                 }
             } catch (_) { /* ignore */ }
 
-            // All checks failed — password is genuinely wrong
+            // ── Check 3: secure_login RPC — same function used by Login page ──
+            // This bypasses RLS entirely and works for any existing session
+            if (navigator.onLine && user?.username) {
+                try {
+                    const { data: result } = await supabase.rpc('secure_login', {
+                        p_username: user.username,
+                        p_password_hash: hashed
+                    })
+                    if (result && !result.error && result.id) {
+                        // Cache for next time so future checks are instant
+                        localStorage.setItem('user_pw_hash', hashed)
+                        try { await db.users.put({ id: result.id, username: result.username, password: hashed, shop_id: result.shop_id, role: result.role, is_active: true }) } catch (_) {}
+                        onConfirm()
+                        return
+                    }
+                } catch (_) { /* RPC failed — treat as wrong password */ }
+            }
+
+            // All checks failed
             setError('Incorrect password! ❌')
         } catch (err) {
             setError('Verification failed: ' + (err.message || String(err)))

@@ -28,9 +28,9 @@ function CustomerLedger() {
             if (!navigator.onLine) throw new Error('Offline')
 
             const fetchPromise = Promise.all([
-                supabase.from('customers').select('*').eq('id', id).maybeSingle(),
-                supabase.from('sales').select('*, sale_items(*)').eq('customer_id', id).order('created_at', { ascending: true }),
-                supabase.from('customer_payments').select('*').eq('customer_id', id)
+                supabase.from('customers').select('*').eq('id', id).eq('shop_id', user.shop_id).maybeSingle(),
+                supabase.from('sales').select('*, sale_items(*)').eq('customer_id', id).eq('shop_id', user.shop_id).order('created_at', { ascending: true }),
+                supabase.from('customer_payments').select('*').eq('customer_id', id).eq('shop_id', user.shop_id)
             ])
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
             const [custRes, salesRes, paymentsRes] = await Promise.race([fetchPromise, timeoutPromise])
