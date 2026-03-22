@@ -28,7 +28,7 @@ function CustomerLedger() {
             if (!navigator.onLine) throw new Error('Offline')
 
             const fetchPromise = Promise.all([
-                supabase.from('customers').select('*').eq('id', id).single(),
+                supabase.from('customers').select('*').eq('id', id).maybeSingle(),
                 supabase.from('sales').select('*, sale_items(*)').eq('customer_id', id).order('created_at', { ascending: true }),
                 supabase.from('customer_payments').select('*').eq('customer_id', id)
             ])

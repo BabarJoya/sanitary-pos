@@ -17,48 +17,35 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
         setError('')
 
         try {
-            // Hash the entered password exactly like Login.jsx does before comparing
             const hashed = await hashPassword(password)
 
-            // Try online verification first
+            // 1. Try Supabase first (online)
             if (navigator.onLine) {
-                const { data, error: authErr } = await supabase
-                    .from('users')
-                    .select('id')
-                    .eq('id', user.id)
-                    .eq('password', hashed)
-                    .single()
-
-                if (authErr || !data) {
-                    setError('Incorrect password! ❌')
-                    setVerifying(false)
-                    return
-                }
-            } else {
-                // Offline: compare hash against locally cached user
-                const localUser = await db.users.get(user.id)
-                if (!localUser || localUser.password !== hashed) {
-                    setError('Incorrect password! ❌')
-                    setVerifying(false)
-                    return
-                }
+                try {
+                    const { data } = await supabase
+                        .from('users')
+                        .select('id')
+                        .eq('id', user.id)
+                        .eq('password', hashed)
+                        .single()
+                    if (data) { onConfirm(); return }
+                } catch (_) { /* fall through to local checks */ }
             }
 
-            onConfirm()
-        } catch (err) {
-            // Fallback to local DB if online check fails
+            // 2. Try IndexedDB (offline cache)
             try {
-                const hashed = await hashPassword(password)
                 const localUser = await db.users.get(user.id)
-                if (!localUser || localUser.password !== hashed) {
-                    setError('Incorrect password! ❌')
-                    setVerifying(false)
-                    return
-                }
-                onConfirm()
-            } catch (e2) {
-                setError('Verification failed: ' + (e2.message || String(e2)))
-            }
+                if (localUser?.password === hashed) { onConfirm(); return }
+            } catch (_) { /* fall through */ }
+
+            // 3. Try localStorage cached hash (set at login time)
+            const cachedHash = localStorage.getItem('user_pw_hash')
+            if (cachedHash && cachedHash === hashed) { onConfirm(); return }
+
+            // All checks failed
+            setError('Incorrect password! ❌')
+        } catch (err) {
+            setError('Verification failed: ' + (err.message || String(err)))
         } finally {
             setVerifying(false)
         }

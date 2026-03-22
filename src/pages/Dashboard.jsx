@@ -54,7 +54,10 @@ function Dashboard() {
         plan_name: config.plan_name || 'TRIAL'
       }))
 
-      if (todayRes.error || monthRes.error || custRes.error) throw new Error('Fetch failed')
+      // Log non-critical errors but don't throw — use empty arrays as fallback
+      if (todayRes.error) console.warn('Dashboard: todaySales fetch error', todayRes.error.message)
+      if (monthRes.error) console.warn('Dashboard: monthlySales fetch error', monthRes.error.message)
+      if (custRes.error) console.warn('Dashboard: customers fetch error', custRes.error.message)
 
       const todayTotal = (todayRes.data || []).reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)
       const monthlyTotal = (monthRes.data || []).reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)

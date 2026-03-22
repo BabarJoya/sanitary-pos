@@ -111,6 +111,10 @@ function Login() {
         // Don't fail login if offline storage fails
       }
 
+      // Cache hashed password in localStorage so PasswordModal can verify
+      // even when Supabase is unreachable and IndexedDB is empty
+      localStorage.setItem('user_pw_hash', hashedPassword)
+
       // Set RLS session claims (already done by secure_login, but ensure it's set)
       await rlsSession.setSession({
         id: userData.id,

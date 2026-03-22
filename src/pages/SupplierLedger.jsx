@@ -30,7 +30,7 @@ function SupplierLedger() {
             if (!navigator.onLine) throw new Error('Offline')
 
             const fetchPromise = Promise.all([
-                supabase.from('suppliers').select('*').eq('id', id).single(),
+                supabase.from('suppliers').select('*').eq('id', id).maybeSingle(),
                 supabase.from('purchases').select('*, purchase_items(*)').eq('supplier_id', id).order('created_at', { ascending: true }),
                 supabase.from('supplier_payments').select('*').eq('supplier_id', id)
             ])
