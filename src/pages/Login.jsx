@@ -51,6 +51,23 @@ function Login() {
       // Handle RPC errors
       if (loginError) {
         console.error('Login RPC error:', loginError)
+
+        // Detect network/fetch errors and fall back to offline login
+        const errMsg = (loginError.message || '').toLowerCase()
+        const isNetworkError = errMsg.includes('fetch') ||
+          errMsg.includes('network') ||
+          errMsg.includes('failed to fetch') ||
+          errMsg.includes('load failed') ||
+          errMsg.includes('networkerror') ||
+          loginError.code === 'NETWORK_ERROR' ||
+          !navigator.onLine
+
+        if (isNetworkError) {
+          console.log('Network error detected, attempting offline login...')
+          // Fall through to offline fallback below
+          throw new Error('Network unavailable — switching to offline login')
+        }
+
         setError('Login failed. Please try again or contact support.')
         setLoading(false)
         return

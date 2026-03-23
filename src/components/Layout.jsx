@@ -115,6 +115,7 @@ function Layout({ children }) {
         .from('announcements')
         .select('*')
         .eq('is_active', true)
+        .or(`shop_id.is.null,shop_id.eq.${user.shop_id}`)
         .order('created_at', { ascending: false })
 
       if (data) setAnnouncements(data)
