@@ -6,8 +6,9 @@ import { Store, Users, Activity, TrendingUp, CreditCard, DollarSign, AlertCircle
 export default function Dashboard() {
   const [stats, setStats] = useState({ shops: 0, users: 0, activeShops: 0, mrr: 0, totalRevenue: 0, overdue: 0, onTrial: 0, gmv: 0, activeToday: 0 })
   const [announcements, setAnnouncements] = useState([])
+  const [shopsList, setShopsList] = useState([])
   const [upcomingRenewals, setUpcomingRenewals] = useState([])
-  const [newAnnouncement, setNewAnnouncement] = useState({ message: '', type: 'info' })
+  const [newAnnouncement, setNewAnnouncement] = useState({ message: '', type: 'info', shop_id: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -31,6 +32,7 @@ export default function Dashboard() {
       ])
 
       const shops = shopsRes.data || []
+      setShopsList(shops)
       const totalShops = shops.length
       const activeShops = shops.filter(s => s.status === 'active').length
       const totalUsers = usersRes.count || usersRes.data?.length || 0
@@ -111,10 +113,11 @@ export default function Dashboard() {
       const { error } = await supabaseAdmin.from('announcements').insert([{
         message: newAnnouncement.message,
         type: newAnnouncement.type,
-        is_active: true
+        is_active: true,
+        shop_id: newAnnouncement.shop_id ? Number(newAnnouncement.shop_id) : null,
       }])
       if (error) throw error
-      setNewAnnouncement({ message: '', type: 'info' })
+      setNewAnnouncement({ message: '', type: 'info', shop_id: '' })
       fetchStats()
     } catch (err) {
       alert('Error posting announcement: ' + err.message)
@@ -231,33 +234,74 @@ export default function Dashboard() {
               <Megaphone size={24} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Global Announcements</h2>
-              <p className="text-xs text-slate-500">Broadcast messages to all active client POS screens</p>
+              <h2 className="text-xl font-bold text-slate-800">Announcements</h2>
+              <p className="text-xs text-slate-500">Broadcast to all shops or target a specific one</p>
             </div>
           </div>
 
-          <form onSubmit={handlePostAnnouncement} className="mb-6 flex flex-col sm:flex-row gap-2">
-            <select
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              value={newAnnouncement.type}
-              onChange={e => setNewAnnouncement({ ...newAnnouncement, type: e.target.value })}
-            >
-              <option value="info">Info (Blue)</option>
-              <option value="warning">Warning (Orange)</option>
-              <option value="error">Critical (Red)</option>
-              <option value="success">Success (Green)</option>
-            </select>
-            <input
-              type="text"
-              required
-              className="flex-1 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              placeholder="Type announcement message..."
-              value={newAnnouncement.message}
-              onChange={e => setNewAnnouncement({ ...newAnnouncement, message: e.target.value })}
-            />
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition">
-              <Plus size={18} /> Post
-            </button>
+          <form onSubmit={handlePostAnnouncement} className="mb-6 space-y-2">
+            {/* Row 1: Send To toggle */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Send To:</span>
+              <button
+                type="button"
+                onClick={() => setNewAnnouncement({ ...newAnnouncement, shop_id: '' })}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${!newAnnouncement.shop_id
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}
+              >
+                📢 All Shops
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewAnnouncement({ ...newAnnouncement, shop_id: String(shopsList[0]?.id || '') })}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${newAnnouncement.shop_id
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'}`}
+              >
+                🏪 Specific Shop
+              </button>
+              {newAnnouncement.shop_id && (
+                <select
+                  className="flex-1 min-w-[140px] border border-orange-200 bg-orange-50 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-400 outline-none font-medium text-orange-800"
+                  value={newAnnouncement.shop_id}
+                  onChange={e => setNewAnnouncement({ ...newAnnouncement, shop_id: e.target.value })}
+                >
+                  {shopsList.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {/* Row 2: Type + Message + Post */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={newAnnouncement.type}
+                onChange={e => setNewAnnouncement({ ...newAnnouncement, type: e.target.value })}
+              >
+                <option value="info">Info (Blue)</option>
+                <option value="warning">Warning (Orange)</option>
+                <option value="error">Critical (Red)</option>
+                <option value="success">Success (Green)</option>
+              </select>
+              <input
+                type="text"
+                required
+                className="flex-1 border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder={newAnnouncement.shop_id
+                  ? `Message for ${shopsList.find(s => String(s.id) === newAnnouncement.shop_id)?.name || 'selected shop'}...`
+                  : 'Broadcast message to all shops...'}
+                value={newAnnouncement.message}
+                onChange={e => setNewAnnouncement({ ...newAnnouncement, message: e.target.value })}
+              />
+              <button
+                type="submit"
+                className={`text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition ${newAnnouncement.shop_id ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+              >
+                <Plus size={18} /> Post
+              </button>
+            </div>
           </form>
 
           <div className="flex-1 overflow-y-auto min-h-[200px] border border-slate-100 rounded-xl bg-slate-50 p-4">
@@ -266,9 +310,9 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {announcements.map(ann => (
-                  <div key={ann.id} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
+                  <div key={ann.id} className={`p-4 rounded-lg shadow-sm border flex justify-between gap-4 ${ann.shop_id ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-slate-200'}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center flex-wrap gap-2 mb-1">
                         <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${ann.type === 'error' ? 'bg-red-100 text-red-700' :
                           ann.type === 'warning' ? 'bg-orange-100 text-orange-700' :
                             ann.type === 'success' ? 'bg-emerald-100 text-emerald-700' :
@@ -276,6 +320,15 @@ export default function Dashboard() {
                           }`}>
                           {ann.type}
                         </span>
+                        {ann.shop_id ? (
+                          <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                            🏪 {shopsList.find(s => s.id === ann.shop_id)?.name || `Shop #${ann.shop_id}`}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            📢 Global
+                          </span>
+                        )}
                         <span className="text-xs text-slate-400">
                           {new Date(ann.created_at).toLocaleDateString()}
                         </span>
@@ -284,7 +337,7 @@ export default function Dashboard() {
                     </div>
                     <button
                       onClick={() => handleDeleteAnnouncement(ann.id)}
-                      className="text-slate-400 hover:text-red-500 transition self-start p-1"
+                      className="text-slate-400 hover:text-red-500 transition self-start p-1 flex-shrink-0"
                       title="Delete Announcement"
                     >
                       <Trash2 size={16} />
