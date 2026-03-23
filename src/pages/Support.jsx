@@ -260,20 +260,32 @@ function Support() {
 
                 {/* Status-specific banners */}
                 {t.status === 'in_progress' && (
-                  <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center gap-3">
-                    <span className="text-xl animate-pulse">🔧</span>
-                    <div>
+                  <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-start gap-3">
+                    <span className="text-xl animate-pulse mt-0.5">🔧</span>
+                    <div className="flex-1 min-w-0">
                       <p className="text-blue-700 text-sm font-bold">Hamari team kaam kar rahi hai!</p>
                       <p className="text-blue-500 text-xs mt-0.5">Is ticket par actively kaam ho raha hai. Thodi dair mein hal ho jayega.</p>
+                      {t.admin_reply && (
+                        <div className="mt-2 bg-white border border-blue-200 rounded-lg px-3 py-2">
+                          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">💬 Support Team:</p>
+                          <p className="text-sm text-gray-700">{t.admin_reply}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
                 {t.status === 'closed' && (
-                  <div className="mt-4 bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex items-center gap-3">
-                    <span className="text-xl">✅</span>
-                    <div>
+                  <div className="mt-4 bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex items-start gap-3">
+                    <span className="text-xl mt-0.5">✅</span>
+                    <div className="flex-1 min-w-0">
                       <p className="text-green-700 text-sm font-bold">Ticket hal ho gaya!</p>
                       <p className="text-green-500 text-xs mt-0.5">Agar masla dobara aaye to naya ticket submit karein.</p>
+                      {t.admin_reply && (
+                        <div className="mt-2 bg-white border border-green-200 rounded-lg px-3 py-2">
+                          <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider mb-1">💬 Support Team:</p>
+                          <p className="text-sm text-gray-700">{t.admin_reply}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
