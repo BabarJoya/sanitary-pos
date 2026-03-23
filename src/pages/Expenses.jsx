@@ -19,6 +19,9 @@ function Expenses() {
   const [selected, setSelected] = useState([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [pendingDeleteIds, setPendingDeleteIds] = useState([])
+  const [monthlyBudget, setMonthlyBudget] = useState(() => Number(localStorage.getItem('monthly_expense_budget') || 0))
+  const [editingBudget, setEditingBudget] = useState(false)
+  const [budgetInput, setBudgetInput] = useState('')
 
   const categories = ['Rent', 'Electricity', 'Tea/Food', 'Salary', 'Misc', 'Repairing', 'Transport']
 
@@ -181,6 +184,15 @@ function Expenses() {
     fetchExpenses()
   }
 
+  const saveBudget = () => {
+    const val = Number(budgetInput)
+    if (!isNaN(val) && val >= 0) {
+      setMonthlyBudget(val)
+      localStorage.setItem('monthly_expense_budget', val)
+    }
+    setEditingBudget(false)
+  }
+
   const toggleSelect = (id) => {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
@@ -211,6 +223,52 @@ function Expenses() {
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">This Month</p>
             <p className="text-xl font-bold text-gray-800">Rs. {summary.monthly.toLocaleString()}</p>
           </div>
+
+          {/* Monthly Budget Card */}
+          {(() => {
+            const pct = monthlyBudget > 0 ? Math.min((summary.monthly / monthlyBudget) * 100, 100) : 0
+            const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-yellow-400' : 'bg-green-500'
+            const textColor = pct >= 90 ? 'text-red-600' : pct >= 70 ? 'text-yellow-600' : 'text-green-600'
+            return (
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 min-w-[180px]">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Monthly Budget</p>
+                  <button
+                    onClick={() => { setBudgetInput(monthlyBudget); setEditingBudget(true) }}
+                    className="text-[10px] text-blue-500 hover:text-blue-700 font-bold"
+                    title="Edit budget"
+                  >✏️</button>
+                </div>
+                {editingBudget ? (
+                  <div className="flex gap-1 mt-1">
+                    <input
+                      type="number"
+                      value={budgetInput}
+                      onChange={e => setBudgetInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveBudget(); if (e.key === 'Escape') setEditingBudget(false) }}
+                      autoFocus
+                      className="w-24 px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      placeholder="Budget..."
+                    />
+                    <button onClick={saveBudget} className="px-2 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold">✓</button>
+                  </div>
+                ) : monthlyBudget > 0 ? (
+                  <>
+                    <p className={`text-lg font-bold ${textColor}`}>
+                      Rs. {summary.monthly.toLocaleString()} <span className="text-xs text-gray-400 font-normal">/ {monthlyBudget.toLocaleString()}</span>
+                    </p>
+                    <div className="w-full bg-gray-100 rounded-full h-2 mt-2">
+                      <div className={`${barColor} h-2 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className={`text-[10px] font-bold mt-1 ${textColor}`}>{pct.toFixed(0)}% used</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-400 italic mt-1">Set a budget ✏️</p>
+                )}
+              </div>
+            )
+          })()}
+
           {selected.length > 0 && (
             <button
               onClick={() => requestDelete(selected)}

@@ -154,6 +154,12 @@ function EditProduct() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
+  const autoGenerateSKU = () => {
+    const prefix = (form.name || 'PRD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()
+    const suffix = Math.floor(1000 + Math.random() * 9000)
+    setForm(prev => ({ ...prev, sku: `${prefix}-${suffix}` }))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -266,15 +272,21 @@ function EditProduct() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">SKU</label>
-              <input
-                type="text"
-                name="sku"
-                value={form.sku}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. TAP-001"
-              />
+              <label className="block text-gray-700 font-medium mb-1">SKU / Barcode</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  name="sku"
+                  value={form.sku}
+                  onChange={handleChange}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  placeholder="e.g. TAP-001"
+                />
+                <button type="button" onClick={autoGenerateSKU}
+                  className="px-3 py-2 bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700 rounded-lg text-xs font-bold transition whitespace-nowrap border border-gray-200">
+                  ⚡ Auto
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-gray-700 font-medium mb-1">Category</label>

@@ -368,8 +368,12 @@ function Products() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost Price</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale Price</th>
+                {(user.role === 'admin' || user.role === 'manager') && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Margin</th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -400,8 +404,21 @@ function Products() {
                       {product.stock_quantity}
                     </span>
                   </td>
+                  <td className="px-6 py-4 font-mono text-xs text-gray-400">{product.sku || <span className="italic">—</span>}</td>
                   <td className="px-6 py-4 text-gray-500">Rs. {product.cost_price}</td>
                   <td className="px-6 py-4 text-gray-500">Rs. {product.sale_price}</td>
+                  {(user.role === 'admin' || user.role === 'manager') && (() => {
+                    const cost = Number(product.cost_price || 0)
+                    const sale = Number(product.sale_price || 0)
+                    const margin = sale > 0 ? ((sale - cost) / sale * 100) : 0
+                    return (
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${margin >= 30 ? 'bg-green-100 text-green-700' : margin >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600'}`}>
+                          {margin.toFixed(0)}%
+                        </span>
+                      </td>
+                    )
+                  })()}
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.status === 'active'
                       ? 'bg-green-100 text-green-700'

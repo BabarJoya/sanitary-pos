@@ -17,8 +17,12 @@ function Dashboard() {
     totalReceivables: 0,
     lowStockCount: 0,
     productCount: 0,
-    planInfo: null
+    planInfo: null,
+    topDebtors: []
   })
+  const [dailyTarget, setDailyTarget] = useState(() => Number(localStorage.getItem('daily_sales_target') || 0))
+  const [editingTarget, setEditingTarget] = useState(false)
+  const [targetInput, setTargetInput] = useState('')
   const [showEOD, setShowEOD] = useState(false)
   const [eodData, setEodData] = useState(null)
   const [eodLoading, setEodLoading] = useState(false)
@@ -38,7 +42,7 @@ function Dashboard() {
       const fetchPromise = Promise.all([
         supabase.from('sales').select('total_amount, discount, payment_type, sale_items(cost_price, quantity, returned_qty)').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', today.toISOString()),
         supabase.from('sales').select('total_amount, discount').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', firstDayOfMonth.toISOString()),
-        supabase.from('customers').select('outstanding_balance').eq('shop_id', user.shop_id),
+        supabase.from('customers').select('id, name, outstanding_balance').eq('shop_id', user.shop_id),
         supabase.from('products').select('id, stock_quantity, low_stock_threshold').eq('shop_id', user.shop_id),
         supabase.rpc('get_shop_config', { p_shop_id: user.shop_id })
       ])
@@ -79,6 +83,7 @@ function Dashboard() {
       const totalReceivables = (custRes.data || []).reduce((sum, c) => sum + Number(c.outstanding_balance || 0), 0)
       const productList = prodRes.data || []
 
+      const custList = custRes.data || []
       setStats({
         todaySales: todayTotal,
         todayProfit: todayTotal - todayCOGS,
@@ -88,7 +93,8 @@ function Dashboard() {
         totalReceivables,
         lowStockCount: productList.filter(p => Number(p.stock_quantity) <= Number(p.low_stock_threshold || 10)).length,
         productCount: productList.length,
-        planInfo: config
+        planInfo: config,
+        topDebtors: custList.filter(c => Number(c.outstanding_balance) > 0).sort((a, b) => b.outstanding_balance - a.outstanding_balance).slice(0, 5)
       })
     } catch (err) {
       console.log('Dashboard: Calculating stats from local DB (Offline)')
@@ -135,7 +141,8 @@ function Dashboard() {
           planInfo: {
             plan_name: limits.plan_name || 'OFFLINE',
             product_limit: limits.product_limit || 100
-          }
+          },
+          topDebtors: myCustomers.filter(c => Number(c.outstanding_balance) > 0).sort((a, b) => b.outstanding_balance - a.outstanding_balance).slice(0, 5)
         })
       } catch (localError) {
         console.error('Final Dashboard Fallback Error:', localError)
@@ -325,6 +332,74 @@ function Dashboard() {
         </div>
       )}
 
+
+      {/* Daily Sales Target */}
+      <div className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🎯</span>
+            <span className="font-bold text-gray-700 text-sm">Daily Sales Target</span>
+          </div>
+          {!editingTarget ? (
+            <button onClick={() => { setEditingTarget(true); setTargetInput(String(dailyTarget || '')) }}
+              className="text-xs text-blue-500 hover:text-blue-700 font-semibold">
+              {dailyTarget ? '✏️ Edit' : '+ Set Target'}
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input type="number" value={targetInput} onChange={e => setTargetInput(e.target.value)}
+                className="w-28 px-2 py-1 border rounded-lg text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. 50000" autoFocus />
+              <button onClick={() => { const t = Number(targetInput) || 0; setDailyTarget(t); localStorage.setItem('daily_sales_target', t); setEditingTarget(false) }}
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg font-bold">Save</button>
+              <button onClick={() => setEditingTarget(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+          )}
+        </div>
+        {dailyTarget > 0 ? (() => {
+          const pct = Math.min(100, (stats.todaySales / dailyTarget) * 100)
+          const color = pct >= 100 ? 'bg-green-500' : pct >= 70 ? 'bg-blue-500' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400'
+          return (
+            <>
+              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                <div className={`h-3 rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="flex justify-between mt-1 text-xs text-gray-500">
+                <span>Rs. {stats.todaySales.toLocaleString()} achieved</span>
+                <span className={`font-bold ${pct >= 100 ? 'text-green-600' : 'text-gray-600'}`}>
+                  {pct >= 100 ? '🎉 Target Hit!' : `${pct.toFixed(0)}% — Rs. ${(dailyTarget - stats.todaySales).toLocaleString()} remaining`}
+                </span>
+              </div>
+            </>
+          )
+        })() : (
+          <p className="text-xs text-gray-400 italic">No target set. Click "+ Set Target" to add a daily goal.</p>
+        )}
+      </div>
+
+      {/* Top Debtors */}
+      {stats.topDebtors.length > 0 && (
+        <div className="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📒</span>
+              <span className="font-bold text-gray-700 text-sm">Top Debtors</span>
+            </div>
+            <Link to="/customer-ledger" className="text-xs text-blue-500 hover:text-blue-700 font-semibold">View All →</Link>
+          </div>
+          <div className="space-y-2">
+            {stats.topDebtors.map((c, i) => (
+              <Link key={c.id} to={`/customers/${c.id}`} className="flex items-center justify-between hover:bg-gray-50 rounded-lg px-2 py-1.5 transition group">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-gray-300 w-4">{i + 1}</span>
+                  <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">{c.name}</span>
+                </div>
+                <span className="text-sm font-bold text-red-500">Rs. {Number(c.outstanding_balance).toLocaleString()}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-10">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Quick Actions</h2>
