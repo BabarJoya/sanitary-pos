@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "EdgeX POS",
+      "runtimeExecutable": "node.exe",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5174"],
+      "port": 5174
+    },
+    {
+      "name": "EdgeX Superadmin",
+      "runtimeExecutable": "node.exe",
+      "runtimeArgs": ["C:/sanitary-pos/superadmin/node_modules/vite/bin/vite.js", "superadmin", "--port", "5175"],
+      "port": 5175
+    }
+  ]
+}
