@@ -50,6 +50,7 @@ function CustomerLedger() {
                     type: 'sale',
                     payment_type: s.payment_type,
                     amount: s.total_amount - (s.discount || 0),
+                    paid_amount: s.paid_amount || 0,
                     note: `Invoice #${String(s.id).slice(-8)}`,
                     items: s.sale_items || []
                 })),
@@ -57,6 +58,7 @@ function CustomerLedger() {
                     id: p.id,
                     date: p.created_at,
                     type: p.payment_type === 'return' ? 'return' : 'payment',
+                    payment_type: p.payment_type,
                     amount: p.amount,
                     note: p.note || 'Cash Payment',
                 }))
@@ -69,10 +71,15 @@ function CustomerLedger() {
             let running = 0
             const withBalance = combined.map(item => {
                 if (item.type === 'sale') {
-                    if (item.payment_type === 'credit') running += item.amount
+                    // Add only the unpaid portion (handles credit, partial, split)
+                    const owed = Math.max(0, item.amount - (item.paid_amount || 0))
+                    if (owed > 0) running += owed
+                } else {
+                    // 'refund' = cash was given back, no balance change; payments/returns reduce balance
+                    if (item.payment_type !== 'refund') {
+                        running -= Math.abs(item.amount)
+                    }
                 }
-                else running -= Math.abs(item.amount)
-
                 return { ...item, balance: running }
             })
 
@@ -117,6 +124,7 @@ function CustomerLedger() {
                         type: 'sale',
                         payment_type: s.payment_type,
                         amount: s.total_amount - (s.discount || 0),
+                        paid_amount: s.paid_amount || 0,
                         note: `Invoice #${String(s.id).slice(-8)}`,
                         items: lItems.filter(i => i.sale_id === s.id)
                     })),
@@ -124,6 +132,7 @@ function CustomerLedger() {
                         id: p.id,
                         date: p.created_at,
                         type: p.payment_type === 'return' ? 'return' : 'payment',
+                        payment_type: p.payment_type,
                         amount: p.amount,
                         note: p.note || 'Cash Payment',
                     }))
@@ -133,9 +142,13 @@ function CustomerLedger() {
                 let running = 0
                 const withBalance = combined.map(item => {
                     if (item.type === 'sale') {
-                        if (item.payment_type === 'credit') running += item.amount
+                        const owed = Math.max(0, item.amount - (item.paid_amount || 0))
+                        if (owed > 0) running += owed
+                    } else {
+                        if (item.payment_type !== 'refund') {
+                            running -= Math.abs(item.amount)
+                        }
                     }
-                    else running -= Math.abs(item.amount)
                     return { ...item, balance: running }
                 })
                 // Opening balance if no transactions but customer has dues

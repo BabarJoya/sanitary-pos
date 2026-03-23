@@ -995,7 +995,7 @@ function Inventory() {
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {editingProducts.map((p, idx) => {
                     const margin = p.sale_price - p.cost_price;
-                    const marginPercent = p.cost_price > 0 ? ((margin / p.cost_price) * 100).toFixed(0) : 0;
+                    const marginPercent = p.sale_price > 0 ? ((margin / p.sale_price) * 100).toFixed(0) : 0;
                     return (
                       <tr key={p.id}>
                         <td className="px-4 py-2 font-medium text-gray-700">{p.name} <span className="text-[10px] text-gray-400">({p.brand})</span></td>
