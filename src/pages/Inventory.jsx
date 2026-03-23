@@ -543,8 +543,8 @@ function Inventory() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex gap-4 w-full sm:w-auto">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-3">
+        <div className="flex gap-3 w-full">
           <input
             type="text"
             placeholder="Search product or brand..."
@@ -553,87 +553,93 @@ function Inventory() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1">
-          <select
-            className="px-4 py-2 border rounded-lg outline-none flex-shrink-0"
-            value={selectedCategory}
-            onChange={e => setSelectedCategory(e.target.value)}
-          >
-            <option value="">All Categories</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <select
-            className="px-4 py-2 border rounded-lg outline-none flex-shrink-0"
-            value={selectedBrand}
-            onChange={e => setSelectedBrand(e.target.value)}
-          >
-            <option value="">All Brands</option>
-            {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </select>
-          <label className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0">
-            <input
-              type="checkbox"
-              checked={showLowStockOnly}
-              onChange={e => setShowLowStockOnly(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded"
-            />
-            <span className="text-sm font-medium text-gray-700">Show Low Stock Only</span>
-          </label>
-          <button
-            onClick={handleExport}
-            className="px-4 py-2 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-sm flex-shrink-0"
-          >
-            <span>📤</span> Export to Excel
-          </button>
-          <button
-            onClick={handleReorderWhatsApp}
-            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-sm flex-shrink-0"
-            title="Send low stock reorder list to supplier via WhatsApp"
-          >
-            <span>📱</span> Reorder via WhatsApp
-          </button>
-          {(user.role === 'admin' || user.role === 'manager') && (
-            <button
-              onClick={() => setReturnProduct({})} // Open return modal with empty/any selection
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 flex-shrink-0"
+        <div className="flex flex-col gap-2 w-full sm:w-auto">
+          {/* Row 1: Filters */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <select
+              className="px-3 py-1.5 border rounded-lg outline-none text-sm"
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
             >
-              <span>🔙</span> Record Return
+              <option value="">All Categories</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select
+              className="px-3 py-1.5 border rounded-lg outline-none text-sm"
+              value={selectedBrand}
+              onChange={e => setSelectedBrand(e.target.value)}
+            >
+              <option value="">All Brands</option>
+              {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+            </select>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showLowStockOnly}
+                onChange={e => setShowLowStockOnly(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+              <span className="text-sm font-medium text-gray-700">Low Stock Only</span>
+            </label>
+          </div>
+          {/* Row 2: Action Buttons */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <button
+              onClick={handleExport}
+              className="px-3 py-1.5 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+            >
+              📤 Export
             </button>
-          )}
-          {(user.role === 'admin' || user.role === 'manager') && (
-            <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={handleReorderWhatsApp}
+              className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+              title="Send low stock reorder list to supplier via WhatsApp"
+            >
+              📱 Reorder WA
+            </button>
+            {(user.role === 'admin' || user.role === 'manager') && (
               <button
-                onClick={() => setShowBulkPriceModal(true)}
-                className="px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition font-bold text-sm flex items-center gap-2"
+                onClick={() => setReturnProduct({})}
+                className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
               >
-                <span>📈</span> % Change
+                🔙 Record Return
               </button>
-              <button
-                onClick={openBulkEditor}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-md shadow-purple-100"
-              >
-                <span>✏️</span> Edit Prices
-              </button>
-            </div>
-          )}
-          <button
-            onClick={handlePrint}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-sm flex-shrink-0"
-          >
-            <span>🖨️</span> Print Inventory
-          </button>
-          <button
-            onClick={() => { setSearch(''); setSelectedCategory(''); setSelectedBrand(''); setShowLowStockOnly(false); }}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition flex-shrink-0"
-          >
-            Reset
-          </button>
-          <button
-            onClick={fetchInventory}
-            className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition flex-shrink-0"
-          >
-            Refresh
-          </button>
+            )}
+            {(user.role === 'admin' || user.role === 'manager') && (
+              <>
+                <button
+                  onClick={() => setShowBulkPriceModal(true)}
+                  className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+                >
+                  📈 % Change
+                </button>
+                <button
+                  onClick={openBulkEditor}
+                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+                >
+                  ✏️ Edit Prices
+                </button>
+              </>
+            )}
+            <button
+              onClick={handlePrint}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+            >
+              🖨️ Print
+            </button>
+            <button
+              onClick={() => { setSearch(''); setSelectedCategory(''); setSelectedBrand(''); setShowLowStockOnly(false); }}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition text-xs font-medium"
+            >
+              ↺ Reset
+            </button>
+            <button
+              onClick={fetchInventory}
+              className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition text-xs font-medium"
+            >
+              ⟳ Refresh
+            </button>
+          </div>
         </div>
       </div>
 
