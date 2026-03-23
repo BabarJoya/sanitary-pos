@@ -17,6 +17,7 @@ import Suppliers from './pages/Suppliers'
 import SupplierLedger from './pages/SupplierLedger'
 import Customers from './pages/Customers'
 import CustomerLedger from './pages/CustomerLedger'
+import CustomerLedgerOverview from './pages/CustomerLedgerOverview'
 import Sales from './pages/Sales'
 import Expenses from './pages/Expenses'
 import Users from './pages/Users'
@@ -41,6 +42,7 @@ function App() {
           <Route path="/pos" element={<ProtectedRoute requiredModule="pos" allowedRoles={['admin', 'manager', 'cashier']}><Layout><POS /></Layout></ProtectedRoute>} />
           <Route path="/customers" element={<ProtectedRoute requiredModule="customers" allowedRoles={['admin', 'manager', 'cashier']}><Layout><Customers /></Layout></ProtectedRoute>} />
           <Route path="/customers/:id" element={<ProtectedRoute requiredModule="customers" allowedRoles={['admin', 'manager', 'cashier']}><Layout><CustomerLedger /></Layout></ProtectedRoute>} />
+          <Route path="/customer-ledger" element={<ProtectedRoute requiredModule="customers" allowedRoles={['admin', 'manager', 'cashier']}><Layout><CustomerLedgerOverview /></Layout></ProtectedRoute>} />
           <Route path="/sales" element={<ProtectedRoute requiredModule="sales" allowedRoles={['admin', 'manager', 'accountant']}><Layout><Sales /></Layout></ProtectedRoute>} />
 
           {/* Admin only */}

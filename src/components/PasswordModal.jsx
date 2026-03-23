@@ -44,10 +44,10 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
                         p_username: user.username,
                         p_password_hash: hashed
                     })
-                    if (result && !result.error && result.id) {
+                    if (result && result.success && result.user?.id) {
                         // Cache for next time so future checks are instant
                         localStorage.setItem('user_pw_hash', hashed)
-                        try { await db.users.put({ id: result.id, username: result.username, password: hashed, shop_id: result.shop_id, role: result.role, is_active: true }) } catch (_) {}
+                        try { await db.users.put({ id: result.user.id, username: result.user.username, password: hashed, shop_id: result.user.shop_id, role: result.user.role, is_active: true }) } catch (_) {}
                         onConfirm()
                         return
                     }

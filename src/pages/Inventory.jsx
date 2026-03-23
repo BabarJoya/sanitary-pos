@@ -94,6 +94,53 @@ function Inventory() {
     win.print()
   }
 
+  const handleReorderWhatsApp = () => {
+    const lowItems = products.filter(p => p.stock_quantity <= (p.low_stock_threshold || 10))
+    if (lowItems.length === 0) { alert('Koi bhi product low stock mein nahi hai!'); return }
+
+    const bySupplier = {}
+    lowItems.forEach(p => {
+      const supName = p.suppliers?.name || 'Unknown Supplier'
+      const supPhone = p.suppliers?.phone || ''
+      if (!bySupplier[supName]) bySupplier[supName] = { phone: supPhone, items: [] }
+      bySupplier[supName].items.push(p)
+    })
+
+    const shopName = localStorage.getItem('shop_name') || 'Our Shop'
+    const shopSettings = JSON.parse(localStorage.getItem('shop_settings_full') || '{}')
+    const reorderTemplate = shopSettings.wa_reorder_template ||
+      'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!'
+    const supplierNames = Object.keys(bySupplier)
+
+    const applyTemplate = (supplierName, itemsText) =>
+      reorderTemplate
+        .replace(/\[Supplier Name\]/g, supplierName)
+        .replace(/\[Shop Name\]/g, shopName)
+        .replace(/\[Items\]/g, itemsText)
+
+    if (supplierNames.length === 1) {
+      const sup = bySupplier[supplierNames[0]]
+      const itemList = sup.items.map(p =>
+        `• ${p.name} (Stock: ${p.stock_quantity}, Need: ${Math.max(0, (p.low_stock_threshold || 10) * 2 - p.stock_quantity)})`
+      ).join('\n')
+      const msg = applyTemplate(supplierNames[0], itemList)
+      let phone = (sup.phone || '').replace(/[^0-9]/g, '')
+      if (phone.startsWith('03')) phone = '92' + phone.substring(1)
+      const url = phone
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+        : `https://wa.me/?text=${encodeURIComponent(msg)}`
+      window.open(url, '_blank')
+    } else {
+      const fullMsg = supplierNames.map(sName => {
+        const sup = bySupplier[sName]
+        const itemList = sup.items.map(p => `  • ${p.name} (${p.stock_quantity} left)`).join('\n')
+        return `*${sName}*:\n${itemList}`
+      }).join('\n\n')
+      const msg = applyTemplate('All Suppliers', fullMsg)
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+    }
+  }
+
   // Adjustment Modal
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [newStock, setNewStock] = useState('')
@@ -116,7 +163,7 @@ function Inventory() {
       }
       if (!navigator.onLine) throw new Error('Offline');
       const fetchPromise = Promise.all([
-        supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).order('name'),
+        supabase.from('products').select('*, categories(name), suppliers(name, phone)').eq('shop_id', user.shop_id).order('name'),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
       ])
@@ -505,20 +552,19 @@ function Inventory() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex gap-4 w-full sm:w-auto">
+      {/* Filters & Actions */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-3">
+        {/* Row 1: Search + filters */}
+        <div className="flex flex-wrap gap-2 items-center">
           <input
             type="text"
             placeholder="Search product or brand..."
-            className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            className="flex-1 min-w-[160px] px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1">
           <select
-            className="px-4 py-2 border rounded-lg outline-none flex-shrink-0"
+            className="px-3 py-2 border rounded-lg outline-none text-sm"
             value={selectedCategory}
             onChange={e => setSelectedCategory(e.target.value)}
           >
@@ -526,69 +572,79 @@ function Inventory() {
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select
-            className="px-4 py-2 border rounded-lg outline-none flex-shrink-0"
+            className="px-3 py-2 border rounded-lg outline-none text-sm"
             value={selectedBrand}
             onChange={e => setSelectedBrand(e.target.value)}
           >
             <option value="">All Brands</option>
             {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
           </select>
-          <label className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={showLowStockOnly}
               onChange={e => setShowLowStockOnly(e.target.checked)}
               className="w-4 h-4 text-blue-600 rounded"
             />
-            <span className="text-sm font-medium text-gray-700">Show Low Stock Only</span>
+            <span className="text-sm font-medium text-gray-700">Low Stock Only</span>
           </label>
+        </div>
+        {/* Row 2: Action buttons */}
+        <div className="flex flex-wrap gap-2 items-center">
           <button
             onClick={handleExport}
-            className="px-4 py-2 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-sm flex-shrink-0"
+            className="px-3 py-1.5 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
           >
-            <span>📤</span> Export to Excel
+            📤 Export
+          </button>
+          <button
+            onClick={handleReorderWhatsApp}
+            className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+            title="Send low stock reorder to supplier via WhatsApp"
+          >
+            📱 Reorder WA
           </button>
           {(user.role === 'admin' || user.role === 'manager') && (
             <button
-              onClick={() => setReturnProduct({})} // Open return modal with empty/any selection
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 flex-shrink-0"
+              onClick={() => setReturnProduct({})}
+              className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
             >
-              <span>🔙</span> Record Return
+              🔙 Record Return
             </button>
           )}
           {(user.role === 'admin' || user.role === 'manager') && (
-            <div className="flex gap-2 flex-shrink-0">
+            <>
               <button
                 onClick={() => setShowBulkPriceModal(true)}
-                className="px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition font-bold text-sm flex items-center gap-2"
+                className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
               >
-                <span>📈</span> % Change
+                📈 % Change
               </button>
               <button
                 onClick={openBulkEditor}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-md shadow-purple-100"
+                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
               >
-                <span>✏️</span> Edit Prices
+                ✏️ Edit Prices
               </button>
-            </div>
+            </>
           )}
           <button
             onClick={handlePrint}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-sm flex-shrink-0"
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
           >
-            <span>🖨️</span> Print Inventory
+            🖨️ Print
           </button>
           <button
             onClick={() => { setSearch(''); setSelectedCategory(''); setSelectedBrand(''); setShowLowStockOnly(false); }}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition flex-shrink-0"
+            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition text-xs font-medium"
           >
-            Reset
+            ↺ Reset
           </button>
           <button
             onClick={fetchInventory}
-            className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition flex-shrink-0"
+            className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition text-xs font-medium"
           >
-            Refresh
+            ⟳ Refresh
           </button>
         </div>
       </div>
