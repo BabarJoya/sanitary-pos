@@ -108,13 +108,22 @@ function Inventory() {
     })
 
     const shopName = localStorage.getItem('shop_name') || 'Our Shop'
+    const shopSettings = JSON.parse(localStorage.getItem('shop_settings_full') || '{}')
+    const reorderTemplate = shopSettings.wa_reorder_template ||
+      'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!'
     const supplierNames = Object.keys(bySupplier)
+
+    const applyTemplate = (supplierName, itemsText) =>
+      reorderTemplate
+        .replace(/\[Supplier Name\]/g, supplierName)
+        .replace(/\[Shop Name\]/g, shopName)
+        .replace(/\[Items\]/g, itemsText)
 
     // If all items from one supplier → open WhatsApp directly
     if (supplierNames.length === 1) {
       const sup = bySupplier[supplierNames[0]]
       const itemList = sup.items.map(p => `• ${p.name} (Stock: ${p.stock_quantity}, Need: ${Math.max(0, (p.low_stock_threshold || 10) * 2 - p.stock_quantity)})`).join('\n')
-      const msg = `Assalam-o-Alaikum *${supplierNames[0]}*! 🙏\n\n*${shopName}* se order:\n\n${itemList}\n\nMeharbani farma kar jald supply karein. Shukriya!`
+      const msg = applyTemplate(supplierNames[0], itemList)
       let phone = (sup.phone || '').replace(/[^0-9]/g, '')
       if (phone.startsWith('03')) phone = '92' + phone.substring(1)
       const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
@@ -126,7 +135,7 @@ function Inventory() {
         const itemList = sup.items.map(p => `  • ${p.name} (${p.stock_quantity} left)`).join('\n')
         return `*${sName}*:\n${itemList}`
       }).join('\n\n')
-      const msg = `Assalam-o-Alaikum! 🙏\n\n*${shopName}* - Low Stock Reorder List:\n\n${fullMsg}\n\nMeharbani farma kar supply karein. Shukriya!`
+      const msg = applyTemplate('All Suppliers', fullMsg)
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
     }
   }

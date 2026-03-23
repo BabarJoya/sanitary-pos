@@ -30,6 +30,7 @@ function Settings() {
       print_mode: 'manual',
       wa_reminder_template: 'Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!',
       wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!',
+      wa_reorder_template: 'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!',
       invoice_prefix: ''
     }
   })
@@ -111,6 +112,7 @@ function Settings() {
       print_mode:           saved.print_mode           || prev.print_mode           || 'manual',
       wa_reminder_template: saved.wa_reminder_template || prev.wa_reminder_template || '',
       wa_bill_template:     saved.wa_bill_template     || prev.wa_bill_template     || '',
+      wa_reorder_template:  saved.wa_reorder_template  || prev.wa_reorder_template  || '',
       invoice_prefix:       saved.invoice_prefix       || prev.invoice_prefix       || '',
     }))
 
@@ -498,10 +500,13 @@ function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
             <div className="md:col-span-2">
               <h3 className="text-sm font-black text-blue-600 uppercase tracking-wider mb-3">WhatsApp Messaging Templates</h3>
-              <p className="text-[10px] text-gray-400 mb-4">Use [Name], [Amount], [Shop Name], and [ID] as placeholders.</p>
+              <p className="text-[10px] text-gray-400 mb-4">
+                Customer templates: <code className="bg-gray-100 px-1 rounded">[Name]</code> <code className="bg-gray-100 px-1 rounded">[Amount]</code> <code className="bg-gray-100 px-1 rounded">[Shop Name]</code> <code className="bg-gray-100 px-1 rounded">[ID]</code>
+                &nbsp;·&nbsp; Reorder template: <code className="bg-gray-100 px-1 rounded">[Supplier Name]</code> <code className="bg-gray-100 px-1 rounded">[Shop Name]</code> <code className="bg-gray-100 px-1 rounded">[Items]</code>
+              </p>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-600 mb-1">Debt Reminder Template (English)</label>
+              <label className="block text-sm font-bold text-gray-600 mb-1">💬 Debt Reminder Template</label>
               <textarea
                 value={form.wa_reminder_template}
                 onChange={e => setForm({ ...form, wa_reminder_template: e.target.value })}
@@ -510,13 +515,25 @@ function Settings() {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-600 mb-1">New Bill Template (English)</label>
+              <label className="block text-sm font-bold text-gray-600 mb-1">🧾 New Bill / Sale Template</label>
               <textarea
                 value={form.wa_bill_template}
                 onChange={e => setForm({ ...form, wa_bill_template: e.target.value })}
                 className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
                 placeholder="Hello [Name], thank you for shopping! Bill #[ID] for Rs. [Amount]..."
               />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-bold text-gray-600 mb-1">📦 Low Stock Reorder Template (Inventory → Reorder WA)</label>
+              <textarea
+                value={form.wa_reorder_template}
+                onChange={e => setForm({ ...form, wa_reorder_template: e.target.value })}
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm h-24"
+                placeholder="Assalam-o-Alaikum *[Supplier Name]*!&#10;&#10;*[Shop Name]* se order:&#10;&#10;[Items]&#10;&#10;Meharbani farma kar supply karein."
+              />
+              <p className="text-[10px] text-gray-400 mt-1">
+                <code className="bg-gray-100 px-1 rounded">[Items]</code> is auto-filled with low stock product names, current stock and suggested reorder quantity.
+              </p>
             </div>
           </div>
 
