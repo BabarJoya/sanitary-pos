@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase, supabaseAdmin } from '../services/supabase'
-import { Search, Plus, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Edit, Users, FileText } from 'lucide-react'
+import { Search, Plus, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Edit, Users, FileText, Trash2 } from 'lucide-react'
 import CreateShopModal from '../components/CreateShopModal'
 import EditShopModal from '../components/EditShopModal'
 import ManageUsersModal from '../components/ManageUsersModal'
@@ -96,6 +96,46 @@ export default function ShopsList() {
     }
   }
 
+  const handleDeleteShop = async (shop) => {
+    const confirmed = prompt(
+      `⚠️ This will permanently delete "${shop.name}" and ALL its data (users, sales, products, etc.).\n\nType the shop name exactly to confirm:`
+    )
+    if (confirmed === null) return // cancelled
+    if (confirmed.trim() !== shop.name.trim()) {
+      alert('Shop name did not match. Delete cancelled.')
+      return
+    }
+
+    try {
+      // Delete all related records first (cascade may not be set)
+      await supabaseAdmin.from('users').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('products').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('sales').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('purchases').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('customers').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('suppliers').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('expenses').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('categories').delete().eq('shop_id', shop.id)
+      await supabaseAdmin.from('brands').delete().eq('shop_id', shop.id)
+
+      const { error } = await supabaseAdmin.from('shops').delete().eq('id', shop.id)
+      if (error) throw error
+
+      await logAction({
+        actor_id: user?.id,
+        actor_email: user?.email || user?.username,
+        action_type: 'DELETE_SHOP',
+        target_type: 'SHOP',
+        target_id: shop.id,
+        details: { shopName: shop.name }
+      })
+
+      fetchShops()
+    } catch (e) {
+      alert('Delete failed: ' + e.message)
+    }
+  }
+
   const handleImpersonate = async (shop) => {
     if (confirm(`Login as ${shop.name}? You will be temporarily signed out of the Superadmin portal.`)) {
       // Log the impersonation action
@@ -114,7 +154,7 @@ export default function ShopsList() {
         shopName: shop.name || '',
         logoUrl: shop.logo_url || ''
       }).toString()
-      const posUrl = import.meta.env.VITE_POS_URL || 'http://localhost:5174'
+      const posUrl = import.meta.env.VITE_POS_URL || 'https://pos.edgexsuite.com'
       window.location.href = `${posUrl}/?${params}`
     }
   }
@@ -260,6 +300,10 @@ export default function ShopsList() {
                         >
                           {shop.status === 'active' || !shop.status ? 'Suspend' : 'Activate'}
                         </button>
+                        <button onClick={() => handleDeleteShop(shop)}
+                          className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition flex items-center gap-1">
+                          <Trash2 size={13} /> Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -363,6 +407,10 @@ export default function ShopsList() {
                     }`}
                   >
                     {isActive ? <><XCircle size={14} /> Suspend</> : <><CheckCircle2 size={14} /> Activate</>}
+                  </button>
+                  <button onClick={() => handleDeleteShop(shop)}
+                    className="col-span-2 text-xs font-bold py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-500 hover:bg-red-100 active:scale-95 transition flex items-center justify-center gap-1.5">
+                    <Trash2 size={14} /> Delete Shop Permanently
                   </button>
                 </div>
               </div>

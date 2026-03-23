@@ -92,8 +92,8 @@ export default function AuditLogs() {
                 </button>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <table className="w-full text-left border-collapse">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[700px]">
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
                             <th className="p-4 pl-6">Timestamp & Admin</th>

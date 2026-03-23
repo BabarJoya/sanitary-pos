@@ -228,17 +228,17 @@ export default function Subscriptions() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-slate-800">💳 Billing & Subscriptions</h1>
-                <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <h1 className="text-2xl font-bold text-slate-800 flex-1">💳 Billing & Subscriptions</h1>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                     <button
                         onClick={handleExportSubscriptions}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl shadow-sm hover:bg-slate-50 transition"
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl shadow-sm hover:bg-slate-50 transition"
                     >
                         <FileText size={18} className="text-emerald-500" />
                         Export Excel
                     </button>
-                    <div className="relative w-80">
+                    <div className="relative flex-1 sm:w-72">
                         <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
                         <input
                             type="text"
@@ -257,8 +257,8 @@ export default function Subscriptions() {
                 </div>
             )}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden text-sm">
-                <table className="w-full text-left border-collapse">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto text-sm">
+                <table className="w-full text-left border-collapse min-w-[700px]">
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
                             <th className="p-4 pl-6">Client / Shop</th>

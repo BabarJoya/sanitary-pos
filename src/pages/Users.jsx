@@ -246,8 +246,8 @@ function Users() {
       {loading ? <p className="text-gray-500">Loading...</p> : users.length === 0 ? (
         <div className="text-center py-12"><p className="text-gray-400 text-lg">No users yet</p></div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl shadow overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[520px]">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User Info</th>

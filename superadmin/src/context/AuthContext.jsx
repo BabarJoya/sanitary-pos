@@ -29,10 +29,11 @@ export function AuthProvider({ children }) {
     const hashed = await hashPassword(password)
 
     // Query the custom users table directly — no Supabase Auth required
+    // ilike for case-insensitive email matching (e.g. Admin@X.com == admin@x.com)
     const { data, error } = await supabaseAdmin
       .from('users')
       .select('*')
-      .eq('email', email)
+      .ilike('email', email.trim())
       .eq('password', hashed)
       .eq('role', 'superadmin')
       .eq('is_active', true)

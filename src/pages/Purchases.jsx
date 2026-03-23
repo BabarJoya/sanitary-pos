@@ -617,8 +617,8 @@ function Purchases() {
                 ) : priceHistory.length === 0 ? (
                   <p className="text-center text-gray-400 text-xs py-4 italic">No previous purchases found for this product.</p>
                 ) : (
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
+                  <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                    <table className="w-full text-xs min-w-[360px]">
                       <thead className="bg-gray-100">
                         <tr>
                           <th className="px-3 py-2 text-left text-gray-500 font-bold">Date</th>
