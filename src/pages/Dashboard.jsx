@@ -10,12 +10,18 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     todaySales: 0,
+    todayProfit: 0,
+    todayCashSales: 0,
+    todayCreditSales: 0,
     monthlySales: 0,
     totalReceivables: 0,
     lowStockCount: 0,
     productCount: 0,
     planInfo: null
   })
+  const [showEOD, setShowEOD] = useState(false)
+  const [eodData, setEodData] = useState(null)
+  const [eodLoading, setEodLoading] = useState(false)
 
   useEffect(() => {
     if (user?.shop_id) fetchDashboardStats()
@@ -30,7 +36,7 @@ function Dashboard() {
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
       const fetchPromise = Promise.all([
-        supabase.from('sales').select('total_amount, discount').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', today.toISOString()),
+        supabase.from('sales').select('total_amount, discount, payment_type, sale_items(cost_price, quantity, returned_qty)').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', today.toISOString()),
         supabase.from('sales').select('total_amount, discount').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', firstDayOfMonth.toISOString()),
         supabase.from('customers').select('outstanding_balance').eq('shop_id', user.shop_id),
         supabase.from('products').select('id, stock_quantity, low_stock_threshold').eq('shop_id', user.shop_id),
@@ -60,13 +66,24 @@ function Dashboard() {
       if (monthRes.error) console.warn('Dashboard: monthlySales fetch error', monthRes.error.message)
       if (custRes.error) console.warn('Dashboard: customers fetch error', custRes.error.message)
 
-      const todayTotal = (todayRes.data || []).reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)
+      const todaySalesList = todayRes.data || []
+      const todayTotal = todaySalesList.reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)
+      const todayCOGS = todaySalesList.reduce((sum, s) =>
+        sum + (s.sale_items || []).reduce((iSum, i) => {
+          const netQty = Math.max(0, Number(i.quantity || 0) - Number(i.returned_qty || 0))
+          return iSum + Number(i.cost_price || 0) * netQty
+        }, 0), 0)
+      const todayCashSales = todaySalesList.filter(s => s.payment_type === 'cash').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)
+      const todayCreditSales = todaySalesList.filter(s => s.payment_type !== 'cash').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)
       const monthlyTotal = (monthRes.data || []).reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)
       const totalReceivables = (custRes.data || []).reduce((sum, c) => sum + Number(c.outstanding_balance || 0), 0)
       const productList = prodRes.data || []
 
       setStats({
         todaySales: todayTotal,
+        todayProfit: todayTotal - todayCOGS,
+        todayCashSales,
+        todayCreditSales,
         monthlySales: monthlyTotal,
         totalReceivables,
         lowStockCount: productList.filter(p => Number(p.stock_quantity) <= Number(p.low_stock_threshold || 10)).length,
@@ -96,8 +113,21 @@ function Dashboard() {
         const tSales = mySales.filter(s => new Date(s.created_at) >= today)
         const mSales = mySales.filter(s => new Date(s.created_at) >= firstDayOfMonth)
 
+        // Estimate today's profit from local sale_items
+        const todaySaleIds = tSales.map(s => s.id)
+        const lItems = await db.sale_items.toArray().catch(() => [])
+        const todayItems = lItems.filter(i => todaySaleIds.includes(i.sale_id))
+        const todayCOGSOffline = todayItems.reduce((sum, i) => {
+          const netQty = Math.max(0, Number(i.quantity || 0) - Number(i.returned_qty || 0))
+          return sum + Number(i.cost_price || 0) * netQty
+        }, 0)
+        const tTotalSales = tSales.reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0)
+
         setStats({
-          todaySales: tSales.reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
+          todaySales: tTotalSales,
+          todayProfit: tTotalSales - todayCOGSOffline,
+          todayCashSales: tSales.filter(s => s.payment_type === 'cash').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
+          todayCreditSales: tSales.filter(s => s.payment_type !== 'cash').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
           monthlySales: mSales.reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
           totalReceivables: myCustomers.reduce((sum, c) => sum + Number(c.outstanding_balance || 0), 0),
           lowStockCount: myProducts.filter(p => Number(p.stock_quantity) <= Number(p.low_stock_threshold || 10)).length,
@@ -113,6 +143,69 @@ function Dashboard() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const openEOD = async () => {
+    setEodLoading(true)
+    setShowEOD(true)
+    try {
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const [expRes, purRes] = await Promise.all([
+        supabase.from('expenses').select('amount').eq('shop_id', user.shop_id).gte('created_at', today.toISOString()),
+        supabase.from('purchases').select('total_amount, payment_type').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())
+      ])
+      const todayExpenses = (expRes.data || []).reduce((s, e) => s + Number(e.amount || 0), 0)
+      const todayCashPurchases = (purRes.data || []).filter(p => p.payment_type === 'cash').reduce((s, p) => s + Number(p.total_amount || 0), 0)
+      const todayCreditPurchases = (purRes.data || []).filter(p => p.payment_type !== 'cash').reduce((s, p) => s + Number(p.total_amount || 0), 0)
+      setEodData({
+        cashSales: stats.todayCashSales,
+        creditSales: stats.todayCreditSales,
+        totalSales: stats.todaySales,
+        profit: stats.todayProfit,
+        expenses: todayExpenses,
+        cashPurchases: todayCashPurchases,
+        creditPurchases: todayCreditPurchases,
+        netCash: stats.todayCashSales - todayExpenses - todayCashPurchases
+      })
+    } catch (e) {
+      console.error('EOD fetch error:', e)
+    } finally {
+      setEodLoading(false)
+    }
+  }
+
+  const printEOD = () => {
+    const d = eodData
+    if (!d) return
+    const dateStr = new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    const win = window.open('', '_blank')
+    win.document.write(`<html><head><title>End of Day Report</title>
+      <style>
+        body{font-family:monospace;width:320px;margin:auto;padding:20px;font-size:13px;}
+        h2,p.center{text-align:center;margin:2px 0;}
+        hr{border-top:1px dashed #000;margin:8px 0;}
+        .row{display:flex;justify-content:space-between;padding:4px 0;}
+        .bold{font-weight:bold;} .green{color:green;} .red{color:red;} .blue{color:blue;}
+      </style></head><body>
+      <h2>🌙 End of Day Report</h2>
+      <p class="center">${dateStr}</p>
+      <hr/>
+      <p class="center bold">SALES SUMMARY</p>
+      <div class="row"><span>💵 Cash Sales</span><span class="green bold">Rs. ${d.cashSales.toLocaleString()}</span></div>
+      <div class="row"><span>📒 Credit (Udhaar)</span><span class="red bold">Rs. ${d.creditSales.toLocaleString()}</span></div>
+      <div class="row bold"><span>Total Sales</span><span>Rs. ${d.totalSales.toLocaleString()}</span></div>
+      <hr/>
+      <p class="center bold">EXPENSES & PURCHASES</p>
+      <div class="row"><span>💸 Expenses</span><span class="red">Rs. ${d.expenses.toLocaleString()}</span></div>
+      <div class="row"><span>📦 Cash Purchases</span><span class="red">Rs. ${d.cashPurchases.toLocaleString()}</span></div>
+      <div class="row"><span>📦 Credit Purchases</span><span>Rs. ${d.creditPurchases.toLocaleString()}</span></div>
+      <hr/>
+      <div class="row bold"><span>📈 Gross Profit</span><span class="${d.profit >= 0 ? 'green' : 'red'}">Rs. ${d.profit.toLocaleString()}</span></div>
+      <div class="row bold" style="font-size:15px;"><span>💰 Net Cash</span><span class="${d.netCash >= 0 ? 'green' : 'red'}">Rs. ${d.netCash.toLocaleString()}</span></div>
+      <hr/>
+      <p class="center" style="font-size:11px;color:#888;">Generated: ${new Date().toLocaleTimeString('en-PK')}</p>
+      </body></html>`)
+    win.document.close(); win.print()
   }
 
   const StatCard = ({ title, value, icon, color, subValue }) => (
@@ -137,23 +230,32 @@ function Dashboard() {
           <h1 className="text-3xl font-bold text-gray-800">Assalam-o-Alaikum, {user.username}! 👋</h1>
           <p className="text-gray-500 mt-1">Today's Summary</p>
         </div>
-        <button
-          onClick={fetchDashboardStats}
-          className="p-2 text-gray-400 hover:text-blue-600 transition"
-          title="Refresh Stats"
-        >
-          🔄
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={openEOD}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition shadow"
+            title="End of Day Summary"
+          >
+            🌙 Close Day
+          </button>
+          <button
+            onClick={fetchDashboardStats}
+            className="p-2 text-gray-400 hover:text-blue-600 transition"
+            title="Refresh Stats"
+          >
+            🔄
+          </button>
+        </div>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-pulse">
-          {[1, 2, 3, 4].map(i => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 animate-pulse">
+          {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="h-32 bg-gray-100 rounded-2xl"></div>
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <StatCard
             title="Today's Sales (Rs)"
             value={stats.todaySales}
@@ -162,9 +264,16 @@ function Dashboard() {
             subValue="Today"
           />
           <StatCard
+            title="Today's Profit (Rs)"
+            value={stats.todayProfit}
+            icon="📈"
+            color="text-emerald-600 bg-emerald-600"
+            subValue="Gross"
+          />
+          <StatCard
             title="Monthly Sales (Rs)"
             value={stats.monthlySales}
-            icon="📈"
+            icon="🗓️"
             color="text-blue-600 bg-blue-600"
             subValue="This Month"
           />
@@ -182,6 +291,20 @@ function Dashboard() {
             color="text-red-600 bg-red-600"
             subValue="Alert"
           />
+        </div>
+      )}
+
+      {/* Today's cash vs credit breakdown */}
+      {!loading && (stats.todayCashSales > 0 || stats.todayCreditSales > 0) && (
+        <div className="flex gap-3 mt-3">
+          <div className="flex-1 bg-green-50 border border-green-100 rounded-xl px-4 py-2 flex justify-between items-center">
+            <span className="text-sm font-medium text-green-700">💵 Cash Sales</span>
+            <span className="font-bold text-green-700">Rs. {stats.todayCashSales.toLocaleString()}</span>
+          </div>
+          <div className="flex-1 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2 flex justify-between items-center">
+            <span className="text-sm font-medium text-orange-700">📒 Credit (Udhaar)</span>
+            <span className="font-bold text-orange-700">Rs. {stats.todayCreditSales.toLocaleString()}</span>
+          </div>
         </div>
       )}
 
@@ -212,6 +335,59 @@ function Dashboard() {
       <div className="fixed top-0 right-0 -z-10 opacity-5 pointer-events-none">
         <span className="text-[400px]">🔧</span>
       </div>
+
+      {/* EOD Modal */}
+      {showEOD && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-800">🌙 End of Day Summary</h2>
+                <button onClick={() => setShowEOD(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">{new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+
+            {eodLoading ? (
+              <div className="p-8 text-center text-gray-400">Loading summary...</div>
+            ) : eodData ? (
+              <div className="p-6 space-y-4">
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Sales</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between"><span className="text-gray-600">💵 Cash Sales</span><span className="font-bold text-green-600">Rs. {eodData.cashSales.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">📒 Credit (Udhaar)</span><span className="font-bold text-orange-500">Rs. {eodData.creditSales.toLocaleString()}</span></div>
+                    <div className="flex justify-between border-t pt-2"><span className="font-semibold text-gray-800">Total Sales</span><span className="font-bold text-gray-800">Rs. {eodData.totalSales.toLocaleString()}</span></div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Outflows</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between"><span className="text-gray-600">💸 Expenses</span><span className="font-bold text-red-500">Rs. {eodData.expenses.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">📦 Cash Purchases</span><span className="font-bold text-red-500">Rs. {eodData.cashPurchases.toLocaleString()}</span></div>
+                    {eodData.creditPurchases > 0 && <div className="flex justify-between"><span className="text-gray-600">📦 Credit Purchases</span><span className="font-medium text-gray-500">Rs. {eodData.creditPurchases.toLocaleString()}</span></div>}
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-100">
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-gray-700">📈 Gross Profit</span>
+                    <span className={`font-bold text-lg ${eodData.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Rs. {eodData.profit.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <span className="font-bold text-gray-800">💰 Net Cash in Hand</span>
+                    <span className={`font-black text-xl ${eodData.netCash >= 0 ? 'text-green-600' : 'text-red-600'}`}>Rs. {eodData.netCash.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            ) : <div className="p-8 text-center text-red-400">Could not load data.</div>}
+
+            <div className="p-4 border-t border-gray-100 flex gap-3">
+              {eodData && <button onClick={printEOD} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition">🖨️ Print Report</button>}
+              <button onClick={() => setShowEOD(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

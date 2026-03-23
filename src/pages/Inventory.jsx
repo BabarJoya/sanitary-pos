@@ -94,6 +94,43 @@ function Inventory() {
     win.print()
   }
 
+  const handleReorderWhatsApp = () => {
+    const lowItems = products.filter(p => p.stock_quantity <= (p.low_stock_threshold || 10))
+    if (lowItems.length === 0) { alert('Koi bhi product low stock mein nahi hai!'); return }
+
+    // Group by supplier
+    const bySupplier = {}
+    lowItems.forEach(p => {
+      const supName = p.suppliers?.name || 'Unknown Supplier'
+      const supPhone = p.suppliers?.phone || ''
+      if (!bySupplier[supName]) bySupplier[supName] = { phone: supPhone, items: [] }
+      bySupplier[supName].items.push(p)
+    })
+
+    const shopName = localStorage.getItem('shop_name') || 'Our Shop'
+    const supplierNames = Object.keys(bySupplier)
+
+    // If all items from one supplier → open WhatsApp directly
+    if (supplierNames.length === 1) {
+      const sup = bySupplier[supplierNames[0]]
+      const itemList = sup.items.map(p => `• ${p.name} (Stock: ${p.stock_quantity}, Need: ${Math.max(0, (p.low_stock_threshold || 10) * 2 - p.stock_quantity)})`).join('\n')
+      const msg = `Assalam-o-Alaikum *${supplierNames[0]}*! 🙏\n\n*${shopName}* se order:\n\n${itemList}\n\nMeharbani farma kar jald supply karein. Shukriya!`
+      let phone = (sup.phone || '').replace(/[^0-9]/g, '')
+      if (phone.startsWith('03')) phone = '92' + phone.substring(1)
+      const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+      window.open(url, '_blank')
+    } else {
+      // Multiple suppliers — generate combined message and open WhatsApp without specific number
+      const fullMsg = supplierNames.map(sName => {
+        const sup = bySupplier[sName]
+        const itemList = sup.items.map(p => `  • ${p.name} (${p.stock_quantity} left)`).join('\n')
+        return `*${sName}*:\n${itemList}`
+      }).join('\n\n')
+      const msg = `Assalam-o-Alaikum! 🙏\n\n*${shopName}* - Low Stock Reorder List:\n\n${fullMsg}\n\nMeharbani farma kar supply karein. Shukriya!`
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+    }
+  }
+
   // Adjustment Modal
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [newStock, setNewStock] = useState('')
@@ -116,7 +153,7 @@ function Inventory() {
       }
       if (!navigator.onLine) throw new Error('Offline');
       const fetchPromise = Promise.all([
-        supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).order('name'),
+        supabase.from('products').select('*, categories(name), suppliers(name, phone)').eq('shop_id', user.shop_id).order('name'),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
       ])
@@ -547,6 +584,13 @@ function Inventory() {
             className="px-4 py-2 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-sm flex-shrink-0"
           >
             <span>📤</span> Export to Excel
+          </button>
+          <button
+            onClick={handleReorderWhatsApp}
+            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition font-bold text-sm flex items-center gap-2 shadow-sm flex-shrink-0"
+            title="Send low stock reorder list to supplier via WhatsApp"
+          >
+            <span>📱</span> Reorder via WhatsApp
           </button>
           {(user.role === 'admin' || user.role === 'manager') && (
             <button

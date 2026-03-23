@@ -17,6 +17,7 @@ function CustomerLedger() {
     const [paymentNote, setPaymentNote] = useState('')
     const [saving, setSaving] = useState(false)
     const [expandedSale, setExpandedSale] = useState(null)
+    const [lastPayment, setLastPayment] = useState(null) // for print voucher after recording
 
     useEffect(() => {
         if (id && user?.shop_id) fetchCustomerData()
@@ -154,6 +155,35 @@ function CustomerLedger() {
         }
     }
 
+    const printPaymentVoucher = (amount, note, date) => {
+        const shopName = JSON.parse(localStorage.getItem('plan_limits') || '{}').shop_name || 'Our Shop'
+        const cachedShopName = localStorage.getItem('shop_name') || shopName
+        const win = window.open('', '_blank')
+        win.document.write(`<html><head><title>Payment Receipt</title>
+        <style>
+          body{font-family:monospace;width:320px;margin:auto;padding:20px;font-size:13px;}
+          h2,p.c{text-align:center;margin:3px 0;}
+          hr{border-top:1px dashed #000;margin:8px 0;}
+          .row{display:flex;justify-content:space-between;padding:3px 0;}
+          .bold{font-weight:bold;}
+        </style></head><body>
+        <h2>${cachedShopName}</h2>
+        <p class="c bold" style="font-size:15px;">PAYMENT RECEIPT</p>
+        <hr/>
+        <div class="row"><span>Customer:</span><span class="bold">${customer.name}</span></div>
+        <div class="row"><span>Phone:</span><span>${customer.phone || '-'}</span></div>
+        <div class="row"><span>Date:</span><span>${new Date(date || Date.now()).toLocaleString('en-PK')}</span></div>
+        <hr/>
+        <div class="row bold" style="font-size:16px;"><span>Amount Received</span><span>Rs. ${Number(amount).toLocaleString()}</span></div>
+        ${note ? `<div class="row"><span>Note:</span><span>${note}</span></div>` : ''}
+        <hr/>
+        <div class="row"><span>Remaining Balance:</span><span class="bold">Rs. ${Math.max(0, (customer.outstanding_balance || 0) - Number(amount)).toLocaleString()}</span></div>
+        <hr/>
+        <p class="c" style="font-size:11px;color:#888;">Thank you! Payment received in full.</p>
+        </body></html>`)
+        win.document.close(); win.print()
+    }
+
     const handleAddPayment = async (e) => {
         e.preventDefault()
         if (!paymentAmount || parseFloat(paymentAmount) <= 0) return
@@ -180,7 +210,7 @@ function CustomerLedger() {
             const { error: cError } = await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
             if (cError) throw cError
 
-            alert('Payment recorded successfully! ✅')
+            setLastPayment({ amount, note: paymentNote || 'Cash Received', date: new Date().toISOString() })
             setPaymentAmount('')
             setPaymentNote('')
             setShowPaymentModal(false)
@@ -208,7 +238,7 @@ function CustomerLedger() {
                 await db.customers.update(id, { outstanding_balance: newBal })
                 await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: newBal }, timestamp: paymentData.created_at })
 
-                alert('Offline mode: Payment saved locally. Will sync when online! 🔄')
+                setLastPayment({ amount, note: (paymentNote || 'Cash Received') + ' (Offline)', date: paymentData.created_at })
                 setPaymentAmount('')
                 setPaymentNote('')
                 setShowPaymentModal(false)
@@ -305,6 +335,13 @@ function CustomerLedger() {
                                                     </button>
                                                 )}
                                             </div>
+                                            {item.type === 'payment' && (
+                                                <button
+                                                    onClick={() => printPaymentVoucher(item.amount, item.note, item.date)}
+                                                    className="text-[10px] text-gray-400 hover:text-green-600 font-medium mt-0.5 transition"
+                                                    title="Print Payment Voucher"
+                                                >🖨️ Print Voucher</button>
+                                            )}
                                             {item.type === 'return' && <span className="w-fit px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold mt-1">Return</span>}
                                         </div>
                                     </td>
@@ -346,6 +383,23 @@ function CustomerLedger() {
                 </table>
                 </div>
             </div>
+
+            {/* Payment Success Banner */}
+            {lastPayment && (
+                <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white rounded-2xl shadow-2xl p-4 flex items-center gap-4 animate-bounce-once max-w-sm">
+                    <div>
+                        <p className="font-bold text-sm">✅ Payment Recorded!</p>
+                        <p className="text-xs opacity-90">Rs. {Number(lastPayment.amount).toLocaleString()} — {lastPayment.note}</p>
+                    </div>
+                    <button
+                        onClick={() => printPaymentVoucher(lastPayment.amount, lastPayment.note, lastPayment.date)}
+                        className="bg-white text-green-700 font-bold text-xs px-3 py-2 rounded-xl hover:bg-green-50 transition whitespace-nowrap"
+                    >
+                        🖨️ Print
+                    </button>
+                    <button onClick={() => setLastPayment(null)} className="text-white/70 hover:text-white text-lg leading-none ml-1">×</button>
+                </div>
+            )}
 
             {/* Payment Modal */}
             {
