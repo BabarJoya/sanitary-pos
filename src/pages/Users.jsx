@@ -118,7 +118,7 @@ function Users() {
   const handleDelete = async (id) => {
     if (id === user.id) { alert('Aap apna khud ka account delete nahi kar sakte!'); return }
     if (!confirm('Is user ko delete karo?')) return
-    await supabase.from('users').delete().eq('id', id)
+    await supabase.from('users').delete().eq('id', id).eq('shop_id', user.shop_id)
     fetchUsers()
   }
 

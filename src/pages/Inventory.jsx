@@ -276,9 +276,9 @@ function Inventory() {
         .from('products')
         .select('stock_quantity')
         .eq('id', returnProduct.id)
-        .single()
+        .maybeSingle()
 
-      if (fetchError) throw fetchError
+      if (fetchError || !latest) throw new Error('Product not found')
       currentStock = latest.stock_quantity || 0
       const newTotal = currentStock + qty
 

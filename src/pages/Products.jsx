@@ -213,7 +213,7 @@ function Products() {
 
       try {
         if (navigator.onLine) {
-          const { error } = await supabase.from('products').delete().eq('id', id)
+          const { error } = await supabase.from('products').delete().eq('id', id).eq('shop_id', user.shop_id)
           if (error) {
             console.error('Delete failed:', error)
             failCount++

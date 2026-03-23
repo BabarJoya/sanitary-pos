@@ -149,7 +149,7 @@ function Sales() {
           .eq('id', item.id)
 
         // Restore stock — fetch live stock first to avoid undefined/stale value
-        const { data: liveProduct } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single()
+        const { data: liveProduct } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).maybeSingle()
         const currentStock = liveProduct?.stock_quantity ?? 0
         const newStock = currentStock + returnQty
         await supabase.from('products')
@@ -165,7 +165,7 @@ function Sales() {
 
       // Process Refund
       if (refundType === 'credit' && selectedSale.customer_id) {
-        const { data: cust } = await supabase.from('customers').select('outstanding_balance').eq('id', selectedSale.customer_id).single()
+        const { data: cust } = await supabase.from('customers').select('outstanding_balance').eq('id', selectedSale.customer_id).maybeSingle()
         const newBal = Math.max(0, (cust?.outstanding_balance || 0) - totalReturnAmount)
         await supabase.from('customers').update({ outstanding_balance: newBal }).eq('id', selectedSale.customer_id)
         await db.customers.update(selectedSale.customer_id, { outstanding_balance: newBal })
@@ -208,7 +208,7 @@ function Sales() {
       setReturnQtys({})
 
       // Re-fetch online items if possible
-      const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).single()
+      const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
       if (updatedSale) setSelectedSale(updatedSale)
       fetchSales()
     } catch (err) {
@@ -316,9 +316,10 @@ function Sales() {
   const filtered = sales.filter(s => {
     const matchSearch = (s.customers?.name || s.customer_name || 'walk-in').toLowerCase().includes(search.toLowerCase()) ||
       String(s.id).toLowerCase().includes(search.toLowerCase())
-    const matchType = filterType ? (filterType === 'sale' || filterType === 'quotation' ? s.sale_type === filterType : s.payment_type === filterType) : true
-    const matchDate = searchDate ? s.created_at.startsWith(searchDate) : true
-    return matchSearch && matchType && matchDate
+    const matchType = typeFilter !== 'all' ? s.sale_type === typeFilter : true
+    const matchPayment = paymentFilter !== 'all' ? s.payment_type === paymentFilter : true
+    const matchDate = dateFilter ? s.created_at?.startsWith(dateFilter) : true
+    return matchSearch && matchType && matchPayment && matchDate
   })
 
   const requestDelete = (ids) => {

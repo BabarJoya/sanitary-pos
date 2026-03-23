@@ -40,7 +40,7 @@ function EditProduct() {
 
       // Fetch product and relationships
       const fetchPromise = Promise.all([
-        supabase.from('products').select('*').eq('id', id).single(),
+        supabase.from('products').select('*').eq('id', id).eq('shop_id', user.shop_id).maybeSingle(),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('suppliers').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
@@ -49,8 +49,8 @@ function EditProduct() {
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
       const [prodResult, catResult, supResult, brandResult] = await Promise.race([fetchPromise, timeoutPromise])
 
-      if (prodResult.error) throw new Error('Product not found')
-      
+      if (prodResult.error || !prodResult.data) throw new Error('Product not found')
+
       const product = prodResult.data
       setForm({
         name: product.name || '',

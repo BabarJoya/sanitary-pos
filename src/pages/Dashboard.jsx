@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
+import { db } from '../services/db'
 
 function Dashboard() {
   const { user, logout } = useAuth()

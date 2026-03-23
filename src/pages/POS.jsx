@@ -105,7 +105,7 @@ function POS() {
       .from('sales')
       .select('*, sale_items(*)')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (sale) {
       const items = sale.sale_items.map(si => {
@@ -562,7 +562,7 @@ function POS() {
 
     // If it's a number, try exact match first for performance
     if (!isNaN(qId)) {
-      const { data, error } = await query.eq('id', parseInt(qId)).single()
+      const { data, error } = await query.eq('id', parseInt(qId)).maybeSingle()
       if (data) {
         loadSaleToCart(data)
         return

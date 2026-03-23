@@ -149,7 +149,7 @@ function PurchaseHistory() {
                     .eq('id', item.id)
 
                 // Reduce stock — fetch live stock first
-                const { data: liveProduct } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single()
+                const { data: liveProduct } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).maybeSingle()
                 const currentStock = liveProduct?.stock_quantity ?? 0
                 const newStock = Math.max(0, currentStock - returnQty)
                 await supabase.from('products')
@@ -165,7 +165,7 @@ function PurchaseHistory() {
 
             // If credit purchase, reduce supplier balance
             if (selectedPurchase.payment_type === 'credit' && selectedPurchase.supplier_id) {
-                const { data: sup } = await supabase.from('suppliers').select('outstanding_balance').eq('id', selectedPurchase.supplier_id).single()
+                const { data: sup } = await supabase.from('suppliers').select('outstanding_balance').eq('id', selectedPurchase.supplier_id).maybeSingle()
                 const newBal = Math.max(0, (sup?.outstanding_balance || 0) - totalReturnAmount)
                 await supabase.from('suppliers').update({ outstanding_balance: newBal }).eq('id', selectedPurchase.supplier_id)
 
@@ -198,7 +198,7 @@ function PurchaseHistory() {
             setReturnQtys({})
 
             // Re-fetch updated purchase
-            const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).single()
+            const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).maybeSingle()
             if (updatedPurchase) setSelectedPurchase(updatedPurchase)
             fetchPurchases()
         } catch (err) {
@@ -376,8 +376,9 @@ function PurchaseHistory() {
     const filtered = purchases.filter(p => {
         const matchSearch = (p.suppliers?.name || '').toLowerCase().includes(search.toLowerCase()) ||
             String(p.id).toLowerCase().includes(search.toLowerCase())
-        const matchType = filterType ? p.payment_type === filterType : true
-        return matchSearch && matchType
+        const matchPayment = paymentFilter !== 'all' ? p.payment_type === paymentFilter : true
+        const matchDate = dateFilter ? p.created_at?.startsWith(dateFilter) : true
+        return matchSearch && matchPayment && matchDate
     })
 
     // Summary stats
