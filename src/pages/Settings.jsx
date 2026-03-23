@@ -29,7 +29,8 @@ function Settings() {
       print_size: 'thermal',
       print_mode: 'manual',
       wa_reminder_template: 'Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!',
-      wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
+      wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!',
+      invoice_prefix: ''
     }
   })
   // Logo is managed completely separately from the rest of form state
@@ -110,6 +111,7 @@ function Settings() {
       print_mode:           saved.print_mode           || prev.print_mode           || 'manual',
       wa_reminder_template: saved.wa_reminder_template || prev.wa_reminder_template || '',
       wa_bill_template:     saved.wa_bill_template     || prev.wa_bill_template     || '',
+      invoice_prefix:       saved.invoice_prefix       || prev.invoice_prefix       || '',
     }))
 
     // Only use Supabase logo if localStorage has absolutely nothing for this shop
@@ -448,6 +450,23 @@ function Settings() {
                 className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                 placeholder="e.g. یہ صرف قیمت نامہ ہے"
               />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t">
+            <div className="max-w-xs">
+              <label className="block text-sm font-bold text-gray-600 mb-1">Invoice Number Prefix</label>
+              <input
+                type="text"
+                value={form.invoice_prefix}
+                onChange={e => setForm({ ...form, invoice_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g, '').slice(0, 10) })}
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                placeholder="e.g. MALIK or INV"
+                maxLength={10}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Invoices will appear as: <span className="font-mono font-bold text-blue-600">{form.invoice_prefix || 'INV'}-00001234</span>
+              </p>
             </div>
           </div>
 

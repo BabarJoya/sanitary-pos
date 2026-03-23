@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -53,6 +53,37 @@ function POS() {
       wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
     }
   })
+
+  // Barcode scanner mode
+  const [barcodeMode, setBarcodeMode] = useState(false)
+  const [barcodeInput, setBarcodeInput] = useState('')
+  const barcodeRef = useRef(null)
+
+  useEffect(() => {
+    if (barcodeMode && barcodeRef.current) barcodeRef.current.focus()
+  }, [barcodeMode])
+
+  const handleBarcodeSubmit = (e) => {
+    e.preventDefault()
+    const sku = barcodeInput.trim()
+    if (!sku) return
+    const product = products.find(p =>
+      (p.sku && p.sku.toLowerCase() === sku.toLowerCase()) ||
+      (p.name && p.name.toLowerCase() === sku.toLowerCase())
+    )
+    if (product) {
+      addToCart(product)
+    } else {
+      const beep = new AudioContext()
+      const osc = beep.createOscillator()
+      osc.connect(beep.destination)
+      osc.frequency.value = 200
+      osc.start(); osc.stop(beep.currentTime + 0.15)
+      alert(`❌ SKU "${sku}" — product not found. Add SKU in Products page.`)
+    }
+    setBarcodeInput('')
+    setTimeout(() => barcodeRef.current?.focus(), 50)
+  }
 
   // Brand bulk discount modal
   const [showBrandDiscount, setShowBrandDiscount] = useState(false)
@@ -647,7 +678,29 @@ function POS() {
             className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold text-sm border border-transparent transition">
             🔍 Search Quotation
           </button>
+          <button onClick={() => setBarcodeMode(b => !b)}
+            className={`flex-1 py-2 rounded-lg font-semibold text-sm transition border ${barcodeMode ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-600 border-gray-200 hover:bg-green-50 hover:border-green-300'}`}>
+            📷 {barcodeMode ? 'Scanning...' : 'Barcode Scan'}
+          </button>
         </div>
+
+        {/* Barcode Scanner Input */}
+        {barcodeMode && (
+          <form onSubmit={handleBarcodeSubmit} className="flex gap-2 items-center bg-green-50 border-2 border-green-400 rounded-xl px-3 py-2">
+            <span className="text-green-600 text-lg">📷</span>
+            <input
+              ref={barcodeRef}
+              type="text"
+              value={barcodeInput}
+              onChange={e => setBarcodeInput(e.target.value)}
+              placeholder="Scan barcode or type SKU → Enter"
+              className="flex-1 bg-transparent outline-none text-sm font-mono text-green-800 placeholder-green-400"
+              autoComplete="off"
+            />
+            <button type="submit" className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-lg font-bold">Add</button>
+            <button type="button" onClick={() => { setBarcodeMode(false); setBarcodeInput('') }} className="text-xs text-green-600 hover:text-red-500 font-bold px-2">✕ Exit</button>
+          </form>
+        )}
 
         {/* Search + Filters */}
         <div className="flex gap-2 flex-wrap">

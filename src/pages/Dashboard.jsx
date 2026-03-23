@@ -174,6 +174,23 @@ function Dashboard() {
     }
   }
 
+  const shareEODWhatsApp = () => {
+    const d = eodData
+    if (!d) return
+    const dateStr = new Date().toLocaleDateString('en-PK')
+    const shopName = localStorage.getItem('shop_name') || 'My Shop'
+    const msg =
+      `🌙 *End of Day — ${dateStr}*\n*${shopName}*\n\n` +
+      `💵 Cash Sales: Rs. ${d.cashSales.toLocaleString()}\n` +
+      `📒 Credit: Rs. ${d.creditSales.toLocaleString()}\n` +
+      `📊 Total Sales: Rs. ${d.totalSales.toLocaleString()}\n\n` +
+      `💸 Expenses: Rs. ${d.expenses.toLocaleString()}\n` +
+      `📦 Cash Purchases: Rs. ${d.cashPurchases.toLocaleString()}\n\n` +
+      `📈 Gross Profit: Rs. ${d.profit.toLocaleString()}\n` +
+      `💰 *Net Cash: Rs. ${d.netCash.toLocaleString()}*`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
   const printEOD = () => {
     const d = eodData
     if (!d) return
@@ -382,7 +399,8 @@ function Dashboard() {
             ) : <div className="p-8 text-center text-red-400">Could not load data.</div>}
 
             <div className="p-4 border-t border-gray-100 flex gap-3">
-              {eodData && <button onClick={printEOD} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition">🖨️ Print Report</button>}
+              {eodData && <button onClick={printEOD} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition">🖨️ Print</button>}
+              {eodData && <button onClick={shareEODWhatsApp} className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition">📱 WhatsApp</button>}
               <button onClick={() => setShowEOD(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition">Close</button>
             </div>
           </div>

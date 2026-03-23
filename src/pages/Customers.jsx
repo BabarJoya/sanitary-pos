@@ -220,6 +220,15 @@ function Customers() {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
+  const getSegment = (c) => {
+    const isNew = new Date(c.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const bal = Number(c.outstanding_balance || 0)
+    if (isNew) return { label: '🆕 New', bg: 'bg-blue-100 text-blue-700' }
+    if (bal >= 10000) return { label: '⭐ VIP', bg: 'bg-yellow-100 text-yellow-700' }
+    if (bal === 0) return { label: '✓ Clear', bg: 'bg-green-100 text-green-700' }
+    return null
+  }
+
   const toggleSelectAll = () => {
     if (selected.length === customers.length) {
       setSelected([])
@@ -380,7 +389,12 @@ function Customers() {
                         className="w-4 h-4 rounded"
                       />
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-800 whitespace-nowrap">{c.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-800">{c.name}</span>
+                        {(() => { const seg = getSegment(c); return seg ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${seg.bg}`}>{seg.label}</span> : null })()}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{c.phone || '-'}</td>
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{c.address || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">

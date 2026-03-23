@@ -61,7 +61,7 @@ function customerLine(r) {
 function template1(r, isQuotation, s) {
   const isThermal = s.print_size !== 'a4'
   const footer = isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں')
-  const invoiceNo = `${isQuotation ? 'QT' : 'INV'}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const invoiceNo = `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
   const dateStr = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK')
   const remaining = r.sale ? safeNum(r.total) - safeNum(r.sale.paid_amount) : 0
 
@@ -148,7 +148,7 @@ function template1(r, isQuotation, s) {
 function template2(r, isQuotation, s) {
   const isThermal = s.print_size !== 'a4'
   const footer = isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں')
-  const invoiceNo = `${isQuotation ? 'QT' : 'INV'}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const invoiceNo = `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
   const dateStr = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK')
   const remaining = r.sale ? safeNum(r.total) - safeNum(r.sale.paid_amount) : 0
 
@@ -258,7 +258,7 @@ function template2(r, isQuotation, s) {
 function template3(r, isQuotation, s) {
   const isThermal = s.print_size !== 'a4'
   const footer = isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں')
-  const invoiceNo = `${isQuotation ? 'QT' : 'INV'}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const invoiceNo = `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
   const dateStr = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK')
   const remaining = r.sale ? safeNum(r.total) - safeNum(r.sale.paid_amount) : 0
 
