@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "EdgeX POS (Main App)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174"],
+      "cwd": "C:\\sanitary-pos",
+      "port": 5174
+    },
+    {
+      "name": "Superadmin Dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5173"],
+      "cwd": "C:\\sanitary-pos\\superadmin",
+      "port": 5173
+    }
+  ]
+}

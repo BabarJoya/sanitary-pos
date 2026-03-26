@@ -89,6 +89,7 @@ function POS() {
   const [showBrandDiscount, setShowBrandDiscount] = useState(false)
   const [brandDiscountType, setBrandDiscountType] = useState('percent')
   const [brandDiscountValue, setBrandDiscountValue] = useState('')
+  const [brandDiscountMode, setBrandDiscountMode] = useState('cart_only') // 'cart_only' or 'add_all'
 
   // Held Carts
   const [heldCarts, setHeldCarts] = useState([])
@@ -363,17 +364,37 @@ function POS() {
     setCart(prev => {
       let updated = [...prev]
       brandProducts.forEach(product => {
-        let discountedPrice = product.sale_price
-        if (brandDiscountType === 'percent') {
-          discountedPrice = product.sale_price - (product.sale_price * val / 100)
+        const cRate = parseFloat(product.c_rate) || 0
+        const isInCart = updated.find(i => i.id === product.id)
+
+        // In cart-only mode, skip products not already in the cart
+        if (brandDiscountMode === 'cart_only' && !isInCart) return
+
+        let discountedPrice
+        if (brandDiscountType === 'percent' && cRate > 0) {
+          // c_rate-based calculation:
+          // 1. Find current discount% from c_rate that custom_price (or sale_price) represents
+          const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+          const currentDiscPct = (1 - currentPrice / cRate) * 100
+          // 2. Add the brand discount %
+          const newDiscPct = currentDiscPct + val
+          // 3. New price = c_rate * (1 - newDiscPct / 100)
+          discountedPrice = cRate * (1 - newDiscPct / 100)
+        } else if (brandDiscountType === 'percent') {
+          // Fallback if c_rate is 0: apply % on sale_price
+          const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+          discountedPrice = currentPrice - (currentPrice * val / 100)
         } else {
-          discountedPrice = product.sale_price - val
+          // Fixed amount discount
+          const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+          discountedPrice = currentPrice - val
         }
         discountedPrice = Math.max(0, parseFloat(discountedPrice.toFixed(2)))
-        const existing = updated.find(i => i.id === product.id)
-        if (existing) {
+
+        if (isInCart) {
           updated = updated.map(i => i.id === product.id ? { ...i, custom_price: discountedPrice } : i)
         } else {
+          // Only reached in 'add_all' mode
           updated = [...updated, { ...product, qty: 1, custom_price: discountedPrice }]
         }
       })
@@ -925,13 +946,31 @@ function POS() {
       {/* Brand Discount Modal */}
       {showBrandDiscount && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-80">
-            <h3 className="font-bold text-gray-800 mb-4">🏷️ {selectedBrand} — Brand Discount</h3>
-            <p className="text-xs text-gray-500 mb-3">Is brand ke tamam products cart mein add honge discount ke saath.</p>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-96">
+            <h3 className="font-bold text-gray-800 mb-2">🏷️ {selectedBrand} — Brand Discount</h3>
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 mb-3">
+              <button onClick={() => setBrandDiscountMode('cart_only')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${brandDiscountMode === 'cart_only' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                🛒 Cart Only
+              </button>
+              <button onClick={() => setBrandDiscountMode('add_all')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${brandDiscountMode === 'add_all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                📦 Add All Products
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              {brandDiscountMode === 'cart_only'
+                ? 'Sirf cart mein mojood is brand ke products ki price update hogi.'
+                : 'Is brand ke tamam products cart mein add honge discount ke saath.'}
+            </p>
+
+            {/* Discount Type */}
             <div className="flex gap-2 mb-3">
               <button onClick={() => setBrandDiscountType('percent')}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium ${brandDiscountType === 'percent' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                % Percent
+                % Percent (C.Rate)
               </button>
               <button onClick={() => setBrandDiscountType('fixed')}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium ${brandDiscountType === 'fixed' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
@@ -939,10 +978,51 @@ function POS() {
               </button>
             </div>
             <input type="number" value={brandDiscountValue} onChange={e => setBrandDiscountValue(e.target.value)}
-              placeholder={brandDiscountType === 'percent' ? 'e.g. 10 (%)' : 'e.g. 50 (Rs.)'}
-              className="w-full px-4 py-2 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              placeholder={brandDiscountType === 'percent' ? 'e.g. 1 (extra % from C.Rate)' : 'e.g. 50 (Rs.)'}
+              className="w-full px-4 py-2 border rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+            {/* Preview */}
+            {brandDiscountType === 'percent' && brandDiscountValue && (() => {
+              const val = parseFloat(brandDiscountValue) || 0
+              const cartBrandItems = cart.filter(i => i.brand === selectedBrand)
+              const previewItems = brandDiscountMode === 'cart_only'
+                ? cartBrandItems
+                : products.filter(p => p.brand === selectedBrand).map(p => {
+                    const inCart = cartBrandItems.find(c => c.id === p.id)
+                    return inCart || p
+                  })
+              if (previewItems.length === 0) return <p className="text-xs text-gray-400 mb-3 italic">No matching items in cart.</p>
+              return (
+                <div className="bg-gray-50 rounded-lg p-2 mb-3 max-h-32 overflow-y-auto">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Preview</p>
+                  {previewItems.slice(0, 5).map(item => {
+                    const cRate = parseFloat(item.c_rate) || 0
+                    const currentPrice = item.custom_price || item.sale_price
+                    let newPrice = currentPrice
+                    if (cRate > 0) {
+                      const currentDisc = (1 - currentPrice / cRate) * 100
+                      newPrice = cRate * (1 - (currentDisc + val) / 100)
+                    } else {
+                      newPrice = currentPrice - (currentPrice * val / 100)
+                    }
+                    newPrice = Math.max(0, newPrice)
+                    return (
+                      <div key={item.id} className="flex justify-between text-xs text-gray-600">
+                        <span className="truncate flex-1">{item.name}</span>
+                        <span className="text-gray-400 line-through mx-1">{Math.round(currentPrice)}</span>
+                        <span className="text-green-600 font-bold">{Math.round(newPrice)}</span>
+                      </div>
+                    )
+                  })}
+                  {previewItems.length > 5 && <p className="text-[10px] text-gray-400">+{previewItems.length - 5} more...</p>}
+                </div>
+              )
+            })()}
+
             <div className="flex gap-3">
-              <button onClick={applyBrandDiscount} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">Apply & Add</button>
+              <button onClick={applyBrandDiscount} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+                {brandDiscountMode === 'cart_only' ? '✅ Apply to Cart' : 'Apply & Add All'}
+              </button>
               <button onClick={() => setShowBrandDiscount(false)} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition">Cancel</button>
             </div>
           </div>

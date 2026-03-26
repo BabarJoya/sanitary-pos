@@ -11,6 +11,7 @@ import { hasFeature } from '../utils/featureGate'
 function Products() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
+  const [brands, setBrands] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -20,6 +21,10 @@ function Products() {
   const [selected, setSelected] = useState([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [pendingDeleteIds, setPendingDeleteIds] = useState([])
+  const [showBulkEdit, setShowBulkEdit] = useState(false)
+  const [bulkCategory, setBulkCategory] = useState('')
+  const [bulkBrand, setBulkBrand] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
 
   useEffect(() => {
     if (user?.shop_id) fetchProducts()
@@ -35,13 +40,14 @@ function Products() {
       if (!navigator.onLine) throw new Error('Offline')
       const fetchPromise = Promise.all([
         supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).order('created_at', { ascending: false }),
-        supabase.from('categories').select('*').eq('shop_id', user.shop_id)
+        supabase.from('categories').select('*').eq('shop_id', user.shop_id),
+        supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
       ])
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-      const [pData, cData] = await Promise.race([fetchPromise, timeoutPromise])
+      const [pData, cData, bData] = await Promise.race([fetchPromise, timeoutPromise])
 
-      if (pData.error || cData.error) throw new Error('Supabase fetch failed')
+      if (pData.error || cData.error || bData.error) throw new Error('Supabase fetch failed')
 
       // Cache to local DB
       if (pData.data) {
@@ -50,18 +56,24 @@ function Products() {
       if (cData.data) {
         await db.categories.bulkPut(JSON.parse(JSON.stringify(cData.data)))
       }
+      if (bData.data) {
+        await db.brands.bulkPut(JSON.parse(JSON.stringify(bData.data)))
+      }
 
       // Try rendering from local DB first to include any pending offline items
       const sid = String(user.shop_id);
       let finalProducts = []
       let finalCategories = []
+      let finalBrands = []
       try {
-        const [lProds, lCats] = await Promise.all([
+        const [lProds, lCats, lBrands] = await Promise.all([
           db.products.toArray(),
-          db.categories.toArray()
+          db.categories.toArray(),
+          db.brands.toArray()
         ])
         finalProducts = lProds.filter(x => String(x.shop_id) === sid)
         finalCategories = lCats.filter(x => String(x.shop_id) === sid)
+        finalBrands = lBrands.filter(x => String(x.shop_id) === sid)
       } catch (dbErr) {
         console.warn('Products: Local DB read failed:', dbErr)
       }
@@ -73,19 +85,25 @@ function Products() {
       if (finalCategories.length === 0 && cData.data && cData.data.length > 0) {
         finalCategories = cData.data.filter(x => String(x.shop_id) === sid)
       }
+      if (finalBrands.length === 0 && bData.data && bData.data.length > 0) {
+        finalBrands = bData.data.filter(x => String(x.shop_id) === sid)
+      }
 
       setProducts(finalProducts)
       setCategories(finalCategories)
+      setBrands(finalBrands)
     } catch (e) {
       console.log('Fetching products from local DB (Offline)')
       try {
-        const [localProds, localCats] = await Promise.all([
+        const [localProds, localCats, localBrands] = await Promise.all([
           db.products.toArray(),
-          db.categories.toArray()
+          db.categories.toArray(),
+          db.brands.toArray()
         ])
         const sid = String(user.shop_id)
         setProducts(localProds.filter(x => String(x.shop_id) === sid))
         setCategories(localCats.filter(x => String(x.shop_id) === sid))
+        setBrands(localBrands.filter(x => String(x.shop_id) === sid))
       } catch (err) { console.error('Local DB Products Error', err) }
     } finally {
       setLoading(false)
@@ -153,10 +171,19 @@ function Products() {
           continue
         }
 
+        // Map Category name to category_id
+        const categoryName = String(row['Category'] || row['category'] || '').trim()
+        let categoryId = null
+        if (categoryName && categoryName !== '-') {
+          const matchedCat = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+          if (matchedCat) categoryId = matchedCat.id
+        }
+
         formatted.push({
           shop_id: user.shop_id,
           name: String(name).trim(),
           brand: String(brand).trim(),
+          category_id: categoryId,
           stock_quantity: parseFloat(row['Stock Qty'] || row['stock'] || 0),
           cost_price: parseFloat(row['Cost Price'] || row['cost'] || 0),
           sale_price: parseFloat(row['Sale Price'] || row['sale'] || 0),
@@ -258,6 +285,60 @@ function Products() {
     }
   }
 
+  const handleBulkEdit = async () => {
+    if (!bulkCategory && !bulkBrand) {
+      alert('Category ya Brand mein se kuch toh select karo!')
+      return
+    }
+    if (!confirm(`${selected.length} product(s) update honge. Continue?`)) return
+
+    setBulkSaving(true)
+    const updates = {}
+    if (bulkCategory) updates.category_id = parseInt(bulkCategory)
+    if (bulkBrand) updates.brand = bulkBrand
+
+    let successCount = 0
+    let failCount = 0
+
+    for (const id of selected) {
+      try {
+        if (navigator.onLine) {
+          const { error } = await supabase.from('products').update(updates).eq('id', id).eq('shop_id', user.shop_id)
+          if (error) { failCount++; continue }
+        } else {
+          await addToSyncQueue('products', 'UPDATE', { id, ...updates })
+        }
+        await db.products.update(id, updates)
+        successCount++
+      } catch (err) {
+        console.error('Bulk edit error:', err)
+        failCount++
+      }
+    }
+
+    await recordAuditLog(
+      'BULK_EDIT_PRODUCTS',
+      'products',
+      'multiple',
+      { updated_count: successCount, failed_count: failCount, changes: updates },
+      user.id,
+      user.shop_id
+    )
+
+    setShowBulkEdit(false)
+    setBulkCategory('')
+    setBulkBrand('')
+    setSelected([])
+    fetchProducts()
+    setBulkSaving(false)
+
+    if (failCount > 0) {
+      alert(`⚠️ Partially completed.\n✅ Updated: ${successCount}\n❌ Failed: ${failCount}`)
+    } else {
+      alert(`✅ ${successCount} product(s) updated successfully!`)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -289,12 +370,20 @@ function Products() {
             <span>📤</span> Export
           </button>
           {selected.length > 0 && (
-            <button
-              onClick={() => requestDelete(selected)}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm"
-            >
-              🗑️ Delete Selected ({selected.length})
-            </button>
+            <>
+              <button
+                onClick={() => { setShowBulkEdit(true); setBulkCategory(''); setBulkBrand('') }}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm"
+              >
+                ✏️ Bulk Edit ({selected.length})
+              </button>
+              <button
+                onClick={() => requestDelete(selected)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm"
+              >
+                🗑️ Delete Selected ({selected.length})
+              </button>
+            </>
           )}
           <Link
             to="/add-product"
@@ -457,6 +546,58 @@ function Products() {
           onConfirm={executeDelete}
           onCancel={() => { setShowPasswordModal(false); setPendingDeleteIds([]) }}
         />
+      )}
+
+      {/* Bulk Edit Modal */}
+      {showBulkEdit && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <h2 className="text-xl font-bold text-gray-800 mb-1">✏️ Bulk Edit</h2>
+            <p className="text-sm text-gray-500 mb-4">{selected.length} product(s) selected. Sirf woh fields update hongi jo aap select karein.</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Category</label>
+                <select
+                  value={bulkCategory}
+                  onChange={e => setBulkCategory(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">— Don't change —</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Brand</label>
+                <select
+                  value={bulkBrand}
+                  onChange={e => setBulkBrand(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">— Don't change —</option>
+                  {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleBulkEdit}
+                disabled={bulkSaving || (!bulkCategory && !bulkBrand)}
+                className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition disabled:opacity-50"
+              >
+                {bulkSaving ? 'Updating...' : '✅ Apply Changes'}
+              </button>
+              <button
+                onClick={() => setShowBulkEdit(false)}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
