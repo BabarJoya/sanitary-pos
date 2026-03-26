@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
-import { hashPassword } from '../utils/authUtils'
+import { hashPassword, verifyPassword } from '../utils/authUtils'
 
 function Users() {
   const { user } = useAuth()
@@ -12,6 +12,13 @@ function Users() {
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ username: '', email: '', password: '', role: 'cashier', is_active: true, permissions: [] })
+
+  // Change password state
+  const [showChangePw, setShowChangePw] = useState(false)
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [changingPw, setChangingPw] = useState(false)
 
   const [limits] = useState(() => {
     try {
@@ -137,6 +144,52 @@ function Users() {
     })
   }
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    if (!currentPw || !newPw || !confirmPw) { alert('Tamam fields fill karo!'); return }
+    if (newPw.length < 4) { alert('Naya password kam az kam 4 characters ka hona chahiye!'); return }
+    if (newPw !== confirmPw) { alert('Naya password aur confirm password match nahi karte!'); return }
+
+    setChangingPw(true)
+    try {
+      // Verify current password
+      const storedHash = localStorage.getItem('user_pw_hash')
+      if (!storedHash) {
+        // Try to get from DB
+        const localUser = await db.users.get(user.id)
+        if (!localUser?.password) {
+          alert('Current password verify nahi ho saka. Please logout aur dobara login karein.')
+          setChangingPw(false)
+          return
+        }
+        const isValid = await verifyPassword(currentPw, localUser.password)
+        if (!isValid) { alert('Current password ghalat hai!'); setChangingPw(false); return }
+      } else {
+        const isValid = await verifyPassword(currentPw, storedHash)
+        if (!isValid) { alert('Current password ghalat hai!'); setChangingPw(false); return }
+      }
+
+      // Hash new password and update
+      const newHash = await hashPassword(newPw)
+      const { error } = await supabase.from('users').update({ password: newHash }).eq('id', user.id)
+      if (error) throw error
+
+      // Update local cache
+      localStorage.setItem('user_pw_hash', newHash)
+      await db.users.update(user.id, { password: newHash })
+
+      alert('Password successfully change ho gaya! ✅')
+      setCurrentPw('')
+      setNewPw('')
+      setConfirmPw('')
+      setShowChangePw(false)
+    } catch (err) {
+      alert('Error: ' + (err.message || err))
+    } finally {
+      setChangingPw(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -149,18 +202,66 @@ function Users() {
             </span> users
           </p>
         </div>
-        <button
-          onClick={() => {
-            if (!showForm && users.length >= (limits.user_limit || 2) && !editingId) {
-              alert(`Plan Limit! Aapka current plan max ${limits.user_limit || 2} users allow karta hai.`)
-              return
-            }
-            setShowForm(!showForm)
-          }}
-          className={`px-4 py-2 text-white rounded-lg transition ${users.length >= (limits.user_limit || 2) && !showForm && !editingId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-          {showForm ? 'Cancel' : '+ Add User'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowChangePw(!showChangePw)}
+            className={`px-4 py-2 rounded-lg transition font-medium text-sm ${showChangePw ? 'bg-gray-200 text-gray-700' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+            {showChangePw ? '✕ Close' : '🔑 Change My Password'}
+          </button>
+          <button
+            onClick={() => {
+              if (!showForm && users.length >= (limits.user_limit || 2) && !editingId) {
+                alert(`Plan Limit! Aapka current plan max ${limits.user_limit || 2} users allow karta hai.`)
+                return
+              }
+              setShowForm(!showForm)
+            }}
+            className={`px-4 py-2 text-white rounded-lg transition ${users.length >= (limits.user_limit || 2) && !showForm && !editingId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+            {showForm ? 'Cancel' : '+ Add User'}
+          </button>
+        </div>
       </div>
+
+      {/* Change My Password */}
+      {showChangePw && (
+        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-md border-2 border-green-100">
+          <h2 className="font-bold text-gray-800 mb-1 flex items-center gap-2">🔑 Change My Password</h2>
+          <p className="text-xs text-gray-500 mb-4">Apna password yahan change karein. Current password zaroori hai.</p>
+          <form onSubmit={handleChangePassword} className="space-y-3">
+            <div>
+              <label className="block text-gray-700 font-medium mb-1 text-sm">Current Password *</label>
+              <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Purana password" />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-medium mb-1 text-sm">New Password *</label>
+              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Naya password (min 4 characters)" />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-medium mb-1 text-sm">Confirm New Password *</label>
+              <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Naya password dobara darj karein" />
+              {newPw && confirmPw && newPw !== confirmPw && (
+                <p className="text-red-500 text-xs mt-1">❌ Passwords match nahi karte</p>
+              )}
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="submit" disabled={changingPw}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 font-bold">
+                {changingPw ? 'Changing...' : '✅ Update Password'}
+              </button>
+              <button type="button" onClick={() => { setShowChangePw(false); setCurrentPw(''); setNewPw(''); setConfirmPw('') }}
+                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-lg">

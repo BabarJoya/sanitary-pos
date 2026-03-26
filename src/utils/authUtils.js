@@ -12,3 +12,14 @@ export async function hashPassword(password) {
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
   return hashHex
 }
+
+/**
+ * Verifies a plain-text password against a stored SHA-256 hash.
+ * @param {string} password
+ * @param {string} storedHash
+ * @returns {Promise<boolean>}
+ */
+export async function verifyPassword(password, storedHash) {
+  const inputHash = await hashPassword(password)
+  return inputHash === storedHash
+}
