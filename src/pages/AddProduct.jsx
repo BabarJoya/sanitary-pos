@@ -12,6 +12,7 @@ function AddProduct() {
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [brands, setBrands] = useState([])
+  const [brandCategoryMap, setBrandCategoryMap] = useState({})
   const [loading, setLoading] = useState(false)
   const [showNewBrandInput, setShowNewBrandInput] = useState(false)
   const [newBrandName, setNewBrandName] = useState('')
@@ -72,6 +73,16 @@ function AddProduct() {
       setSuppliers(lSups.filter(x => String(x.shop_id) === sid))
       setBrands(lBrands.filter(x => String(x.shop_id) === sid))
 
+      // Load brand-category map
+      const lBrandCats = await db.brand_categories.toArray().catch(() => [])
+      const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === sid)
+      const bcMap = {}
+      myBrandCats.forEach(bc => {
+        if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+        bcMap[bc.brand_id].push(bc.category_id)
+      })
+      setBrandCategoryMap(bcMap)
+
     } catch (e) {
       console.log('AddProduct: Fetching from local DB (Offline)')
       try {
@@ -84,6 +95,14 @@ function AddProduct() {
         setCategories(lCats.filter(x => String(x.shop_id) === sid))
         setSuppliers(lSups.filter(x => String(x.shop_id) === sid))
         setBrands(lBrands.filter(x => String(x.shop_id) === sid))
+        const lBrandCats = await db.brand_categories.toArray().catch(() => [])
+        const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === sid)
+        const bcMap = {}
+        myBrandCats.forEach(bc => {
+          if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+          bcMap[bc.brand_id].push(bc.category_id)
+        })
+        setBrandCategoryMap(bcMap)
       } catch (err) {
         console.error('Local DB AddProduct Error:', err)
       }
@@ -122,8 +141,23 @@ function AddProduct() {
   }
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+    if (name === 'brand') {
+      // When brand changes, reset category if it's not in the brand's allowed categories
+      const brandObj = brands.find(b => b.name === value)
+      const allowedCatIds = brandObj ? brandCategoryMap[brandObj.id] : null
+      const currentCatAllowed = !allowedCatIds || allowedCatIds.includes(parseInt(form.category_id))
+      setForm(prev => ({ ...prev, brand: value, category_id: currentCatAllowed ? prev.category_id : '' }))
+    } else {
+      setForm({ ...form, [name]: value })
+    }
   }
+
+  // Filtered categories based on selected brand
+  const brandObj = brands.find(b => b.name === form.brand)
+  const filteredCategories = brandObj && brandCategoryMap[brandObj.id]?.length
+    ? categories.filter(c => brandCategoryMap[brandObj.id].includes(c.id))
+    : categories
 
   const autoGenerateSKU = () => {
     const prefix = (form.name || 'PRD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()
@@ -307,7 +341,7 @@ function AddProduct() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select category...</option>
-                {categories.map((cat) => (
+                {filteredCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>

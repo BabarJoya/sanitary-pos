@@ -42,11 +42,15 @@ function Login() {
       const hashedPassword = await hashPassword(password)
 
       // Use secure_login RPC (handles auth + shop status check + RLS setup)
-      const { data: loginResult, error: loginError } = await supabase
-        .rpc('secure_login', {
-          p_username: username,
-          p_password_hash: hashedPassword
-        })
+      // Wrap in a 5s timeout so offline users don't wait forever
+      const rpcPromise = supabase.rpc('secure_login', {
+        p_username: username,
+        p_password_hash: hashedPassword
+      })
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Network unavailable — switching to offline login')), 5000)
+      )
+      const { data: loginResult, error: loginError } = await Promise.race([rpcPromise, timeoutPromise])
 
       // Handle RPC errors
       if (loginError) {
@@ -158,9 +162,10 @@ function Login() {
       // Offline fallback - try IndexedDB
       try {
         const hashedPassword = await hashPassword(password)
-        const localUser = await localDB.users
-          .where('username').equals(username)
-          .first()
+        const allUsers = await localDB.users.toArray()
+        const localUser = allUsers.find(u =>
+          u.username?.toLowerCase() === username.trim().toLowerCase()
+        )
 
         if (localUser && localUser.password === hashedPassword && localUser.is_active !== false) {
           // Offline login successful

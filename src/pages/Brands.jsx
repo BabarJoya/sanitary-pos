@@ -9,6 +9,8 @@ import UpgradeWall from '../components/UpgradeWall'
 function Brands() {
   const { user } = useAuth()
   const [brands, setBrands] = useState([])
+  const [categories, setCategories] = useState([])
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -27,8 +29,19 @@ function Brands() {
   const [loadingHistoryId, setLoadingHistoryId] = useState(null)
 
   useEffect(() => {
-    if (user?.shop_id) fetchBrands()
+    if (user?.shop_id) {
+      fetchBrands()
+      fetchCategories()
+    }
   }, [user?.shop_id])
+
+  const fetchCategories = async () => {
+    try {
+      const localData = await db.categories.toArray()
+      const sid = String(user.shop_id)
+      setCategories(localData.filter(x => String(x.shop_id) === sid).sort((a, b) => a.name.localeCompare(b.name)))
+    } catch (e) { console.error('Brands: categories fetch error', e) }
+  }
 
   const fetchBrands = async () => {
     try {
@@ -60,10 +73,19 @@ function Brands() {
     }
   }
 
-  const handleEdit = (brand) => {
+  const handleEdit = async (brand) => {
     setForm({ name: brand.name })
     setEditingId(brand.id)
     setShowForm(true)
+    try {
+      if (navigator.onLine) {
+        const { data } = await supabase.from('brand_categories').select('category_id').eq('brand_id', brand.id)
+        setSelectedCategoryIds((data || []).map(r => r.category_id))
+      } else {
+        const local = await db.brand_categories.where('brand_id').equals(brand.id).toArray()
+        setSelectedCategoryIds(local.map(r => r.category_id))
+      }
+    } catch (e) { setSelectedCategoryIds([]) }
   }
 
   const handleSubmit = async (e) => {
@@ -74,15 +96,39 @@ function Brands() {
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
 
+      let brandId = editingId
       if (editingId) {
         const { error } = await supabase.from('brands').update(payload).eq('id', editingId)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('brands').insert([payload])
+        const { data: newBrand, error } = await supabase.from('brands').insert([payload]).select()
         if (error) throw error
+        brandId = newBrand[0].id
       }
+
+      // Save brand-category associations to Supabase
+      const { error: delBcErr } = await supabase.from('brand_categories').delete().eq('brand_id', brandId)
+      if (delBcErr) console.warn('brand_categories delete error:', delBcErr)
+      if (selectedCategoryIds.length > 0) {
+        const { error: insBcErr } = await supabase.from('brand_categories').insert(
+          selectedCategoryIds.map(cId => ({ brand_id: brandId, category_id: Number(cId), shop_id: user.shop_id }))
+        )
+        if (insBcErr) {
+          console.error('brand_categories insert error:', insBcErr)
+          alert('Categories link karne mein masla hua: ' + insBcErr.message + '\n\nSQL migration dobara run karein: sql/add_brand_categories.sql')
+        }
+      }
+      // Always sync to IndexedDB regardless of Supabase result
+      await db.brand_categories.where('brand_id').equals(brandId).delete().catch(() => {})
+      if (selectedCategoryIds.length > 0) {
+        await db.brand_categories.bulkAdd(
+          selectedCategoryIds.map(cId => ({ brand_id: brandId, category_id: Number(cId), shop_id: user.shop_id }))
+        ).catch(() => {})
+      }
+
       setEditingId(null)
       setForm({ name: '' })
+      setSelectedCategoryIds([])
       setShowForm(false)
       fetchBrands()
     } catch (error) {
@@ -96,8 +142,17 @@ function Brands() {
         } else {
           await db.brands.add(offlineData)
         }
+        // Save brand-category associations offline
+        const brandId = offlineData.id
+        await db.brand_categories.where('brand_id').equals(brandId).delete().catch(() => {})
+        if (selectedCategoryIds.length > 0) {
+          await db.brand_categories.bulkAdd(
+            selectedCategoryIds.map(cId => ({ brand_id: brandId, category_id: cId, shop_id: user.shop_id }))
+          ).catch(() => {})
+        }
         setEditingId(null)
         setForm({ name: '' })
+        setSelectedCategoryIds([])
         setShowForm(false)
         fetchBrands()
         alert('Offline mode: Saved locally. Will sync automatically when online. 🔄')
@@ -135,6 +190,7 @@ function Brands() {
     setShowForm(false)
     setEditingId(null)
     setForm({ name: '' })
+    setSelectedCategoryIds([])
   }
 
   const handleExport = () => {
@@ -280,7 +336,7 @@ function Brands() {
             📤 Export
           </button>
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => showForm ? handleCancel() : setShowForm(true)}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm font-bold"
           >
             {showForm ? 'Cancel' : '+ Add Brand'}
@@ -305,6 +361,34 @@ function Brands() {
                 placeholder="e.g. Master"
               />
             </div>
+            {categories.length > 0 && (
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">Categories (optional)</label>
+                <p className="text-xs text-gray-400 mb-2">Is brand ki categories select karein. POS aur product form mein sirf yeh categories dikhein gi.</p>
+                <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50">
+                  {categories.map(cat => (
+                    <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:bg-white rounded px-1.5 py-1 transition">
+                      <input
+                        type="checkbox"
+                        checked={selectedCategoryIds.includes(cat.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCategoryIds(prev => [...prev, cat.id])
+                          } else {
+                            setSelectedCategoryIds(prev => prev.filter(id => id !== cat.id))
+                          }
+                        }}
+                        className="w-3.5 h-3.5 rounded accent-blue-600"
+                      />
+                      <span className="text-sm text-gray-700">{cat.name}</span>
+                    </label>
+                  ))}
+                </div>
+                {selectedCategoryIds.length > 0 && (
+                  <p className="text-xs text-blue-600 mt-1">{selectedCategoryIds.length} categor{selectedCategoryIds.length > 1 ? 'ies' : 'y'} selected</p>
+                )}
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"

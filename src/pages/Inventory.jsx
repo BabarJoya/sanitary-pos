@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { recordAuditLog } from '../services/auditService'
 import { db, addToSyncQueue } from '../services/db'
 import * as XLSX from 'xlsx'
+import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 
 function Inventory() {
   const { user } = useAuth()
@@ -94,7 +95,8 @@ function Inventory() {
     win.print()
   }
 
-  const handleReorderWhatsApp = () => {
+  const handleReorderWhatsApp = async (e) => {
+    const btn = e?.currentTarget
     const lowItems = products.filter(p => p.stock_quantity <= (p.low_stock_threshold || 10))
     if (lowItems.length === 0) { alert('Koi bhi product low stock mein nahi hai!'); return }
 
@@ -119,24 +121,49 @@ function Inventory() {
         .replace(/\[Shop Name\]/g, shopName)
         .replace(/\[Items\]/g, itemsText)
 
-    // If all items from one supplier → open WhatsApp directly
-    if (supplierNames.length === 1) {
-      const sup = bySupplier[supplierNames[0]]
-      const itemList = sup.items.map(p => `• ${p.name} (Stock: ${p.stock_quantity}, Need: ${Math.max(0, (p.low_stock_threshold || 10) * 2 - p.stock_quantity)})`).join('\n')
-      const msg = applyTemplate(supplierNames[0], itemList)
-      let phone = (sup.phone || '').replace(/[^0-9]/g, '')
-      if (phone.startsWith('03')) phone = '92' + phone.substring(1)
-      const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
-      window.open(url, '_blank')
-    } else {
-      // Multiple suppliers — generate combined message and open WhatsApp without specific number
-      const fullMsg = supplierNames.map(sName => {
-        const sup = bySupplier[sName]
-        const itemList = sup.items.map(p => `  • ${p.name} (${p.stock_quantity} left)`).join('\n')
-        return `*${sName}*:\n${itemList}`
-      }).join('\n\n')
-      const msg = applyTemplate('All Suppliers', fullMsg)
-      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating PDF...' }
+
+    try {
+      const pdfBlob = generatePurchaseOrderPDF(bySupplier, shopName)
+
+      if (supplierNames.length === 1) {
+        const sup = bySupplier[supplierNames[0]]
+        const itemList = sup.items.map(p => `• ${p.name} (Stock: ${p.stock_quantity}, Need: ${Math.max(0, (p.low_stock_threshold || 10) * 2 - p.stock_quantity)})`).join('\n')
+        const msg = applyTemplate(supplierNames[0], itemList)
+        let phone = (sup.phone || '').replace(/[^0-9]/g, '')
+        if (phone.startsWith('03')) phone = '92' + phone.substring(1)
+        await shareOrDownloadPDF(pdfBlob, `purchase-order-${supplierNames[0].replace(/\s+/g, '-')}.pdf`, phone || null, msg)
+      } else {
+        const fullMsg = supplierNames.map(sName => {
+          const sup = bySupplier[sName]
+          const itemList = sup.items.map(p => `  • ${p.name} (${p.stock_quantity} left)`).join('\n')
+          return `*${sName}*:\n${itemList}`
+        }).join('\n\n')
+        const msg = applyTemplate('All Suppliers', fullMsg)
+        await shareOrDownloadPDF(pdfBlob, 'purchase-order-all-suppliers.pdf', null, msg)
+      }
+    } catch (err) {
+      console.error('Purchase order PDF failed:', err)
+      // Fallback to text-only WA
+      if (supplierNames.length === 1) {
+        const sup = bySupplier[supplierNames[0]]
+        const itemList = sup.items.map(p => `• ${p.name} (${p.stock_quantity} left)`).join('\n')
+        const msg = applyTemplate(supplierNames[0], itemList)
+        let phone = (sup.phone || '').replace(/[^0-9]/g, '')
+        if (phone.startsWith('03')) phone = '92' + phone.substring(1)
+        const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+        window.open(url, '_blank')
+      } else {
+        const fullMsg = supplierNames.map(sName => {
+          const sup = bySupplier[sName]
+          const itemList = sup.items.map(p => `  • ${p.name} (${p.stock_quantity} left)`).join('\n')
+          return `*${sName}*:\n${itemList}`
+        }).join('\n\n')
+        const msg = applyTemplate('All Suppliers', fullMsg)
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '📱 Reorder WA' }
     }
   }
 

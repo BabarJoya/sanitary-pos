@@ -26,6 +26,16 @@ function Products() {
   const [bulkBrand, setBulkBrand] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
 
+  // Inline edit state
+  const [inlineEditId, setInlineEditId] = useState(null)
+  const [inlineForm, setInlineForm] = useState({})
+  const [inlineSaving, setInlineSaving] = useState(false)
+
+  // Import preview state
+  const [showImportPreview, setShowImportPreview] = useState(false)
+  const [importPreviewRows, setImportPreviewRows] = useState([])
+  const [autoCreateCategories, setAutoCreateCategories] = useState(false)
+
   useEffect(() => {
     if (user?.shop_id) fetchProducts()
   }, [user?.shop_id])
@@ -140,50 +150,29 @@ function Products() {
   const handleImport = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    e.target.value = null
 
     const reader = new FileReader()
-    reader.onload = async (evt) => {
+    reader.onload = (evt) => {
       const bstr = evt.target.result
       const wb = XLSX.read(bstr, { type: 'binary' })
-      const wsname = wb.SheetNames[0]
-      const ws = wb.Sheets[wsname]
+      const ws = wb.Sheets[wb.SheetNames[0]]
       const data = XLSX.utils.sheet_to_json(ws)
+      if (data.length === 0) { alert('Empty file!'); return }
 
-      if (data.length === 0) {
-        alert('Empty file!')
-        return
-      }
-
-      if (!confirm(`Import ${data.length} rows?`)) return
-
-      setLoading(true)
-      let validCount = 0
-      let skipCount = 0
-
-      const formatted = []
-
-      for (const row of Object.values(data)) {
-        const name = row['Product Name'] || row['name']
-        const brand = row['Brand'] || row['brand']
-
-        if (!name || !String(name).trim() || !brand || !String(brand).trim()) {
-          skipCount++
-          continue
-        }
-
-        // Map Category name to category_id
+      const previewRows = []
+      for (const row of data) {
+        const name = String(row['Product Name'] || row['name'] || '').trim()
+        const brand = String(row['Brand'] || row['brand'] || '').trim()
+        if (!name || !brand) continue
         const categoryName = String(row['Category'] || row['category'] || '').trim()
-        let categoryId = null
-        if (categoryName && categoryName !== '-') {
-          const matchedCat = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
-          if (matchedCat) categoryId = matchedCat.id
-        }
-
-        formatted.push({
-          shop_id: user.shop_id,
-          name: String(name).trim(),
-          brand: String(brand).trim(),
-          category_id: categoryId,
+        const matchedCat = categoryName && categoryName !== '-'
+          ? categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+          : null
+        previewRows.push({
+          name, brand, categoryName: categoryName !== '-' ? categoryName : '',
+          categoryId: matchedCat?.id || null,
+          matched: !categoryName || categoryName === '-' || !!matchedCat,
           stock_quantity: parseFloat(row['Stock Qty'] || row['stock'] || 0),
           cost_price: parseFloat(row['Cost Price'] || row['cost'] || 0),
           sale_price: parseFloat(row['Sale Price'] || row['sale'] || 0),
@@ -191,32 +180,107 @@ function Products() {
           low_stock_threshold: parseFloat(row['Min Thresh'] || 10),
           status: row['Status'] || 'active'
         })
-        validCount++
       }
 
-      if (formatted.length === 0) {
-        alert('No valid products found! Make sure "Product Name" and "Brand" columns exist and are not empty.')
-        setLoading(false)
-        return
-      }
-
-      const { error } = await supabase.from('products').insert(formatted)
-      if (error) alert(error.message)
-      else {
-        await recordAuditLog(
-          'BULK_IMPORT_PRODUCTS',
-          'products',
-          'multiple',
-          { valid_count: validCount, skipped_count: skipCount },
-          user.id,
-          user.shop_id
-        )
-        alert(`Import successful! ✅\nAdded: ${validCount}\nSkipped (missing name/brand): ${skipCount}`)
-        fetchProducts()
-      }
-      setLoading(false)
+      if (previewRows.length === 0) { alert('No valid rows (Product Name + Brand required)'); return }
+      setImportPreviewRows(previewRows)
+      setAutoCreateCategories(false)
+      setShowImportPreview(true)
     }
     reader.readAsBinaryString(file)
+  }
+
+  const handleConfirmImport = async () => {
+    setLoading(true)
+    setShowImportPreview(false)
+
+    let rows = importPreviewRows
+    let currentCategories = [...categories]
+
+    // Auto-create missing categories if checked
+    if (autoCreateCategories) {
+      const unmatchedNames = [...new Set(rows
+        .filter(r => r.categoryName && !r.categoryId)
+        .map(r => r.categoryName))]
+
+      for (const catName of unmatchedNames) {
+        try {
+          const { data: newCat, error } = await supabase.from('categories').insert([{ name: catName, shop_id: user.shop_id }]).select()
+          if (!error && newCat?.[0]) {
+            currentCategories.push(newCat[0])
+          }
+        } catch (err) { /* skip */ }
+      }
+
+      // Re-map category IDs
+      rows = rows.map(r => {
+        if (r.categoryName && !r.categoryId) {
+          const found = currentCategories.find(c => c.name.toLowerCase() === r.categoryName.toLowerCase())
+          return { ...r, categoryId: found?.id || null }
+        }
+        return r
+      })
+    }
+
+    const formatted = rows.map(r => ({
+      shop_id: user.shop_id,
+      name: r.name,
+      brand: r.brand,
+      category_id: r.categoryId,
+      stock_quantity: r.stock_quantity,
+      cost_price: r.cost_price,
+      sale_price: r.sale_price,
+      c_rate: r.c_rate,
+      low_stock_threshold: r.low_stock_threshold,
+      status: r.status
+    }))
+
+    const { error } = await supabase.from('products').insert(formatted)
+    if (error) {
+      alert('Import error: ' + error.message)
+    } else {
+      await recordAuditLog('BULK_IMPORT_PRODUCTS', 'products', 'multiple', { count: formatted.length }, user.id, user.shop_id)
+      alert(`Import successful! ✅ ${formatted.length} products added.`)
+      fetchProducts()
+    }
+    setLoading(false)
+    setImportPreviewRows([])
+  }
+
+  const handleInlineSave = async () => {
+    if (!inlineForm.name?.trim()) return alert('Product Name is required')
+    setInlineSaving(true)
+    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+    const updates = {
+      name: inlineForm.name.trim(),
+      brand: inlineForm.brand || '',
+      category_id: inlineForm.category_id ? toIntOrNull(inlineForm.category_id) : null,
+      sku: inlineForm.sku || '',
+      cost_price: parseFloat(inlineForm.cost_price) || 0,
+      sale_price: parseFloat(inlineForm.sale_price) || 0,
+      c_rate: parseFloat(inlineForm.c_rate) || 0,
+      status: inlineForm.status || 'active'
+    }
+    try {
+      if (!navigator.onLine) throw new TypeError('Failed to fetch')
+      const { error } = await supabase.from('products').update(updates).eq('id', inlineEditId)
+      if (error) throw error
+      setInlineEditId(null)
+      fetchProducts()
+    } catch (error) {
+      const errMsg = error?.message || String(error)
+      if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
+        await db.products.update(inlineEditId, updates)
+        await addToSyncQueue('products', 'UPDATE', { id: inlineEditId, ...updates })
+        setInlineEditId(null)
+        fetchProducts()
+        alert('Offline mode: Updated locally! Will sync when online. 🔄')
+      } else {
+        alert('Error: ' + errMsg)
+      }
+    } finally {
+      setInlineSaving(false)
+    }
   }
 
   // Delete logic
@@ -469,6 +533,61 @@ function Products() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredProducts.map((product) => (
+                inlineEditId === product.id ? (
+                  <tr key={product.id} className="bg-blue-50 ring-2 ring-inset ring-blue-300">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" disabled className="w-4 h-4 rounded opacity-30" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input value={inlineForm.name || ''} onChange={e => setInlineForm(f => ({ ...f, name: e.target.value }))}
+                        className="w-full text-sm border rounded px-2 py-1 focus:ring-1 focus:ring-blue-400 outline-none" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input value={inlineForm.brand || ''} onChange={e => setInlineForm(f => ({ ...f, brand: e.target.value }))}
+                        className="w-28 text-sm border rounded px-2 py-1 focus:ring-1 focus:ring-blue-400 outline-none" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <select value={inlineForm.category_id || ''} onChange={e => setInlineForm(f => ({ ...f, category_id: e.target.value }))}
+                        className="w-full text-sm border rounded px-2 py-1 outline-none">
+                        <option value="">-- None --</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2 text-gray-400 text-xs text-center">{product.stock_quantity}</td>
+                    <td className="px-3 py-2">
+                      <input value={inlineForm.sku || ''} onChange={e => setInlineForm(f => ({ ...f, sku: e.target.value }))}
+                        className="w-20 text-xs font-mono border rounded px-2 py-1 outline-none" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input type="number" value={inlineForm.cost_price || ''} onChange={e => setInlineForm(f => ({ ...f, cost_price: e.target.value }))}
+                        className="w-20 text-sm border rounded px-2 py-1 outline-none" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input type="number" value={inlineForm.sale_price || ''} onChange={e => setInlineForm(f => ({ ...f, sale_price: e.target.value }))}
+                        className="w-20 text-sm border rounded px-2 py-1 outline-none" />
+                    </td>
+                    {(user.role === 'admin' || user.role === 'manager') && <td className="px-3 py-2"></td>}
+                    <td className="px-3 py-2">
+                      <select value={inlineForm.status || 'active'} onChange={e => setInlineForm(f => ({ ...f, status: e.target.value }))}
+                        className="text-sm border rounded px-2 py-1 outline-none">
+                        <option value="active">active</option>
+                        <option value="inactive">inactive</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button onClick={handleInlineSave} disabled={inlineSaving}
+                          className="text-green-600 hover:text-green-800 font-bold text-sm bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition disabled:opacity-50">
+                          {inlineSaving ? '...' : '✓ Save'}
+                        </button>
+                        <button onClick={() => setInlineEditId(null)}
+                          className="text-gray-500 hover:text-gray-700 font-bold text-sm bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition">
+                          ✗
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
                 <tr key={product.id} className={`hover:bg-gray-50 ${selected.includes(product.id) ? 'bg-blue-50' : ''}`}>
                   <td className="px-4 py-4">
                     <input
@@ -518,12 +637,12 @@ function Products() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex justify-center gap-2">
-                      <Link
-                        to={`/edit-product/${product.id}`}
+                      <button
+                        onClick={() => { setInlineEditId(product.id); setInlineForm({ ...product }) }}
                         className="text-blue-600 hover:text-blue-800 font-bold text-sm bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
                       >
                         ✏️ Edit
-                      </Link>
+                      </button>
                       <button
                         onClick={() => requestDelete([product.id])}
                         className="text-red-600 hover:text-red-800 font-bold text-sm bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition"
@@ -533,9 +652,82 @@ function Products() {
                     </div>
                   </td>
                 </tr>
+                )
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Import Preview Modal */}
+      {showImportPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl max-h-[85vh] flex flex-col">
+            <h2 className="text-xl font-bold text-gray-800 mb-1">📥 Import Preview</h2>
+            <p className="text-sm text-gray-500 mb-3">{importPreviewRows.length} products ready to import. Category match status check karein.</p>
+
+            {importPreviewRows.some(r => r.categoryName && !r.categoryId) && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                <p className="text-sm text-yellow-800 font-medium">
+                  ⚠️ {importPreviewRows.filter(r => r.categoryName && !r.categoryId).length} row(s) mein category match nahi hui.
+                </p>
+                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <input type="checkbox" checked={autoCreateCategories} onChange={e => setAutoCreateCategories(e.target.checked)} className="w-4 h-4 rounded accent-blue-600" />
+                  <span className="text-sm text-yellow-800">Missing categories auto-create karo</span>
+                </label>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-auto border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">#</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">Product Name</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">Brand</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">Category</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">Cost</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">Sale</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-500">Stock</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {importPreviewRows.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
+                      <td className="px-3 py-2 font-medium text-gray-800">{row.name}</td>
+                      <td className="px-3 py-2 text-gray-600">{row.brand}</td>
+                      <td className="px-3 py-2">
+                        {row.categoryName ? (
+                          row.categoryId ? (
+                            <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded-full text-xs font-medium">✓ {row.categoryName}</span>
+                          ) : (
+                            <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded-full text-xs font-medium">✗ {row.categoryName}</span>
+                          )
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600">Rs.{row.cost_price}</td>
+                      <td className="px-3 py-2 text-gray-600">Rs.{row.sale_price}</td>
+                      <td className="px-3 py-2 text-gray-600">{row.stock_quantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex gap-3 mt-4">
+              <button onClick={handleConfirmImport}
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition">
+                ✅ Confirm Import ({importPreviewRows.length} products)
+              </button>
+              <button onClick={() => { setShowImportPreview(false); setImportPreviewRows([]) }}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold transition">
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

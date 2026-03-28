@@ -37,6 +37,8 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Allow larger bundles (jsPDF + html2canvas increase bundle size)
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
         // Cache all app assets (JS bundles, CSS, HTML)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Cache Supabase API responses for offline fallback

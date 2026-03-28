@@ -219,7 +219,7 @@ function Categories() {
             📤 Export
           </button>
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => showForm ? handleCancel() : setShowForm(true)}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm font-bold"
           >
             {showForm ? 'Cancel' : '+ Add Category'}

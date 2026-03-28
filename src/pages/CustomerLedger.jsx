@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
+import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 
 function CustomerLedger() {
     const { id } = useParams()
@@ -286,20 +287,37 @@ function CustomerLedger() {
                     <div className="flex gap-2">
                         {customer.phone && (
                             <button
-                                onClick={async () => {
-                                    const { data: shop } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
-                                    const phone = customer.phone.replace(/[^0-9]/g, '')
-                                    let formattedPhone = phone
-                                    if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-                                    else if (phone.length === 10) formattedPhone = '92' + phone
+                                onClick={async (e) => {
+                                    const btn = e.currentTarget
+                                    btn.disabled = true
+                                    btn.innerHTML = '⏳ Generating PDF...'
+                                    try {
+                                        const { data: shop } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
+                                        const phone = customer.phone.replace(/[^0-9]/g, '')
+                                        let formattedPhone = phone
+                                        if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
+                                        else if (phone.length === 10) formattedPhone = '92' + phone
 
-                                    const template = shop?.wa_reminder_template || "Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!"
-                                    const msg = template
-                                        .replace(/\[Name\]/g, customer.name)
-                                        .replace(/\[Amount\]/g, (customer.outstanding_balance || 0).toLocaleString())
-                                        .replace(/\[Shop Name\]/g, shop?.name || 'our shop')
+                                        const template = shop?.wa_reminder_template || "Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!"
+                                        const msg = template
+                                            .replace(/\[Name\]/g, customer.name)
+                                            .replace(/\[Amount\]/g, (customer.outstanding_balance || 0).toLocaleString())
+                                            .replace(/\[Shop Name\]/g, shop?.name || 'our shop')
 
-                                    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+                                        const pdfBlob = generateOutstandingPDF(customer, ledger, shop?.name || 'Shop')
+                                        await shareOrDownloadPDF(pdfBlob, `outstanding-${customer.name.replace(/\s+/g, '-')}.pdf`, formattedPhone, msg)
+                                    } catch (err) {
+                                        console.error('Outstanding PDF failed:', err)
+                                        const phone = customer.phone.replace(/[^0-9]/g, '')
+                                        let formattedPhone = phone
+                                        if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
+                                        else if (phone.length === 10) formattedPhone = '92' + phone
+                                        const msg = `${customer.name} — Outstanding: Rs. ${(customer.outstanding_balance || 0).toLocaleString()}`
+                                        window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+                                    } finally {
+                                        btn.disabled = false
+                                        btn.innerHTML = '<span>💬</span> WhatsApp Reminder'
+                                    }
                                 }}
                                 className="w-full sm:w-auto px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition font-semibold shadow-lg flex items-center justify-center gap-2"
                             >

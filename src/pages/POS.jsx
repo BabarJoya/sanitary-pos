@@ -6,6 +6,7 @@ import { db, addToSyncQueue } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
 import { buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
+import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 
 function POS() {
   const { user } = useAuth()
@@ -15,6 +16,9 @@ function POS() {
   const [categories, setCategories] = useState([])
   const [customers, setCustomers] = useState([])
   const [brands, setBrands] = useState([])
+
+  const [brandCategoryMap, setBrandCategoryMap] = useState({}) // brandId -> [categoryId,...]
+  const [cardQtys, setCardQtys] = useState({}) // productId -> qty string
 
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -84,6 +88,11 @@ function POS() {
     setBarcodeInput('')
     setTimeout(() => barcodeRef.current?.focus(), 50)
   }
+
+  // Save walk-in as customer
+  const [showSaveCustomer, setShowSaveCustomer] = useState(false)
+  const [saveCustomerForm, setSaveCustomerForm] = useState({ name: '', mobile: '' })
+  const [savingCustomer, setSavingCustomer] = useState(false)
 
   // Brand bulk discount modal
   const [showBrandDiscount, setShowBrandDiscount] = useState(false)
@@ -221,11 +230,12 @@ function POS() {
       }
 
       // Always render from local DB to merge cloud data with any pending local offline records
-      const [lProds, lCats, lCustomers, lBrands] = await Promise.all([
+      const [lProds, lCats, lCustomers, lBrands, lBrandCats] = await Promise.all([
         db.products.toArray(),
         db.categories.toArray(),
         db.customers.toArray(),
-        db.brands.toArray()
+        db.brands.toArray(),
+        db.brand_categories.toArray().catch(() => [])
       ])
 
       const sid = String(user.shop_id);
@@ -233,19 +243,27 @@ function POS() {
       const myCats = lCats.filter(x => String(x.shop_id) === sid)
       const myCustomers = lCustomers.filter(x => String(x.shop_id) === sid)
       const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
+      const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === sid)
+      const bcMap = {}
+      myBrandCats.forEach(bc => {
+        if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+        bcMap[bc.brand_id].push(bc.category_id)
+      })
 
       setProducts(myProds)
       setCategories(myCats)
       setCustomers(myCustomers)
       setBrands(myBrands)
+      setBrandCategoryMap(bcMap)
     } catch (e) {
       console.log('POS: Fetching from local DB (Offline Fallback)')
       try {
-        const [lProds, lCats, lCustomers, lBrands] = await Promise.all([
+        const [lProds, lCats, lCustomers, lBrands, lBrandCats] = await Promise.all([
           db.products.toArray(),
           db.categories.toArray(),
           db.customers.toArray(),
-          db.brands.toArray()
+          db.brands.toArray(),
+          db.brand_categories.toArray().catch(() => [])
         ])
 
         // Filter locally for shop_id just in case, ensuring type safety
@@ -254,11 +272,18 @@ function POS() {
         const myCats = lCats.filter(x => String(x.shop_id) === sid)
         const myCustomers = lCustomers.filter(x => String(x.shop_id) === sid)
         const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
+        const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === sid)
+        const bcMap = {}
+        myBrandCats.forEach(bc => {
+          if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+          bcMap[bc.brand_id].push(bc.category_id)
+        })
 
         setProducts(myProds)
         setCategories(myCats)
         setCustomers(myCustomers)
         setBrands(myBrands)
+        setBrandCategoryMap(bcMap)
 
         // Load shop settings from local DB too
         const sidNumber = Number(user.shop_id)
@@ -285,6 +310,20 @@ function POS() {
     }
   }
 
+  // Filter categories by selected brand (brand-category link)
+  const brandObj = brands.find(b => b.name === selectedBrand)
+  const posCategories = brandObj && brandCategoryMap[brandObj.id]?.length
+    ? categories.filter(c => brandCategoryMap[brandObj.id].includes(c.id))
+    : categories
+
+  // Reset selectedCategory if it's not in the filtered list
+  useEffect(() => {
+    if (selectedCategory && brandObj && brandCategoryMap[brandObj.id]?.length) {
+      const allowed = brandCategoryMap[brandObj.id].map(String)
+      if (!allowed.includes(String(selectedCategory))) setSelectedCategory('')
+    }
+  }, [selectedBrand])
+
   const filtered = products.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
       (p.brand || '').toLowerCase().includes(search.toLowerCase())
@@ -293,14 +332,17 @@ function POS() {
     return matchSearch && matchCat && matchBrand
   })
 
-  const addToCart = (product) => {
+  const addToCart = (product, qty = 1) => {
+    const addQty = Math.max(1, qty)
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id)
       if (existing) {
-        if (existing.qty >= product.stock_quantity) { alert('Not enough stock!'); return prev }
-        return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+        const newQty = existing.qty + addQty
+        if (newQty > product.stock_quantity) { alert('Not enough stock!'); return prev }
+        return prev.map(i => i.id === product.id ? { ...i, qty: newQty } : i)
       }
-      return [{ ...product, qty: 1, custom_price: product.sale_price }, ...prev]
+      const clampedQty = Math.min(addQty, product.stock_quantity)
+      return [{ ...product, qty: clampedQty, custom_price: product.sale_price }, ...prev]
     })
   }
 
@@ -322,6 +364,48 @@ function POS() {
 
   const clearCart = () => {
     setCart([]); setCustomerId(''); setWalkInName(''); setPaymentType('cash'); setReceivedAmount(''); setPayments([]); setDiscount(0)
+  }
+
+  const handleSaveCustomer = async () => {
+    const name = saveCustomerForm.name.trim()
+    if (!name) return alert('Customer ka naam zaroor darj karein')
+    setSavingCustomer(true)
+    const newCustomer = {
+      name,
+      phone: saveCustomerForm.mobile.trim(),
+      shop_id: user.shop_id,
+      outstanding_balance: 0,
+      created_at: new Date().toISOString()
+    }
+    try {
+      if (!navigator.onLine) throw new TypeError('Failed to fetch')
+      const { data, error } = await supabase.from('customers').insert([newCustomer]).select()
+      if (error) throw error
+      const saved = data[0]
+      await db.customers.put(JSON.parse(JSON.stringify(saved)))
+      setCustomers(prev => [...prev, saved])
+      setCustomerId(String(saved.id))
+      setWalkInName('')
+      setShowSaveCustomer(false)
+      setSaveCustomerForm({ name: '', mobile: '' })
+    } catch (err) {
+      const errMsg = err?.message || String(err)
+      if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
+        const localCust = { ...newCustomer, id: crypto.randomUUID() }
+        await db.customers.add(localCust)
+        await addToSyncQueue('customers', 'INSERT', localCust)
+        setCustomers(prev => [...prev, localCust])
+        setCustomerId(String(localCust.id))
+        setWalkInName('')
+        setShowSaveCustomer(false)
+        setSaveCustomerForm({ name: '', mobile: '' })
+        alert('Offline: Customer locally save hua. Online hone par sync hoga.')
+      } else {
+        alert('Error: ' + errMsg)
+      }
+    } finally {
+      setSavingCustomer(false)
+    }
   }
 
   const handleHoldBill = async () => {
@@ -361,6 +445,42 @@ function POS() {
     if (!selectedBrand) { alert('Pehle brand select karo!'); return }
     const brandProducts = products.filter(p => p.brand === selectedBrand)
     const val = parseFloat(brandDiscountValue) || 0
+
+    // Check for loss items before applying
+    const lossItems = []
+    brandProducts.forEach(product => {
+      const isInCart = cart.find(i => i.id === product.id)
+      if (brandDiscountMode === 'cart_only' && !isInCart) return
+      const cRate = parseFloat(product.c_rate) || 0
+      let discountedPrice
+      if (brandDiscountType === 'percent' && cRate > 0) {
+        const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+        const currentDiscPct = (1 - currentPrice / cRate) * 100
+        discountedPrice = cRate * (1 - (currentDiscPct + val) / 100)
+      } else if (brandDiscountType === 'percent') {
+        const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+        discountedPrice = currentPrice - (currentPrice * val / 100)
+      } else {
+        const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+        discountedPrice = currentPrice - val
+      }
+      discountedPrice = Math.max(0, parseFloat(discountedPrice.toFixed(2)))
+      const costPrice = parseFloat(product.cost_price) || 0
+      if (discountedPrice < costPrice) {
+        lossItems.push({ name: product.name, cRate, costPrice, discountedPrice })
+      }
+    })
+
+    if (lossItems.length > 0) {
+      const details = lossItems.map(({ name, cRate, costPrice, discountedPrice }) =>
+        `• ${name}${cRate > 0 ? ` (C.Rate: Rs.${cRate})` : ''} | Purchase: Rs.${costPrice} | Discount Price: Rs.${discountedPrice}`
+      ).join('\n')
+      const confirmed = window.confirm(
+        `⚠️ Nuqsan (Loss) Alert!\n\nYeh brand discount apply karne se in products par nuqsan hoga:\n${details}\n\nPhir bhi apply karein?`
+      )
+      if (!confirmed) return
+    }
+
     setCart(prev => {
       let updated = [...prev]
       brandProducts.forEach(product => {
@@ -731,7 +851,7 @@ function POS() {
           <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
             className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none">
             <option value="">All Categories</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {posCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)}
             className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none">
@@ -750,7 +870,8 @@ function POS() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto flex-1 content-start">
           {filtered.length === 0 && <p className="text-gray-400 col-span-3 text-center py-10">No products found</p>}
           {filtered.map(p => (
-            <button key={p.id} onClick={() => addToCart(p)}
+            <button key={p.id}
+              onClick={() => { addToCart(p, Number(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}
               className="bg-white rounded-xl shadow p-3 text-left hover:shadow-md hover:bg-blue-50 transition border border-transparent hover:border-blue-300 h-fit">
               <p className="font-semibold text-gray-800 text-sm leading-tight">{p.name}</p>
               {p.brand && <p className="text-xs text-gray-400">{p.brand}</p>}
@@ -760,6 +881,16 @@ function POS() {
               {(user.role === 'admin' || user.role === 'manager') && (
                 <p className="text-xs text-gray-300 mt-1">Cost: {p.cost_price}</p>
               )}
+              <div onClick={e => e.stopPropagation()} className="flex items-center gap-1 mt-1.5">
+                <input
+                  type="number" min="1" max={p.stock_quantity}
+                  value={cardQtys[p.id] || ''}
+                  onChange={e => setCardQtys(prev => ({ ...prev, [p.id]: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); addToCart(p, Number(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}}
+                  placeholder="Qty"
+                  className="w-14 text-xs border border-gray-200 rounded px-1.5 py-0.5 outline-none focus:border-blue-400 bg-white"
+                />
+              </div>
             </button>
           ))}
         </div>
@@ -820,13 +951,22 @@ function POS() {
         </select>
 
         {!customerId && (
-          <input
-            type="text"
-            placeholder="Customer Name (Optional)?"
-            value={walkInName}
-            onChange={e => setWalkInName(e.target.value)}
-            className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 shrink-0 bg-blue-50"
-          />
+          <div className="flex gap-1 shrink-0">
+            <input
+              type="text"
+              placeholder="Customer Name (Optional)?"
+              value={walkInName}
+              onChange={e => setWalkInName(e.target.value)}
+              className="flex-1 min-w-0 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+            />
+            <button
+              onClick={() => { setSaveCustomerForm({ name: walkInName, mobile: '' }); setShowSaveCustomer(true) }}
+              title="Customer list mein save karein"
+              className="px-2 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition shrink-0"
+            >
+              + Save
+            </button>
+          </div>
         )}
 
         {/* Cart Items — scrollable */}
@@ -849,11 +989,15 @@ function POS() {
                   className="w-20 px-1 py-0.5 border border-blue-200 rounded text-xs text-blue-700 font-semibold" />
                 <span className="text-xs text-gray-500 ml-auto">= Rs. {(item.custom_price * item.qty).toFixed(0)}</span>
               </div>
-              {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && (
-                <p className="text-xs text-green-600 mt-0.5">
-                  Profit: Rs. {((item.custom_price - (item.cost_price || 0)) * item.qty).toFixed(0)}
-                </p>
-              )}
+              {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && (() => {
+                const itemProfit = (item.custom_price - (item.cost_price || 0)) * item.qty
+                return (
+                  <p className={`text-xs mt-0.5 ${itemProfit < 0 ? 'text-red-600 font-bold' : 'text-green-600'}`}>
+                    {itemProfit < 0 ? '⚠️ Loss: ' : 'Profit: '}
+                    Rs. {Math.abs(itemProfit).toFixed(0)}
+                  </p>
+                )
+              })()}
             </div>
           ))}
         </div>
@@ -942,6 +1086,54 @@ function POS() {
           </div>
         </div>
       </div>
+
+      {/* Save Walk-in as Customer Modal */}
+      {showSaveCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 className="font-bold text-gray-800 text-lg mb-1">👤 Customer Save Karein</h3>
+            <p className="text-sm text-gray-500 mb-4">Yeh walk-in customer ko apni customer list mein add karein</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Naam *</label>
+                <input
+                  type="text"
+                  value={saveCustomerForm.name}
+                  onChange={e => setSaveCustomerForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Customer ka naam"
+                  autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                <input
+                  type="tel"
+                  value={saveCustomerForm.mobile}
+                  onChange={e => setSaveCustomerForm(f => ({ ...f, mobile: e.target.value }))}
+                  placeholder="0300-0000000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={handleSaveCustomer}
+                disabled={savingCustomer}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition disabled:opacity-50"
+              >
+                {savingCustomer ? 'Saving...' : '✅ Save Customer'}
+              </button>
+              <button
+                onClick={() => { setShowSaveCustomer(false); setSaveCustomerForm({ name: '', mobile: '' }) }}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Brand Discount Modal */}
       {showBrandDiscount && (
@@ -1064,20 +1256,40 @@ function POS() {
                 <button onClick={printReceipt} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">🖨️ Print</button>
                 {lastReceipt.customer?.phone && (
                   <button
-                    onClick={() => {
-                      const phone = lastReceipt.customer.phone.replace(/[^0-9]/g, '')
-                      let formattedPhone = phone
-                      if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-                      else if (phone.length === 10) formattedPhone = '92' + phone
+                    onClick={async (e) => {
+                      const btn = e.currentTarget
+                      btn.disabled = true
+                      btn.textContent = '⏳ Generating PDF...'
+                      try {
+                        const phone = lastReceipt.customer.phone.replace(/[^0-9]/g, '')
+                        let formattedPhone = phone
+                        if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
+                        else if (phone.length === 10) formattedPhone = '92' + phone
 
-                      const template = form.wa_bill_template || 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
-                      const msg = template
-                        .replace(/\[Name\]/g, lastReceipt.customer.name || 'Customer')
-                        .replace(/\[Amount\]/g, lastReceipt.total.toFixed(0))
-                        .replace(/\[Shop Name\]/g, form.name || 'our shop')
-                        .replace(/\[ID\]/g, String(lastReceipt.sale.id).slice(-8))
+                        const template = form.wa_bill_template || 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
+                        const msg = template
+                          .replace(/\[Name\]/g, lastReceipt.customer.name || 'Customer')
+                          .replace(/\[Amount\]/g, lastReceipt.total.toFixed(0))
+                          .replace(/\[Shop Name\]/g, form.name || 'our shop')
+                          .replace(/\[ID\]/g, String(lastReceipt.sale.id).slice(-8))
 
-                      window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+                        const billHtml = buildReceiptHTML(lastReceipt, false)
+                        const pdfBlob = await generateBillPDF(billHtml)
+                        const invoiceId = String(lastReceipt.sale.id).slice(-8)
+                        await shareOrDownloadPDF(pdfBlob, `bill-${invoiceId}.pdf`, formattedPhone, msg)
+                      } catch (err) {
+                        console.error('PDF share failed:', err)
+                        alert('PDF nahi ban saka. WhatsApp text message bheja ja raha hai.')
+                        const phone = lastReceipt.customer.phone.replace(/[^0-9]/g, '')
+                        let formattedPhone = phone
+                        if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
+                        else if (phone.length === 10) formattedPhone = '92' + phone
+                        const msg = `${form.name || 'Shop'} - Bill Rs. ${lastReceipt.total.toFixed(0)}`
+                        window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+                      } finally {
+                        btn.disabled = false
+                        btn.innerHTML = '<span>💬</span> WhatsApp'
+                      }
                     }}
                     className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
                   >

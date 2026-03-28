@@ -105,6 +105,29 @@ db.version(9).stores({
   trash: '++id, original_table, original_id, shop_id, deleted_at, deleted_by'
 });
 
+// v10: brand_categories junction table for brand-category linking
+db.version(10).stores({
+  products: 'id, name, brand, category_id, shop_id',
+  categories: 'id, name, shop_id',
+  suppliers: 'id, name, shop_id',
+  customers: 'id, name, shop_id',
+  brands: 'id, name, shop_id',
+  sales: 'id, customer_id, shop_id, created_at',
+  sale_items: 'id, sale_id, product_id',
+  purchases: 'id, supplier_id, shop_id, created_at',
+  purchase_items: 'id, purchase_id, product_id',
+  expenses: 'id, category, shop_id, date',
+  users: 'id, username, shop_id, role',
+  shops: 'id, name',
+  customer_payments: 'id, customer_id, shop_id, created_at',
+  supplier_payments: 'id, supplier_id, shop_id, created_at',
+  sync_queue: '++id, table, action, data, timestamp',
+  audit_logs: 'id, action, entity, entity_id, user_id, shop_id, timestamp',
+  held_carts: '++id, customer_id, shop_id, saved_at',
+  trash: '++id, original_table, original_id, shop_id, deleted_at, deleted_by',
+  brand_categories: '++id, brand_id, category_id, shop_id'
+});
+
 export const addToSyncQueue = async (table, action, data) => {
   await db.sync_queue.add({
     table,
