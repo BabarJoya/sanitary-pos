@@ -49,14 +49,23 @@ function Categories() {
       if (error) throw error
 
       if (data) {
+        // Remove orphaned/offline-created records (UUID ids) that don't exist in Supabase
+        // These are categories created offline that never synced — passing their UUID id to
+        // Supabase's integer 'id' column causes "invalid input syntax for type integer" errors
+        const supabaseIds = new Set(data.map(d => d.id))
+        const allLocal = await db.categories.toArray()
+        const sid = String(user.shop_id)
+        const orphanedIds = allLocal
+          .filter(c => String(c.shop_id) === sid && !supabaseIds.has(c.id))
+          .map(c => c.id)
+        if (orphanedIds.length) await db.categories.bulkDelete(orphanedIds)
+
+        // Sync fresh Supabase data to IndexedDB
         await db.categories.bulkPut(JSON.parse(JSON.stringify(data)))
       }
 
-      // Always render from local DB to include pending items
-      const localData = await db.categories.toArray()
-      const sid = String(user.shop_id)
-      const filtered = localData.filter(x => String(x.shop_id) === sid)
-      const sorted = filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      // Use Supabase data directly (not IndexedDB merge) to avoid stale UUID records
+      const sorted = [...(data || [])].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
       setCategories(sorted)
     } catch (err) {
       console.log('Categories: Fetching from local DB (Offline)')
