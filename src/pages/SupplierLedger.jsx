@@ -20,6 +20,12 @@ function SupplierLedger() {
     const [saving, setSaving] = useState(false)
     const [expandedBill, setExpandedBill] = useState(null)
 
+    // Filters
+    const [search, setSearch] = useState('')
+    const [filterType, setFilterType] = useState('all')   // all | debit | payment | purchase | return
+    const [filterFrom, setFilterFrom] = useState('')
+    const [filterTo, setFilterTo] = useState('')
+
     // Transaction entry form
     const [txForm, setTxForm] = useState({
         bill_number: '',
@@ -319,6 +325,23 @@ function SupplierLedger() {
 
     const currentBalance = supplier.outstanding_balance || 0
 
+    // ── Apply filters ──────────────────────────────────────────────────────────
+    const filteredLedger = ledger.filter(item => {
+        const q = search.trim().toLowerCase()
+        if (q) {
+            const inNote = item.note?.toLowerCase().includes(q)
+            const inBill = (item.bill_number || '').toLowerCase().includes(q)
+            const inAmount = String(item.amount).includes(q)
+            if (!inNote && !inBill && !inAmount) return false
+        }
+        if (filterType !== 'all' && item.type !== filterType) return false
+        const itemDate = new Date(item.date)
+        if (filterFrom && itemDate < new Date(filterFrom)) return false
+        if (filterTo && itemDate > new Date(filterTo + 'T23:59:59')) return false
+        return true
+    })
+    const isFiltered = search || filterType !== 'all' || filterFrom || filterTo
+
     return (
         <div>
             {/* ── Header ── */}
@@ -353,6 +376,54 @@ function SupplierLedger() {
                 </div>
             </div>
 
+            {/* ── Filter Bar ── */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-4 flex flex-wrap gap-3 items-end">
+                {/* Search */}
+                <div className="flex-1 min-w-[180px]">
+                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">🔍 Search</label>
+                    <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                        placeholder="Bill #, description, amount..."
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+                </div>
+                {/* Type filter */}
+                <div className="min-w-[140px]">
+                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">Type</label>
+                    <select value={filterType} onChange={e => setFilterType(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white">
+                        <option value="all">All Types</option>
+                        <option value="debit">Purchase / Debit</option>
+                        <option value="payment">Payment</option>
+                        <option value="purchase">Purchase Order</option>
+                        <option value="return">Return</option>
+                    </select>
+                </div>
+                {/* Date From */}
+                <div>
+                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">From</label>
+                    <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+                </div>
+                {/* Date To */}
+                <div>
+                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">To</label>
+                    <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+                </div>
+                {/* Clear */}
+                {isFiltered && (
+                    <button onClick={() => { setSearch(''); setFilterType('all'); setFilterFrom(''); setFilterTo('') }}
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition">
+                        ✕ Clear
+                    </button>
+                )}
+                {/* Result count */}
+                {isFiltered && (
+                    <span className="text-xs text-gray-400 self-center">
+                        {filteredLedger.length} of {ledger.length} entries
+                    </span>
+                )}
+            </div>
+
             {/* ── Ledger Table ── */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                 <div className="overflow-x-auto">
@@ -369,7 +440,7 @@ function SupplierLedger() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {ledger.map((item, idx) => (
+                            {filteredLedger.map((item, idx) => (
                                 <React.Fragment key={idx}>
                                     <tr className="hover:bg-gray-50 transition">
                                         <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-PK')}</td>
@@ -439,7 +510,7 @@ function SupplierLedger() {
                             {ledger.length === 0 && (
                                 <tr>
                                     <td colSpan="7" className="px-6 py-12 text-center text-gray-400">
-                                        Koi transaction nahi mili. "Add Transaction" se pehli entry karein.
+                                        {isFiltered ? `"${search || filterType}" se koi result nahi mila. Filter clear karein.` : 'Koi transaction nahi mili. "Add Transaction" se pehli entry karein.'}
                                     </td>
                                 </tr>
                             )}
