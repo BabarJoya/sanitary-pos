@@ -216,32 +216,33 @@ export function generatePurchaseOrderPDF(bySupplier, shopName) {
 // ─── Share / Download Helper ──────────────────────────────────────────────────
 
 /**
- * Try to share the PDF via Web Share API (works on mobile → opens WhatsApp share).
- * Falls back to downloading the PDF + opening WA with text.
+ * Download the PDF and open WhatsApp Web in a new tab.
+ * On Android Chrome, also tries native share sheet (file attach).
+ * On desktop (Windows/Mac), skips share dialog — just downloads + opens WA.
  *
  * @param {Blob}   pdfBlob
  * @param {string} filename    e.g. 'bill-12345.pdf'
  * @param {string} phone       formatted phone (e.g. '923001234567') — optional
- * @param {string} message     text message for WA link fallback
+ * @param {string} message     text message for WA
  */
 export async function shareOrDownloadPDF(pdfBlob, filename, phone, message) {
+  // On Android Chrome, Web Share with files opens the OS share sheet (includes WhatsApp app)
+  // On Windows/Mac, navigator.canShare returns true but opens Windows share dialog (no WhatsApp)
+  // So only use Web Share on touch/mobile devices
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
   const file = new File([pdfBlob], filename, { type: 'application/pdf' })
 
-  // Try Web Share API with file (works in Chrome Android, some iOS browsers)
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: filename, text: message || '' })
       return
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        // Share failed for non-user-cancel reason — fall through to download
-      } else {
-        return // user cancelled — don't open WA
-      }
+      if (err.name === 'AbortError') return // user cancelled
+      // fall through to download + WA link
     }
   }
 
-  // Desktop / unsupported browser: download PDF + open WhatsApp with text
+  // Desktop / fallback: auto-download the PDF, then open WhatsApp Web tab
   const url = URL.createObjectURL(pdfBlob)
   const a = document.createElement('a')
   a.href = url
@@ -249,11 +250,11 @@ export async function shareOrDownloadPDF(pdfBlob, filename, phone, message) {
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 5000)
 
-  // Open WhatsApp with text message
+  // Open WhatsApp with message — user can attach the downloaded PDF manually
   if (phone || message) {
     const waUrl = phone
       ? `https://wa.me/${phone}?text=${encodeURIComponent(message || '')}`
       : `https://wa.me/?text=${encodeURIComponent(message || '')}`
-    setTimeout(() => window.open(waUrl, '_blank'), 500)
+    setTimeout(() => window.open(waUrl, '_blank'), 600)
   }
 }

@@ -799,6 +799,34 @@ function POS() {
     win.document.close()
   }
 
+  const waQuotation = async (e) => {
+    const btn = e?.currentTarget
+    if (btn) { btn.disabled = true; btn.textContent = '⏳...' }
+    try {
+      const customer = customers.find(c => String(c.id) === String(customerId))
+      const sub = cart.reduce((s, i) => s + i.custom_price * i.qty, 0)
+      const disc = parseFloat(discount) || 0
+      const tot = Math.max(0, sub - disc)
+      const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
+      const html = buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true)
+      const pdfBlob = await generateBillPDF(html)
+
+      let formattedPhone = ''
+      if (customer?.phone) {
+        const ph = customer.phone.replace(/[^0-9]/g, '')
+        formattedPhone = ph.startsWith('03') ? '92' + ph.substring(1) : ph.length === 10 ? '92' + ph : ph
+      }
+
+      const msg = `${form.name || 'Shop'} — Quotation\nTotal: Rs. ${tot.toFixed(0)}\n${customer ? 'Customer: ' + customer.name : walkInName ? 'Customer: ' + walkInName : ''}`
+      await shareOrDownloadPDF(pdfBlob, `quotation-${String(fakeSale.id).slice(-8)}.pdf`, formattedPhone || null, msg)
+    } catch (err) {
+      console.error('Quotation PDF failed:', err)
+      alert('PDF nahi ban saka.')
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '💬' }
+    }
+  }
+
   return (
     <div className="flex flex-col md:flex-row gap-4 overflow-hidden" style={{ height: 'calc(100vh - 112px)' }}>
 
@@ -1083,6 +1111,12 @@ function POS() {
               className={`flex-1 py-1.5 text-white text-sm font-bold rounded-lg transition disabled:opacity-50 ${saleType === 'quotation' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
               {saving ? '...' : saleType === 'quotation' ? 'Print Quote' : '✅ Complete Sale'}
             </button>
+            {saleType === 'quotation' && cart.length > 0 && (
+              <button onClick={waQuotation} title="WhatsApp par quotation bhejein"
+                className="px-2 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold transition">
+                💬
+              </button>
+            )}
           </div>
         </div>
       </div>
