@@ -30,12 +30,146 @@ function Suppliers() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [pendingDeleteIds, setPendingDeleteIds] = useState([])
 
+  // ─── Transaction Modal ────────────────────────────────────────────────────
+  const [showTxModal, setShowTxModal] = useState(false)
+  const [txSup, setTxSup] = useState(null)
+  const [txLedger, setTxLedger] = useState([])
+  const [txLoading, setTxLoading] = useState(false)
+  const [showAddTx, setShowAddTx] = useState(false)
+  const [txSaving, setTxSaving] = useState(false)
+  const [txForm, setTxForm] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    bill_number: '',
+    type: 'debit',
+    amount: '',
+    note: ''
+  })
+
   useEffect(() => {
     if (user?.shop_id) {
       fetchSuppliers()
       fetchBrands()
     }
   }, [user?.shop_id])
+
+  // ─── Build ledger from purchases + supplier_payments ─────────────────────
+  const buildLedger = (purchases, payments) => {
+    const combined = [
+      ...(purchases || []).map(p => ({
+        id: p.id,
+        date: p.created_at,
+        type: 'purchase',
+        bill_number: `Bill #${String(p.id).slice(-8)}`,
+        amount: p.total_amount || 0,
+        note: p.note || '',
+      })),
+      ...(payments || []).map(p => {
+        // payment_type === 'debit' means a manual debit/purchase entry
+        const isDebit = p.payment_type === 'debit'
+        return {
+          id: p.id,
+          date: p.created_at,
+          type: isDebit ? 'debit' : (p.payment_type === 'return' ? 'return' : 'payment'),
+          bill_number: isDebit ? (p.bill_number || '') : '',
+          amount: p.amount || 0,
+          note: p.note || '',
+        }
+      })
+    ]
+    combined.sort((a, b) => new Date(a.date) - new Date(b.date))
+    let running = 0
+    return combined.map(item => {
+      if (item.type === 'purchase' || item.type === 'debit') {
+        running += Number(item.amount)
+      } else {
+        running -= Math.abs(Number(item.amount))
+      }
+      return { ...item, balance: running }
+    }).reverse()
+  }
+
+  const openTxModal = async (sup) => {
+    setTxSup(sup)
+    setTxLedger([])
+    setShowAddTx(false)
+    setShowTxModal(true)
+    setTxLoading(true)
+    try {
+      if (!navigator.onLine) throw new Error('Offline')
+      const [purchRes, payRes] = await Promise.all([
+        supabase.from('purchases').select('*').eq('supplier_id', sup.id).order('created_at', { ascending: true }),
+        supabase.from('supplier_payments').select('*').eq('supplier_id', sup.id)
+      ])
+      setTxLedger(buildLedger(purchRes.data || [], payRes.data || []))
+    } catch {
+      // Offline fallback
+      const [lPurchases, lPayments] = await Promise.all([
+        db.purchases.where('supplier_id').equals(sup.id).toArray(),
+        db.supplier_payments.where('supplier_id').equals(sup.id).toArray()
+      ])
+      setTxLedger(buildLedger(lPurchases, lPayments))
+    } finally {
+      setTxLoading(false)
+    }
+  }
+
+  const handleAddTx = async (e) => {
+    e.preventDefault()
+    if (!txForm.amount || parseFloat(txForm.amount) <= 0) return
+    setTxSaving(true)
+    const amount = parseFloat(txForm.amount)
+    const isDebit = txForm.type === 'debit'
+    const txDate = new Date(txForm.date).toISOString()
+    const noteText = [txForm.bill_number ? `[Bill #${txForm.bill_number}]` : '', txForm.note].filter(Boolean).join(' ')
+
+    const payload = {
+      shop_id: user.shop_id,
+      supplier_id: txSup.id,
+      amount,
+      payment_type: isDebit ? 'debit' : 'payment',
+      bill_number: txForm.bill_number || null,
+      note: noteText || (isDebit ? 'Manual Purchase Entry' : 'Manual Payment Entry'),
+      created_at: txDate
+    }
+    try {
+      if (!navigator.onLine) throw new TypeError('Failed to fetch')
+      const { error } = await supabase.from('supplier_payments').insert([payload])
+      if (error) throw error
+
+      // Update supplier outstanding_balance
+      const newBal = isDebit
+        ? (txSup.outstanding_balance || 0) + amount
+        : Math.max(0, (txSup.outstanding_balance || 0) - amount)
+      await supabase.from('suppliers').update({ outstanding_balance: newBal }).eq('id', txSup.id)
+      setTxSup({ ...txSup, outstanding_balance: newBal })
+      setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
+
+      setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', type: 'debit', amount: '', note: '' })
+      setShowAddTx(false)
+      await openTxModal({ ...txSup, outstanding_balance: newBal })
+    } catch (err) {
+      const msg = err?.message || String(err)
+      if (msg.includes('Failed to fetch') || !navigator.onLine) {
+        const offlinePayload = { ...payload, id: crypto.randomUUID() }
+        await db.supplier_payments.add(offlinePayload)
+        await addToSyncQueue('supplier_payments', 'INSERT', offlinePayload)
+        const newBal = isDebit
+          ? (txSup.outstanding_balance || 0) + amount
+          : Math.max(0, (txSup.outstanding_balance || 0) - amount)
+        await db.suppliers.update(txSup.id, { outstanding_balance: newBal })
+        setTxSup({ ...txSup, outstanding_balance: newBal })
+        setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
+        setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', type: 'debit', amount: '', note: '' })
+        setShowAddTx(false)
+        await openTxModal({ ...txSup, outstanding_balance: newBal })
+        alert('Offline: Locally saved, will sync when online.')
+      } else {
+        alert('Error: ' + msg)
+      }
+    } finally {
+      setTxSaving(false)
+    }
+  }
 
   const fetchBrands = async () => {
     try {
@@ -436,7 +570,12 @@ function Suppliers() {
                         Rs. {sup.outstanding_balance || 0}
                       </span>
                     </td>
-                    <td className="px-6 py-4 flex gap-3 whitespace-nowrap">
+                    <td className="px-6 py-4 flex gap-2 whitespace-nowrap flex-wrap">
+                      <button
+                        onClick={() => openTxModal(sup)}
+                        className="text-purple-600 hover:text-purple-800 text-sm font-bold bg-purple-50 px-2 py-1 rounded">
+                        📋 Txns
+                      </button>
                       <Link to={`/suppliers/${sup.id}`} className="text-blue-600 hover:text-blue-800 text-sm font-bold bg-blue-50 px-2 py-1 rounded">
                         Ledger
                       </Link>
@@ -466,6 +605,160 @@ function Suppliers() {
           onConfirm={executeDelete}
           onCancel={() => { setShowPasswordModal(false); setPendingDeleteIds([]) }}
         />
+      )}
+
+      {/* ── Supplier Transaction Modal ── */}
+      {showTxModal && txSup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
+
+            {/* Header */}
+            <div className="flex items-start justify-between p-5 border-b">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">📋 {txSup.name} — Transactions</h2>
+                <p className="text-sm text-gray-500 mt-0.5">{txSup.phone || ''} {txSup.address ? '| ' + txSup.address : ''}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-xs text-gray-400 uppercase font-semibold">Outstanding</p>
+                  <p className={`text-xl font-bold ${txSup.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    Rs. {(txSup.outstanding_balance || 0).toLocaleString()}
+                  </p>
+                </div>
+                <button onClick={() => setShowTxModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-light leading-none">✕</button>
+              </div>
+            </div>
+
+            {/* Add Transaction Toggle */}
+            <div className="px-5 pt-4 pb-2 flex justify-between items-center">
+              <p className="text-sm text-gray-500 font-medium">Transaction History</p>
+              <button
+                onClick={() => setShowAddTx(!showAddTx)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${showAddTx ? 'bg-gray-200 text-gray-700' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+                {showAddTx ? '✕ Cancel' : '+ Add Previous Transaction'}
+              </button>
+            </div>
+
+            {/* Add Transaction Form */}
+            {showAddTx && (
+              <div className="mx-5 mb-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                <form onSubmit={handleAddTx} className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Date *</label>
+                      <input type="date" required
+                        value={txForm.date}
+                        onChange={e => setTxForm({ ...txForm, date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Bill Number</label>
+                      <input type="text"
+                        value={txForm.bill_number}
+                        onChange={e => setTxForm({ ...txForm, bill_number: e.target.value })}
+                        placeholder="e.g. 1045"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Type *</label>
+                      <select value={txForm.type}
+                        onChange={e => setTxForm({ ...txForm, type: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        <option value="debit">🔴 Debit (Purchase / We Owe)</option>
+                        <option value="payment">🟢 Credit (Payment / We Paid)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Amount (Rs.) *</label>
+                      <input type="number" min="1" step="any" required
+                        value={txForm.amount}
+                        onChange={e => setTxForm({ ...txForm, amount: e.target.value })}
+                        placeholder="0"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <input type="text"
+                      value={txForm.note}
+                      onChange={e => setTxForm({ ...txForm, note: e.target.value })}
+                      placeholder="Description / Note (optional)"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    <button type="submit" disabled={txSaving}
+                      className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold transition disabled:opacity-50">
+                      {txSaving ? '...' : '✓ Save'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Ledger Table */}
+            <div className="flex-1 overflow-auto px-5 pb-5">
+              {txLoading ? (
+                <div className="py-10 text-center text-gray-400">Loading transactions...</div>
+              ) : txLedger.length === 0 ? (
+                <div className="py-10 text-center text-gray-400">No transactions found for this supplier.</div>
+              ) : (
+                <table className="w-full text-sm border-collapse">
+                  <thead className="sticky top-0 bg-gray-50 z-10">
+                    <tr className="border-b">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Bill #</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-orange-500 uppercase whitespace-nowrap">Debit</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-green-600 uppercase whitespace-nowrap">Credit</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {txLedger.map((item, idx) => {
+                      const isDebitRow = item.type === 'purchase' || item.type === 'debit'
+                      return (
+                        <tr key={item.id || idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                            {new Date(item.date).toLocaleDateString('en-PK')}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {item.bill_number
+                              ? <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
+                              : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <span>{item.note || (isDebitRow ? 'Purchase' : 'Payment')}</span>
+                            {item.type === 'return' && <span className="ml-2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold uppercase">Return</span>}
+                            {item.type === 'debit' && <span className="ml-2 text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold uppercase">Manual</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-orange-600 whitespace-nowrap">
+                            {isDebitRow ? `Rs. ${Number(item.amount).toLocaleString()}` : ''}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-green-600 whitespace-nowrap">
+                            {!isDebitRow ? `Rs. ${Math.abs(Number(item.amount)).toLocaleString()}` : ''}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
+                            <span className={item.balance > 0 ? 'text-red-600' : 'text-green-600'}>
+                              Rs. {Number(item.balance).toLocaleString()}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                    <tr>
+                      <td colSpan="3" className="px-4 py-3 text-sm font-bold text-gray-700">Total Outstanding Balance</td>
+                      <td colSpan="3" className="px-4 py-3 text-right">
+                        <span className={`text-base font-bold ${txSup.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          Rs. {(txSup.outstanding_balance || 0).toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

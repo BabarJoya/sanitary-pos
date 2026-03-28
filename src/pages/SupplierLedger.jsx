@@ -56,9 +56,10 @@ function SupplierLedger() {
                 ...(payments || []).map(p => ({
                     id: p.id,
                     date: p.created_at,
-                    type: p.payment_type === 'return' ? 'return' : 'payment',
+                    type: p.payment_type === 'debit' ? 'debit' : p.payment_type === 'return' ? 'return' : 'payment',
+                    bill_number: p.bill_number || '',
                     amount: p.amount,
-                    note: p.note || 'Cash Payment',
+                    note: p.note || (p.payment_type === 'debit' ? 'Manual Purchase Entry' : 'Cash Payment'),
                 }))
             ]
 
@@ -68,12 +69,11 @@ function SupplierLedger() {
             // Calculate running balance
             let running = 0
             const withBalance = combined.map(item => {
-                // A purchase means we bought stock, increasing our debt to the supplier (+)
-                if (item.type === 'purchase') {
+                // purchase or manual debit → increases our debt to the supplier (+)
+                if (item.type === 'purchase' || item.type === 'debit') {
                     running += item.amount
                 }
-                // A payment means we paid the supplier, decreasing our debt (-)
-                // A return means we returned stock, decreasing our debt (-)
+                // payment or return → decreases our debt (-)
                 else {
                     running -= Math.abs(item.amount)
                 }
@@ -112,16 +112,17 @@ function SupplierLedger() {
                     ...myPayments.map(p => ({
                         id: p.id,
                         date: p.created_at,
-                        type: p.payment_type === 'return' ? 'return' : 'payment',
+                        type: p.payment_type === 'debit' ? 'debit' : p.payment_type === 'return' ? 'return' : 'payment',
+                        bill_number: p.bill_number || '',
                         amount: p.amount,
-                        note: p.note || 'Cash Payment',
+                        note: p.note || (p.payment_type === 'debit' ? 'Manual Purchase Entry' : 'Cash Payment'),
                     }))
                 ]
 
                 combined.sort((a, b) => new Date(a.date) - new Date(b.date))
                 let running = 0
                 const withBalance = combined.map(item => {
-                    if (item.type === 'purchase') {
+                    if (item.type === 'purchase' || item.type === 'debit') {
                         running += item.amount
                     } else {
                         running -= Math.abs(item.amount)
@@ -236,9 +237,10 @@ function SupplierLedger() {
                         <thead className="bg-gray-50 border-b">
                             <tr>
                                 <th className="px-6 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Date</th>
-                                <th className="px-6 py-4 text-left font-semibold text-gray-600 min-w-[200px]">Description</th>
-                                <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Debit (Purchase)</th>
-                                <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Credit (Payment)</th>
+                                <th className="px-6 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Bill #</th>
+                                <th className="px-6 py-4 text-left font-semibold text-gray-600 min-w-[180px]">Description</th>
+                                <th className="px-6 py-4 text-right font-semibold text-orange-500 whitespace-nowrap">Debit (Purchase)</th>
+                                <th className="px-6 py-4 text-right font-semibold text-green-600 whitespace-nowrap">Credit (Payment)</th>
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Balance</th>
                             </tr>
                         </thead>
@@ -246,10 +248,17 @@ function SupplierLedger() {
                             {ledger.map((item, idx) => (
                                 <React.Fragment key={idx}>
                                     <tr className="hover:bg-gray-50 transition font-medium">
-                                        <td className="px-6 py-4 text-gray-500 font-normal">{new Date(item.date).toLocaleDateString('en-PK')}</td>
+                                        <td className="px-6 py-4 text-gray-500 font-normal whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-PK')}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {item.bill_number
+                                                ? <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
+                                                : item.type === 'purchase'
+                                                    ? <span className="text-xs text-gray-400 font-mono">{String(item.id).slice(-8)}</span>
+                                                    : <span className="text-gray-300">—</span>}
+                                        </td>
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-medium text-gray-800">{item.note}</span>
                                                     {item.type === 'purchase' && (
                                                         <button
@@ -261,21 +270,24 @@ function SupplierLedger() {
                                                     )}
                                                 </div>
                                                 {item.type === 'return' && <span className="w-fit px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold mt-1">Return</span>}
+                                                {item.type === 'debit' && <span className="w-fit px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] uppercase font-bold mt-1">Manual Entry</span>}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right text-orange-600 font-medium">
-                                            {item.type === 'purchase' ? `+ Rs. ${item.amount.toLocaleString()}` : ''}
+                                        <td className="px-6 py-4 text-right text-orange-600 font-medium whitespace-nowrap">
+                                            {(item.type === 'purchase' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toLocaleString()}` : ''}
                                         </td>
-                                        <td className="px-6 py-4 text-right text-green-600 font-medium">
-                                            {item.type !== 'purchase' ? `- Rs. ${Math.abs(item.amount).toLocaleString()}` : ''}
+                                        <td className="px-6 py-4 text-right text-green-600 font-medium whitespace-nowrap">
+                                            {(item.type !== 'purchase' && item.type !== 'debit') ? `- Rs. ${Math.abs(Number(item.amount)).toLocaleString()}` : ''}
                                         </td>
-                                        <td className="px-6 py-4 text-right font-bold text-gray-900">
-                                            Rs. {item.balance.toLocaleString()}
+                                        <td className="px-6 py-4 text-right font-bold whitespace-nowrap">
+                                            <span className={item.balance > 0 ? 'text-red-600' : 'text-green-700'}>
+                                                Rs. {Number(item.balance).toLocaleString()}
+                                            </span>
                                         </td>
                                     </tr>
                                     {item.type === 'purchase' && expandedBill === item.id && (
                                         <tr className="bg-orange-50/50 border-b border-gray-100">
-                                            <td colSpan="5" className="px-6 py-3">
+                                            <td colSpan="6" className="px-6 py-3">
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
@@ -299,7 +311,7 @@ function SupplierLedger() {
                             ))}
                             {ledger.length === 0 && (
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-12 text-center text-gray-400">No transactions found for this supplier.</td>
+                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400">No transactions found for this supplier.</td>
                                 </tr>
                             )}
                         </tbody>
