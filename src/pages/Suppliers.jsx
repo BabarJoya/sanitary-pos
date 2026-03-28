@@ -37,6 +37,8 @@ function Suppliers() {
   const [txLoading, setTxLoading] = useState(false)
   const [showAddTx, setShowAddTx] = useState(false)
   const [txSaving, setTxSaving] = useState(false)
+  const [txImporting, setTxImporting] = useState(false)
+  const txFileRef = useRef(null)
   const [txForm, setTxForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     bill_number: '',
@@ -169,6 +171,115 @@ function Suppliers() {
     } finally {
       setTxSaving(false)
     }
+  }
+
+  // ─── Export transactions to Excel ────────────────────────────────────────
+  const exportTxExcel = () => {
+    if (!txSup || txLedger.length === 0) return
+    const rows = [...txLedger].reverse().map(item => ({
+      'Date': new Date(item.date).toLocaleDateString('en-PK'),
+      'Bill Number': item.bill_number || '',
+      'Type': (item.type === 'purchase' || item.type === 'debit') ? 'Debit' : 'Credit',
+      'Amount (Rs.)': Number(item.amount),
+      'Description': item.note || '',
+      'Balance (Rs.)': Number(item.balance)
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    // Column widths
+    ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 30 }, { wch: 14 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Transactions')
+    XLSX.writeFile(wb, `${txSup.name.replace(/\s+/g, '_')}_Transactions_${new Date().toLocaleDateString('en-PK').replace(/\//g, '-')}.xlsx`)
+  }
+
+  // ─── Import transactions from Excel ──────────────────────────────────────
+  const importTxExcel = async (e) => {
+    const file = e.target.files[0]
+    if (!file || !txSup) return
+    e.target.value = ''
+
+    const reader = new FileReader()
+    reader.onload = async (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(ws)
+
+        if (rows.length === 0) { alert('File khali hai!'); return }
+
+        // Validate columns
+        const sample = rows[0]
+        if (!('Amount (Rs.)' in sample) && !('Amount' in sample)) {
+          alert('Column "Amount (Rs.)" nahi mili. Sahi format use karein:\nDate | Bill Number | Type | Amount (Rs.) | Description')
+          return
+        }
+
+        const preview = rows.slice(0, 3).map(r =>
+          `${r['Date'] || ''} | Bill#${r['Bill Number'] || '-'} | ${r['Type'] || 'Debit'} | Rs.${r['Amount (Rs.)'] || r['Amount'] || 0}`
+        ).join('\n')
+
+        if (!confirm(`${rows.length} transactions import karein?\n\nPehli entries:\n${preview}`)) return
+
+        setTxImporting(true)
+
+        const payloads = rows.map(r => {
+          const typeRaw = String(r['Type'] || 'debit').toLowerCase()
+          const isDebit = typeRaw.includes('debit') || typeRaw.includes('purchase')
+          const dateStr = r['Date'] ? new Date(r['Date']).toISOString() : new Date().toISOString()
+          const amount = parseFloat(r['Amount (Rs.)'] || r['Amount'] || 0)
+          const billNo = String(r['Bill Number'] || r['Bill #'] || r['Bill No'] || '').trim()
+          const note = String(r['Description'] || r['Note'] || '').trim()
+          return {
+            shop_id: user.shop_id,
+            supplier_id: txSup.id,
+            amount,
+            payment_type: isDebit ? 'debit' : 'payment',
+            bill_number: billNo || null,
+            note: note || (isDebit ? 'Imported Debit Entry' : 'Imported Payment'),
+            created_at: dateStr
+          }
+        }).filter(p => p.amount > 0)
+
+        // Batch insert (50 at a time)
+        let inserted = 0
+        for (let i = 0; i < payloads.length; i += 50) {
+          const batch = payloads.slice(i, i + 50)
+          if (navigator.onLine) {
+            const { error } = await supabase.from('supplier_payments').insert(batch)
+            if (error) throw error
+          } else {
+            for (const p of batch) {
+              const op = { ...p, id: crypto.randomUUID() }
+              await db.supplier_payments.add(op)
+              await addToSyncQueue('supplier_payments', 'INSERT', op)
+            }
+          }
+          inserted += batch.length
+        }
+
+        // Recalculate balance from all transactions (re-fetch ledger)
+        await openTxModal(txSup)
+        alert(`✅ ${inserted} transactions import ho gayi!${!navigator.onLine ? '\n(Offline: sync hogi jab online hon)' : ''}`)
+      } catch (err) {
+        alert('Import error: ' + (err.message || err))
+      } finally {
+        setTxImporting(false)
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  // ─── Download blank import template ──────────────────────────────────────
+  const downloadTxTemplate = () => {
+    const sample = [
+      { 'Date': '01/01/2025', 'Bill Number': '1001', 'Type': 'Debit', 'Amount (Rs.)': 50000, 'Description': 'Purchase of goods' },
+      { 'Date': '15/01/2025', 'Bill Number': '',     'Type': 'Credit', 'Amount (Rs.)': 20000, 'Description': 'Cash payment' },
+    ]
+    const ws = XLSX.utils.json_to_sheet(sample)
+    ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 30 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Transactions')
+    XLSX.writeFile(wb, 'Supplier_Transactions_Template.xlsx')
   }
 
   const fetchBrands = async () => {
@@ -630,14 +741,36 @@ function Suppliers() {
               </div>
             </div>
 
-            {/* Add Transaction Toggle */}
-            <div className="px-5 pt-4 pb-2 flex justify-between items-center">
+            {/* Add Transaction Toggle + Import/Export */}
+            <div className="px-5 pt-4 pb-2 flex flex-wrap justify-between items-center gap-2">
               <p className="text-sm text-gray-500 font-medium">Transaction History</p>
-              <button
-                onClick={() => setShowAddTx(!showAddTx)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${showAddTx ? 'bg-gray-200 text-gray-700' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
-                {showAddTx ? '✕ Cancel' : '+ Add Previous Transaction'}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                {/* Export */}
+                <button onClick={exportTxExcel} disabled={txLedger.length === 0}
+                  title="Export transactions to Excel"
+                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold transition disabled:opacity-40">
+                  📥 Export Excel
+                </button>
+                {/* Import */}
+                <button onClick={() => txFileRef.current?.click()} disabled={txImporting}
+                  title="Import transactions from Excel"
+                  className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-bold transition disabled:opacity-40">
+                  {txImporting ? '⏳ Importing...' : '📤 Import Excel'}
+                </button>
+                <input ref={txFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importTxExcel} />
+                {/* Template download */}
+                <button onClick={downloadTxTemplate}
+                  title="Download blank import template"
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition">
+                  📋 Template
+                </button>
+                {/* Add manually */}
+                <button
+                  onClick={() => setShowAddTx(!showAddTx)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${showAddTx ? 'bg-gray-200 text-gray-700' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+                  {showAddTx ? '✕ Cancel' : '+ Add Entry'}
+                </button>
+              </div>
             </div>
 
             {/* Add Transaction Form */}
