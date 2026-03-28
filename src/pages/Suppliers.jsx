@@ -521,6 +521,32 @@ function Suppliers() {
 
   return (
     <div>
+      {/* ── Summary Cards ── */}
+      {suppliers.length > 0 && (() => {
+        const totalDue = suppliers.reduce((s, x) => s + (Number(x.outstanding_balance) || 0), 0)
+        const suppliersWithDue = suppliers.filter(x => (Number(x.outstanding_balance) || 0) > 0).length
+        const cleared = suppliers.length - suppliersWithDue
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-xl shadow p-4 border-l-4 border-red-400">
+              <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Total Amount Due</p>
+              <p className="text-2xl font-bold text-red-600 mt-1">Rs. {totalDue.toLocaleString()}</p>
+              <p className="text-xs text-gray-400 mt-1">Across all suppliers</p>
+            </div>
+            <div className="bg-white rounded-xl shadow p-4 border-l-4 border-orange-400">
+              <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Suppliers with Balance</p>
+              <p className="text-2xl font-bold text-orange-600 mt-1">{suppliersWithDue}</p>
+              <p className="text-xs text-gray-400 mt-1">Have outstanding amount</p>
+            </div>
+            <div className="bg-white rounded-xl shadow p-4 border-l-4 border-green-400">
+              <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Cleared / No Balance</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">{cleared}</p>
+              <p className="text-xs text-gray-400 mt-1">Out of {suppliers.length} total</p>
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-800">🚚 Suppliers</h1>
         <div className="flex gap-2 w-full sm:w-auto flex-wrap">
