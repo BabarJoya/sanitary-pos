@@ -195,6 +195,39 @@ function SupplierLedger() {
         setShowModal(false)
     }
 
+    // ── Delete Transaction ──────────────────────────────────────────────────────
+    const handleDeleteTransaction = async (item) => {
+        if (item.type === 'purchase') {
+            alert('Purchase orders directly delete nahi ho sakty. Purchase History sy delete karein.')
+            return
+        }
+        const typeLabel = (item.type === 'debit') ? 'Purchase/Debit' : item.type === 'payment' ? 'Payment' : 'Return'
+        const confirmed = window.confirm(
+            `Kya aap yeh transaction delete karna chahte hain?\n\nType: ${typeLabel}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nSupplier balance bhi adjust ho ga.`
+        )
+        if (!confirmed) return
+
+        // Reverse the balance effect: debit → subtract, payment/return → add back
+        const balanceEffect = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
+        const newBalance = (supplier?.outstanding_balance || 0) + balanceEffect
+
+        try {
+            if (navigator.onLine) {
+                const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
+                if (error) throw error
+                await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
+            } else {
+                await db.supplier_payments.delete(item.id)
+                await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                await db.suppliers.update(id, { outstanding_balance: newBalance })
+            }
+            setSupplier(s => ({ ...s, outstanding_balance: newBalance }))
+            fetchSupplierData()
+        } catch (err) {
+            alert('Delete nahi hua: ' + err.message)
+        }
+    }
+
     // ── Excel Export ────────────────────────────────────────────────────────────
     const handleExport = () => {
         const rows = [...ledger].reverse().map((item, idx) => ({
@@ -332,6 +365,7 @@ function SupplierLedger() {
                                 <th className="px-5 py-4 text-right font-semibold text-orange-500 whitespace-nowrap">Debit (Purchase)</th>
                                 <th className="px-5 py-4 text-right font-semibold text-green-600 whitespace-nowrap">Credit (Payment)</th>
                                 <th className="px-5 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Balance</th>
+                                <th className="px-3 py-4"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -370,10 +404,19 @@ function SupplierLedger() {
                                                 Rs. {Number(item.balance).toLocaleString()}
                                             </span>
                                         </td>
+                                        <td className="px-3 py-3 text-right">
+                                            {item.type !== 'purchase' && (
+                                                <button onClick={() => handleDeleteTransaction(item)}
+                                                    title="Delete transaction"
+                                                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs">
+                                                    🗑️
+                                                </button>
+                                            )}
+                                        </td>
                                     </tr>
                                     {item.type === 'purchase' && expandedBill === item.id && (
                                         <tr className="bg-orange-50/50 border-b border-gray-100">
-                                            <td colSpan="6" className="px-5 py-3">
+                                            <td colSpan="7" className="px-5 py-3">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
                                                     <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -395,7 +438,7 @@ function SupplierLedger() {
                             ))}
                             {ledger.length === 0 && (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-400">
                                         Koi transaction nahi mili. "Add Transaction" se pehli entry karein.
                                     </td>
                                 </tr>
