@@ -18,6 +18,7 @@ function Customers() {
   const [selected, setSelected] = useState([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [pendingDeleteIds, setPendingDeleteIds] = useState([])
+  const [wipeLedger, setWipeLedger] = useState(false)
 
   useEffect(() => {
     if (user?.shop_id) fetchCustomers()
@@ -175,6 +176,7 @@ function Customers() {
 
   const requestDelete = (ids) => {
     setPendingDeleteIds(ids)
+    setWipeLedger(false)
     setShowPasswordModal(true)
   }
 
@@ -182,6 +184,7 @@ function Customers() {
     setShowPasswordModal(false)
     const ids = pendingDeleteIds
     setPendingDeleteIds([])
+    const isWipe = wipeLedger
 
     let successCount = 0
     let failCount = 0
@@ -192,6 +195,36 @@ function Customers() {
       if (!item) continue
 
       try {
+        if (isWipe) {
+          // Deep clean ledger history
+          const localSales = await db.sales.where({ customer_id: id }).toArray()
+          const saleIds = localSales.map(s => s.id)
+          
+          if (navigator.onLine) {
+            const { data: onlineSales } = await supabase.from('sales').select('id').eq('customer_id', id)
+            const onlineIds = onlineSales?.map(s => s.id) || []
+            const allSaleIds = [...new Set([...saleIds, ...onlineIds])]
+            
+            if (allSaleIds.length > 0) {
+              await supabase.from('sale_items').delete().in('sale_id', allSaleIds)
+            }
+            await supabase.from('sales').delete().eq('customer_id', id)
+            await supabase.from('customer_payments').delete().eq('customer_id', id)
+          } else {
+            for (const sId of saleIds) {
+              const items = await db.sale_items.where({ sale_id: sId }).toArray()
+              for (const it of items) await addToSyncQueue('sale_items', 'DELETE', { id: it.id })
+              await addToSyncQueue('sales', 'DELETE', { id: sId })
+            }
+            const localPay = await db.customer_payments.where({ customer_id: id }).toArray()
+            for (const p of localPay) await addToSyncQueue('customer_payments', 'DELETE', { id: p.id })
+          }
+
+          if (saleIds.length > 0) await db.sale_items.where('sale_id').anyOf(saleIds).delete()
+          await db.sales.where({ customer_id: id }).delete()
+          await db.customer_payments.where({ customer_id: id }).delete()
+        }
+
         if (navigator.onLine) {
           const { error } = await supabase.from('customers').delete().eq('id', id)
           if (error) {
@@ -467,6 +500,9 @@ function Customers() {
           message={`${pendingDeleteIds.length} item(s) will be moved to Trash`}
           onConfirm={executeDelete}
           onCancel={() => { setShowPasswordModal(false); setPendingDeleteIds([]) }}
+          checkboxLabel="Wipe all ledger history (sales, payments) forever?"
+          checkboxChecked={wipeLedger}
+          onCheckboxChange={setWipeLedger}
         />
       )}
     </div>

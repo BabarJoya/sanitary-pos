@@ -4,7 +4,7 @@ import { db } from '../services/db'
 import { useAuth } from '../context/AuthContext'
 import { hashPassword } from '../utils/authUtils'
 
-function PasswordModal({ title, message, onConfirm, onCancel }) {
+function PasswordModal({ title, message, onConfirm, onCancel, checkboxLabel, checkboxChecked, onCheckboxChange }) {
     const { user } = useAuth()
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
@@ -107,6 +107,21 @@ function PasswordModal({ title, message, onConfirm, onCancel }) {
                             Cancel
                         </button>
                     </div>
+                    {checkboxLabel && (
+                        <div className="pt-2 border-t mt-4">
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={checkboxChecked}
+                                    onChange={(e) => onCheckboxChange && onCheckboxChange(e.target.checked)}
+                                    className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 accent-red-600"
+                                />
+                                <span className="text-sm font-bold text-red-600 select-none group-hover:text-red-700 transition">
+                                    {checkboxLabel}
+                                </span>
+                            </label>
+                        </div>
+                    )}
                 </form>
             </div>
         </div>
