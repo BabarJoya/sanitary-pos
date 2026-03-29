@@ -387,10 +387,20 @@ function SupplierLedger() {
         }
     }
 
+    const handleClearAllLedger = async () => {
+        if (!ledger.length) return
+        if (!confirm(`Poora ledger clear karein? (${ledger.length} entries)\n\nSupplier balance zero ho jayega.\nYeh supplier ko delete karne ke liye zaruri hai.`)) return
+        await _doDeleteItems(ledger)
+    }
+
     const handleBulkDelete = async () => {
         const toDelete = ledger.filter(item => selectedIds.has(item.id))
         if (!toDelete.length) return
         if (!confirm(`${toDelete.length} transactions delete karein?\n\nSupplier balance bhi adjust ho ga.`)) return
+        await _doDeleteItems(toDelete)
+    }
+
+    const _doDeleteItems = async (toDelete) => {
 
         let newBalance = supplier?.outstanding_balance || 0
         try {
@@ -468,6 +478,13 @@ function SupplierLedger() {
                             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm shadow transition">
                             ➕ Add Transaction
                         </button>
+                        {ledger.length > 0 && (
+                            <button
+                                onClick={handleClearAllLedger}
+                                className="px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-lg font-semibold text-sm transition">
+                                🗑️ Clear All Ledger
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
