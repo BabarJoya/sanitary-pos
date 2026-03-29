@@ -203,29 +203,51 @@ function SupplierLedger() {
 
     // ── Delete Transaction ──────────────────────────────────────────────────────
     const handleDeleteTransaction = async (item) => {
-        if (item.type === 'purchase') {
-            alert('Purchase orders directly delete nahi ho sakty. Purchase History sy delete karein.')
-            return
-        }
-        const typeLabel = (item.type === 'debit') ? 'Purchase/Debit' : item.type === 'payment' ? 'Payment' : 'Return'
+        const typeLabel = item.type === 'purchase' ? 'Purchase Order'
+            : item.type === 'debit' ? 'Debit Entry'
+            : item.type === 'payment' ? 'Payment'
+            : 'Return'
         const confirmed = window.confirm(
-            `Kya aap yeh transaction delete karna chahte hain?\n\nType: ${typeLabel}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nSupplier balance bhi adjust ho ga.`
+            `Yeh transaction delete karein?\n\nType: ${typeLabel}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nSupplier balance bhi adjust ho ga.`
         )
         if (!confirmed) return
 
-        // Reverse the balance effect: debit → subtract, payment/return → add back
-        const balanceEffect = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
-        const newBalance = (supplier?.outstanding_balance || 0) + balanceEffect
-
         try {
+            let newBalance = supplier?.outstanding_balance || 0
+
+            if (item.type === 'purchase') {
+                // Cascade: delete purchase_items first, then purchase
+                if (navigator.onLine) {
+                    await supabase.from('purchase_items').delete().eq('purchase_id', item.id)
+                    const { error } = await supabase.from('purchases').delete().eq('id', item.id)
+                    if (error) throw error
+                } else {
+                    const lItems = await db.purchase_items.toArray()
+                    const toDelIds = lItems.filter(i => String(i.purchase_id) === String(item.id)).map(i => i.id)
+                    await db.purchase_items.bulkDelete(toDelIds)
+                    await db.purchases.delete(item.id)
+                    await db.sync_queue.add({ table: 'purchases', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                }
+                // Reverse: purchase was adding to balance (we owe supplier more)
+                newBalance = Math.max(0, newBalance - Number(item.amount))
+            } else {
+                // debit / payment / return — from supplier_payments table
+                const balanceEffect = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
+                newBalance = newBalance + balanceEffect
+
+                if (navigator.onLine) {
+                    const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
+                    if (error) throw error
+                } else {
+                    await db.supplier_payments.delete(item.id)
+                    await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                }
+            }
+
             if (navigator.onLine) {
-                const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
-                if (error) throw error
                 await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
             } else {
-                await db.supplier_payments.delete(item.id)
-                await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                await db.suppliers.update(id, { outstanding_balance: newBalance })
+                await db.suppliers.update(parseInt(id), { outstanding_balance: newBalance })
             }
             setSupplier(s => ({ ...s, outstanding_balance: newBalance }))
             fetchSupplierData()
@@ -486,13 +508,11 @@ function SupplierLedger() {
                                             </span>
                                         </td>
                                         <td className="px-3 py-3 text-right">
-                                            {item.type !== 'purchase' && (
-                                                <button onClick={() => handleDeleteTransaction(item)}
-                                                    title="Delete transaction"
-                                                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs">
-                                                    🗑️
-                                                </button>
-                                            )}
+                                            <button onClick={() => handleDeleteTransaction(item)}
+                                                title="Delete transaction"
+                                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs">
+                                                🗑️
+                                            </button>
                                         </td>
                                     </tr>
                                     {item.type === 'purchase' && expandedBill === item.id && (

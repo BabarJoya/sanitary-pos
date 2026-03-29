@@ -266,6 +266,58 @@ function CustomerLedger() {
         }
     }
 
+    const handleDeleteTransaction = async (item) => {
+        if (item.id === 'opening') { alert('Opening balance entry directly delete nahi ho sakti.'); return }
+        const label = item.type === 'sale' ? 'Sale/Invoice' : item.type === 'payment' ? 'Payment' : 'Return'
+        if (!confirm(`Yeh transaction delete karein?\n\nType: ${label}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nCustomer ka outstanding balance bhi adjust ho ga.`)) return
+
+        try {
+            let newBalance = customer.outstanding_balance || 0
+
+            if (item.type === 'sale') {
+                // Cascade: delete sale_items first, then sale
+                if (navigator.onLine) {
+                    await supabase.from('sale_items').delete().eq('sale_id', item.id)
+                    const { error } = await supabase.from('sales').delete().eq('id', item.id)
+                    if (error) throw error
+                } else {
+                    const lItems = await db.sale_items.toArray()
+                    const toDelIds = lItems.filter(i => String(i.sale_id) === String(item.id)).map(i => i.id)
+                    await db.sale_items.bulkDelete(toDelIds)
+                    await db.sales.delete(item.id)
+                    await db.sync_queue.add({ table: 'sales', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                }
+                // Reverse: sale was adding unpaid portion to balance
+                const owed = Math.max(0, item.amount - (item.paid_amount || 0))
+                newBalance = Math.max(0, newBalance - owed)
+            } else {
+                // payment or return — delete from customer_payments
+                if (navigator.onLine) {
+                    const { error } = await supabase.from('customer_payments').delete().eq('id', item.id)
+                    if (error) throw error
+                } else {
+                    await db.customer_payments.delete(item.id)
+                    await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                }
+                // Reverse: payment/return was reducing balance, so deleting it adds back
+                if (item.payment_type !== 'refund') {
+                    newBalance = newBalance + Math.abs(item.amount)
+                }
+            }
+
+            // Update customer outstanding balance
+            if (navigator.onLine) {
+                await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
+            } else {
+                await db.customers.update(parseInt(id), { outstanding_balance: newBalance })
+            }
+            setCustomer(c => ({ ...c, outstanding_balance: newBalance }))
+            fetchCustomerData()
+        } catch (err) {
+            alert('Delete nahi hua: ' + err.message)
+        }
+    }
+
     if (loading) return <div className="p-8">Loading ledger...</div>
     if (!customer) return <div className="p-8 text-red-500">Customer not found!</div>
 
@@ -343,11 +395,12 @@ function CustomerLedger() {
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Debit (Sale)</th>
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Credit (Payment)</th>
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Balance</th>
+                                <th className="px-4 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                         {ledger.length === 0 && (
-                            <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400 text-sm">No transactions found for this customer.</td></tr>
+                            <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400 text-sm">No transactions found for this customer.</td></tr>
                         )}
                         {ledger.map((item, idx) => (
                             <React.Fragment key={idx}>
@@ -385,10 +438,19 @@ function CustomerLedger() {
                                     <td className="px-6 py-4 text-right font-bold text-gray-900">
                                         Rs. {item.balance.toFixed(0)}
                                     </td>
+                                    <td className="px-4 py-4 text-right">
+                                        {item.id !== 'opening' && (
+                                            <button
+                                                onClick={() => handleDeleteTransaction(item)}
+                                                title="Delete transaction"
+                                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs"
+                                            >🗑️</button>
+                                        )}
+                                    </td>
                                 </tr>
                                 {item.type === 'sale' && expandedSale === item.id && (
                                     <tr className="bg-blue-50/50 border-b border-gray-100">
-                                        <td colSpan="5" className="px-6 py-3">
+                                        <td colSpan="6" className="px-6 py-3">
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
