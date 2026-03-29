@@ -19,6 +19,7 @@ function CustomerLedger() {
     const [saving, setSaving] = useState(false)
     const [expandedSale, setExpandedSale] = useState(null)
     const [lastPayment, setLastPayment] = useState(null) // for print voucher after recording
+    const [selectedIds, setSelectedIds] = useState(new Set())
 
     useEffect(() => {
         if (id && user?.shop_id) fetchCustomerData()
@@ -318,6 +319,69 @@ function CustomerLedger() {
         }
     }
 
+    const selectableItems = ledger.filter(item => item.id !== 'opening')
+    const allSelected = selectableItems.length > 0 && selectableItems.every(item => selectedIds.has(item.id))
+
+    const toggleSelect = (itemId) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            next.has(itemId) ? next.delete(itemId) : next.add(itemId)
+            return next
+        })
+    }
+    const toggleSelectAll = () => {
+        if (allSelected) {
+            setSelectedIds(new Set())
+        } else {
+            setSelectedIds(new Set(selectableItems.map(i => i.id)))
+        }
+    }
+
+    const handleBulkDelete = async () => {
+        const toDelete = ledger.filter(item => selectedIds.has(item.id) && item.id !== 'opening')
+        if (!toDelete.length) return
+        if (!confirm(`${toDelete.length} transactions delete karein?\n\nCustomer ka outstanding balance bhi adjust ho ga.`)) return
+
+        let newBalance = customer.outstanding_balance || 0
+        try {
+            for (const item of toDelete) {
+                if (item.type === 'sale') {
+                    if (navigator.onLine) {
+                        await supabase.from('sale_items').delete().eq('sale_id', item.id)
+                        await supabase.from('sales').delete().eq('id', item.id)
+                    } else {
+                        const lItems = await db.sale_items.toArray()
+                        const toDelIds = lItems.filter(i => String(i.sale_id) === String(item.id)).map(i => i.id)
+                        await db.sale_items.bulkDelete(toDelIds)
+                        await db.sales.delete(item.id)
+                        await db.sync_queue.add({ table: 'sales', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                    }
+                    const owed = Math.max(0, item.amount - (item.paid_amount || 0))
+                    newBalance = Math.max(0, newBalance - owed)
+                } else {
+                    if (navigator.onLine) {
+                        await supabase.from('customer_payments').delete().eq('id', item.id)
+                    } else {
+                        await db.customer_payments.delete(item.id)
+                        await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                    }
+                    if (item.payment_type !== 'refund') newBalance = newBalance + Math.abs(item.amount)
+                }
+            }
+            if (navigator.onLine) {
+                await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
+            } else {
+                await db.customers.update(parseInt(id), { outstanding_balance: newBalance })
+            }
+            setCustomer(c => ({ ...c, outstanding_balance: newBalance }))
+            setSelectedIds(new Set())
+            fetchCustomerData()
+        } catch (err) {
+            alert('Kuch entries delete nahi huin: ' + err.message)
+            fetchCustomerData()
+        }
+    }
+
     if (loading) return <div className="p-8">Loading ledger...</div>
     if (!customer) return <div className="p-8 text-red-500">Customer not found!</div>
 
@@ -385,11 +449,29 @@ function CustomerLedger() {
                 </div>
             </div>
 
+            {selectedIds.size > 0 && (
+                <div className="mb-3 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                    <span className="text-sm font-bold text-red-700">{selectedIds.size} selected</span>
+                    <button
+                        onClick={handleBulkDelete}
+                        className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition"
+                    >🗑️ Delete Selected</button>
+                    <button
+                        onClick={() => setSelectedIds(new Set())}
+                        className="px-3 py-1.5 bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-lg text-sm transition"
+                    >✕ Clear</button>
+                </div>
+            )}
+
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b">
                             <tr>
+                                <th className="px-4 py-4 w-10">
+                                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                                        className="w-4 h-4 rounded cursor-pointer" />
+                                </th>
                                 <th className="px-6 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Date</th>
                                 <th className="px-6 py-4 text-left font-semibold text-gray-600 min-w-[200px]">Description</th>
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Debit (Sale)</th>
@@ -400,11 +482,17 @@ function CustomerLedger() {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                         {ledger.length === 0 && (
-                            <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400 text-sm">No transactions found for this customer.</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-12 text-center text-gray-400 text-sm">No transactions found for this customer.</td></tr>
                         )}
                         {ledger.map((item, idx) => (
                             <React.Fragment key={idx}>
-                                <tr className="hover:bg-gray-50 transition">
+                                <tr className={`hover:bg-gray-50 transition ${selectedIds.has(item.id) ? 'bg-red-50/40' : ''}`}>
+                                    <td className="px-4 py-4">
+                                        {item.id !== 'opening' && (
+                                            <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)}
+                                                className="w-4 h-4 rounded cursor-pointer" />
+                                        )}
+                                    </td>
                                     <td className="px-6 py-4 text-gray-500 font-normal">{new Date(item.date).toLocaleDateString('en-PK')}</td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
@@ -450,7 +538,7 @@ function CustomerLedger() {
                                 </tr>
                                 {item.type === 'sale' && expandedSale === item.id && (
                                     <tr className="bg-blue-50/50 border-b border-gray-100">
-                                        <td colSpan="6" className="px-6 py-3">
+                                        <td colSpan="7" className="px-6 py-3">
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>

@@ -19,6 +19,7 @@ function SupplierLedger() {
     const [showModal, setShowModal] = useState(false)
     const [saving, setSaving] = useState(false)
     const [expandedBill, setExpandedBill] = useState(null)
+    const [selectedIds, setSelectedIds] = useState(new Set())
 
     // Filters
     const [search, setSearch] = useState('')
@@ -351,6 +352,69 @@ function SupplierLedger() {
         }
     }
 
+    // ── Bulk select helpers ────────────────────────────────────────────────────
+    const allSelected = filteredLedger.length > 0 && filteredLedger.every(item => selectedIds.has(item.id))
+
+    const toggleSelect = (itemId) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev)
+            next.has(itemId) ? next.delete(itemId) : next.add(itemId)
+            return next
+        })
+    }
+    const toggleSelectAll = () => {
+        if (allSelected) {
+            setSelectedIds(new Set())
+        } else {
+            setSelectedIds(new Set(filteredLedger.map(i => i.id)))
+        }
+    }
+
+    const handleBulkDelete = async () => {
+        const toDelete = ledger.filter(item => selectedIds.has(item.id))
+        if (!toDelete.length) return
+        if (!confirm(`${toDelete.length} transactions delete karein?\n\nSupplier balance bhi adjust ho ga.`)) return
+
+        let newBalance = supplier?.outstanding_balance || 0
+        try {
+            for (const item of toDelete) {
+                if (item.type === 'purchase') {
+                    if (navigator.onLine) {
+                        await supabase.from('purchase_items').delete().eq('purchase_id', item.id)
+                        await supabase.from('purchases').delete().eq('id', item.id)
+                    } else {
+                        const lItems = await db.purchase_items.toArray()
+                        const toDelIds = lItems.filter(i => String(i.purchase_id) === String(item.id)).map(i => i.id)
+                        await db.purchase_items.bulkDelete(toDelIds)
+                        await db.purchases.delete(item.id)
+                        await db.sync_queue.add({ table: 'purchases', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                    }
+                    newBalance = Math.max(0, newBalance - Number(item.amount))
+                } else {
+                    if (navigator.onLine) {
+                        await supabase.from('supplier_payments').delete().eq('id', item.id)
+                    } else {
+                        await db.supplier_payments.delete(item.id)
+                        await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                    }
+                    const balanceEffect = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
+                    newBalance = newBalance + balanceEffect
+                }
+            }
+            if (navigator.onLine) {
+                await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
+            } else {
+                await db.suppliers.update(parseInt(id), { outstanding_balance: newBalance })
+            }
+            setSupplier(s => ({ ...s, outstanding_balance: newBalance }))
+            setSelectedIds(new Set())
+            fetchSupplierData()
+        } catch (err) {
+            alert('Kuch entries delete nahi huin: ' + err.message)
+            fetchSupplierData()
+        }
+    }
+
     if (!hasFeature('supplier_ledger')) return <UpgradeWall feature="supplier_ledger" />
     if (loading) return <div className="p-8">Loading ledger...</div>
     if (!supplier) return <div className="p-8 text-red-500">Supplier not found!</div>
@@ -456,12 +520,31 @@ function SupplierLedger() {
                 )}
             </div>
 
+            {/* ── Bulk Action Bar ── */}
+            {selectedIds.size > 0 && (
+                <div className="mb-3 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                    <span className="text-sm font-bold text-red-700">{selectedIds.size} selected</span>
+                    <button
+                        onClick={handleBulkDelete}
+                        className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition"
+                    >🗑️ Delete Selected</button>
+                    <button
+                        onClick={() => setSelectedIds(new Set())}
+                        className="px-3 py-1.5 bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-lg text-sm transition"
+                    >✕ Clear</button>
+                </div>
+            )}
+
             {/* ── Ledger Table ── */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b">
                             <tr>
+                                <th className="px-4 py-4 w-10">
+                                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                                        className="w-4 h-4 rounded cursor-pointer" />
+                                </th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Date</th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Bill #</th>
                                 <th className="px-5 py-4 text-left font-semibold text-gray-600 min-w-[160px]">Description</th>
@@ -474,7 +557,11 @@ function SupplierLedger() {
                         <tbody className="divide-y divide-gray-100">
                             {filteredLedger.map((item, idx) => (
                                 <React.Fragment key={idx}>
-                                    <tr className="hover:bg-gray-50 transition">
+                                    <tr className={`hover:bg-gray-50 transition ${selectedIds.has(item.id) ? 'bg-red-50/40' : ''}`}>
+                                        <td className="px-4 py-3">
+                                            <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)}
+                                                className="w-4 h-4 rounded cursor-pointer" />
+                                        </td>
                                         <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-PK')}</td>
                                         <td className="px-5 py-3 whitespace-nowrap">
                                             {item.bill_number
@@ -517,7 +604,7 @@ function SupplierLedger() {
                                     </tr>
                                     {item.type === 'purchase' && expandedBill === item.id && (
                                         <tr className="bg-orange-50/50 border-b border-gray-100">
-                                            <td colSpan="7" className="px-5 py-3">
+                                            <td colSpan="8" className="px-5 py-3">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
                                                     <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -539,7 +626,7 @@ function SupplierLedger() {
                             ))}
                             {ledger.length === 0 && (
                                 <tr>
-                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-400">
+                                    <td colSpan="8" className="px-6 py-12 text-center text-gray-400">
                                         {isFiltered ? `"${search || filterType}" se koi result nahi mila. Filter clear karein.` : 'Koi transaction nahi mili. "Add Transaction" se pehli entry karein.'}
                                     </td>
                                 </tr>
