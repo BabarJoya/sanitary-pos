@@ -224,7 +224,7 @@ function Products() {
     let rows = importPreviewRows
     let currentCategories = [...categories]
 
-    // Auto-create missing categories if checked
+    // Auto-create missing categories — use upsert to avoid duplicates
     if (autoCreateCategories) {
       const unmatchedNames = [...new Set(rows
         .filter(r => r.categoryName && !r.categoryId)
@@ -232,14 +232,31 @@ function Products() {
 
       for (const catName of unmatchedNames) {
         try {
-          const { data: newCat, error } = await supabase.from('categories').insert([{ name: catName, shop_id: user.shop_id }]).select()
-          if (!error && newCat?.[0]) {
-            currentCategories.push(newCat[0])
+          // First check if it already exists (case-insensitive)
+          const existing = currentCategories.find(c => c.name.toLowerCase() === catName.toLowerCase())
+          if (existing) continue
+
+          // Check in Supabase too (in case local cache is stale)
+          const { data: found } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('shop_id', user.shop_id)
+            .ilike('name', catName)
+            .maybeSingle()
+
+          if (found) {
+            currentCategories.push(found)
+          } else {
+            const { data: newCat, error } = await supabase
+              .from('categories')
+              .insert([{ name: catName, shop_id: user.shop_id }])
+              .select()
+            if (!error && newCat?.[0]) currentCategories.push(newCat[0])
           }
         } catch (err) { /* skip */ }
       }
 
-      // Re-map category IDs
+      // Re-map category IDs after creating
       rows = rows.map(r => {
         if (r.categoryName && !r.categoryId) {
           const found = currentCategories.find(c => c.name.toLowerCase() === r.categoryName.toLowerCase())
@@ -249,27 +266,54 @@ function Products() {
       })
     }
 
-    const formatted = rows.map(r => ({
-      shop_id: user.shop_id,
-      name: r.name,
-      brand: r.brand,
-      sku: r.sku || '',
-      category_id: r.categoryId,
-      unit_id: r.unitId || null,
-      stock_quantity: r.stock_quantity,
-      cost_price: r.cost_price,
-      sale_price: r.sale_price,
-      c_rate: r.c_rate,
-      low_stock_threshold: r.low_stock_threshold,
-      status: r.status
-    }))
+    // Fetch existing product names to skip duplicates
+    const { data: existingProds } = await supabase
+      .from('products')
+      .select('name, brand')
+      .eq('shop_id', user.shop_id)
+
+    const existingKeys = new Set(
+      (existingProds || []).map(p => `${p.name.toLowerCase()}||${(p.brand || '').toLowerCase()}`)
+    )
+
+    const formatted = []
+    const skipped = []
+    for (const r of rows) {
+      const key = `${r.name.toLowerCase()}||${r.brand.toLowerCase()}`
+      if (existingKeys.has(key)) {
+        skipped.push(r.name)
+        continue
+      }
+      formatted.push({
+        shop_id: user.shop_id,
+        name: r.name,
+        brand: r.brand,
+        sku: r.sku || '',
+        category_id: r.categoryId,
+        unit_id: r.unitId || null,
+        stock_quantity: r.stock_quantity,
+        cost_price: r.cost_price,
+        sale_price: r.sale_price,
+        c_rate: r.c_rate,
+        low_stock_threshold: r.low_stock_threshold,
+        status: r.status
+      })
+    }
+
+    if (formatted.length === 0) {
+      alert(`⚠️ Koi naya product nahi mila.\n${skipped.length} products pehle se mojood hain (duplicate skip kiye).`)
+      setLoading(false)
+      setImportPreviewRows([])
+      return
+    }
 
     const { error } = await supabase.from('products').insert(formatted)
     if (error) {
       alert('Import error: ' + error.message)
     } else {
       await recordAuditLog('BULK_IMPORT_PRODUCTS', 'products', 'multiple', { count: formatted.length }, user.id, user.shop_id)
-      alert(`Import successful! ✅ ${formatted.length} products added.`)
+      const skipMsg = skipped.length > 0 ? `\n⏭️ ${skipped.length} duplicate(s) skip kiye.` : ''
+      alert(`Import successful! ✅ ${formatted.length} products added.${skipMsg}`)
       fetchProducts()
     }
     setLoading(false)
