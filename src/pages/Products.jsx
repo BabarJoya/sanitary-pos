@@ -25,6 +25,7 @@ function Products() {
   const [showBulkEdit, setShowBulkEdit] = useState(false)
   const [bulkCategory, setBulkCategory] = useState('')
   const [bulkBrand, setBulkBrand] = useState('')
+  const [bulkUnit, setBulkUnit] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
 
   // Inline edit state
@@ -373,6 +374,7 @@ function Products() {
       name: inlineForm.name.trim(),
       brand: inlineForm.brand || '',
       category_id: inlineForm.category_id ? toIntOrNull(inlineForm.category_id) : null,
+      unit_id: inlineForm.unit_id ? toIntOrNull(inlineForm.unit_id) : null,
       sku: inlineForm.sku || '',
       cost_price: parseFloat(inlineForm.cost_price) || 0,
       sale_price: parseFloat(inlineForm.sale_price) || 0,
@@ -468,8 +470,8 @@ function Products() {
   }
 
   const handleBulkEdit = async () => {
-    if (!bulkCategory && !bulkBrand) {
-      alert('Category ya Brand mein se kuch toh select karo!')
+    if (!bulkCategory && !bulkBrand && !bulkUnit) {
+      alert('Category, Brand ya Unit mein se kuch toh select karo!')
       return
     }
     if (!confirm(`${selected.length} product(s) update honge. Continue?`)) return
@@ -478,6 +480,7 @@ function Products() {
     const updates = {}
     if (bulkCategory) updates.category_id = parseInt(bulkCategory)
     if (bulkBrand) updates.brand = bulkBrand
+    if (bulkUnit) updates.unit_id = parseInt(bulkUnit)
 
     let successCount = 0
     let failCount = 0
@@ -510,8 +513,11 @@ function Products() {
     setShowBulkEdit(false)
     setBulkCategory('')
     setBulkBrand('')
+    setBulkUnit('')
     setSelected([])
-    fetchProducts()
+    // If category was changed, clear the active category filter so user can see updated products
+    if (bulkCategory) setSelectedCategory('')
+    await fetchProducts()
     setBulkSaving(false)
 
     if (failCount > 0) {
@@ -554,7 +560,7 @@ function Products() {
           {selected.length > 0 && (
             <>
               <button
-                onClick={() => { setShowBulkEdit(true); setBulkCategory(''); setBulkBrand('') }}
+                onClick={() => { setShowBulkEdit(true); setBulkCategory(''); setBulkBrand(''); setBulkUnit('') }}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm"
               >
                 ✏️ Bulk Edit ({selected.length})
@@ -638,6 +644,7 @@ function Products() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brand</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost Price</th>
@@ -669,6 +676,13 @@ function Products() {
                         className="w-full text-sm border rounded px-2 py-1 outline-none">
                         <option value="">-- None --</option>
                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <select value={inlineForm.unit_id || ''} onChange={e => setInlineForm(f => ({ ...f, unit_id: e.target.value }))}
+                        className="w-24 text-sm border rounded px-2 py-1 outline-none">
+                        <option value="">-- None --</option>
+                        {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                       </select>
                     </td>
                     <td className="px-3 py-2 text-gray-400 text-xs text-center">{product.stock_quantity}</td>
@@ -722,6 +736,14 @@ function Products() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-500">{product.categories?.name || 'No category'}</td>
+                  <td className="px-6 py-4">
+                    {(() => {
+                      const unit = units.find(u => u.id === product.unit_id)
+                      return unit
+                        ? <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-semibold border border-blue-100">{unit.name}</span>
+                        : <span className="text-gray-300 text-xs">—</span>
+                    })()}
+                  </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.stock_quantity <= product.low_stock_threshold
                       ? 'bg-red-100 text-red-700'
@@ -911,18 +933,30 @@ function Products() {
                   {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                 </select>
               </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Unit</label>
+                <select
+                  value={bulkUnit}
+                  onChange={e => setBulkUnit(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">— Don't change —</option>
+                  {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleBulkEdit}
-                disabled={bulkSaving || (!bulkCategory && !bulkBrand)}
+                disabled={bulkSaving || (!bulkCategory && !bulkBrand && !bulkUnit)}
                 className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition disabled:opacity-50"
               >
                 {bulkSaving ? 'Updating...' : '✅ Apply Changes'}
               </button>
               <button
-                onClick={() => setShowBulkEdit(false)}
+                onClick={() => { setShowBulkEdit(false); setBulkUnit('') }}
                 className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold transition"
               >
                 Cancel
