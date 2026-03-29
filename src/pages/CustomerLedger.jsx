@@ -306,13 +306,15 @@ function CustomerLedger() {
                 }
             }
 
-            // Update customer outstanding balance
-            if (navigator.onLine) {
-                await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
-            } else {
-                await db.customers.update(parseInt(id), { outstanding_balance: newBalance })
-            }
-            setCustomer(c => ({ ...c, outstanding_balance: newBalance }))
+            // Update customer outstanding balance (skip gracefully if customer no longer exists)
+            try {
+                if (navigator.onLine) {
+                    await supabase.from('customers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
+                } else {
+                    await db.customers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
+                }
+                setCustomer(c => c ? ({ ...c, outstanding_balance: Math.max(0, newBalance) }) : c)
+            } catch (_) { /* customer may already be deleted — ignore */ }
             fetchCustomerData()
         } catch (err) {
             alert('Delete nahi hua: ' + err.message)
@@ -368,12 +370,14 @@ function CustomerLedger() {
                     if (item.payment_type !== 'refund') newBalance = newBalance + Math.abs(item.amount)
                 }
             }
-            if (navigator.onLine) {
-                await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
-            } else {
-                await db.customers.update(parseInt(id), { outstanding_balance: newBalance })
-            }
-            setCustomer(c => ({ ...c, outstanding_balance: newBalance }))
+            try {
+                if (navigator.onLine) {
+                    await supabase.from('customers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
+                } else {
+                    await db.customers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
+                }
+                setCustomer(c => c ? ({ ...c, outstanding_balance: Math.max(0, newBalance) }) : c)
+            } catch (_) { /* customer may already be deleted — ignore */ }
             setSelectedIds(new Set())
             fetchCustomerData()
         } catch (err) {

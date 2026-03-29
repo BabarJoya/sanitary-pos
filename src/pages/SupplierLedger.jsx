@@ -245,12 +245,14 @@ function SupplierLedger() {
                 }
             }
 
-            if (navigator.onLine) {
-                await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
-            } else {
-                await db.suppliers.update(parseInt(id), { outstanding_balance: newBalance })
-            }
-            setSupplier(s => ({ ...s, outstanding_balance: newBalance }))
+            try {
+                if (navigator.onLine) {
+                    await supabase.from('suppliers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
+                } else {
+                    await db.suppliers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
+                }
+                setSupplier(s => s ? ({ ...s, outstanding_balance: Math.max(0, newBalance) }) : s)
+            } catch (_) { /* supplier may already be deleted — ignore */ }
             fetchSupplierData()
         } catch (err) {
             alert('Delete nahi hua: ' + err.message)
@@ -401,25 +403,28 @@ function SupplierLedger() {
     }
 
     const _doDeleteItems = async (toDelete) => {
-
+        // Compute new balance by reversing the effect of each deleted item
         let newBalance = supplier?.outstanding_balance || 0
-        try {
-            for (const item of toDelete) {
+        const errors = []
+        for (const item of toDelete) {
+            try {
                 if (item.type === 'purchase') {
                     if (navigator.onLine) {
                         await supabase.from('purchase_items').delete().eq('purchase_id', item.id)
-                        await supabase.from('purchases').delete().eq('id', item.id)
+                        const { error } = await supabase.from('purchases').delete().eq('id', item.id)
+                        if (error) throw error
                     } else {
                         const lItems = await db.purchase_items.toArray()
                         const toDelIds = lItems.filter(i => String(i.purchase_id) === String(item.id)).map(i => i.id)
-                        await db.purchase_items.bulkDelete(toDelIds)
+                        if (toDelIds.length) await db.purchase_items.bulkDelete(toDelIds)
                         await db.purchases.delete(item.id)
                         await db.sync_queue.add({ table: 'purchases', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
                     }
                     newBalance = Math.max(0, newBalance - Number(item.amount))
                 } else {
                     if (navigator.onLine) {
-                        await supabase.from('supplier_payments').delete().eq('id', item.id)
+                        const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
+                        if (error) throw error
                     } else {
                         await db.supplier_payments.delete(item.id)
                         await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
@@ -427,19 +432,22 @@ function SupplierLedger() {
                     const balanceEffect = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
                     newBalance = newBalance + balanceEffect
                 }
+            } catch (err) {
+                errors.push(err.message)
             }
-            if (navigator.onLine) {
-                await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
-            } else {
-                await db.suppliers.update(parseInt(id), { outstanding_balance: newBalance })
-            }
-            setSupplier(s => ({ ...s, outstanding_balance: newBalance }))
-            setSelectedIds(new Set())
-            fetchSupplierData()
-        } catch (err) {
-            alert('Kuch entries delete nahi huin: ' + err.message)
-            fetchSupplierData()
         }
+        // Update supplier balance (skip gracefully if supplier no longer exists)
+        try {
+            if (navigator.onLine) {
+                await supabase.from('suppliers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
+            } else {
+                await db.suppliers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
+            }
+            setSupplier(s => s ? ({ ...s, outstanding_balance: Math.max(0, newBalance) }) : s)
+        } catch (_) { /* supplier may already be deleted — ignore */ }
+        setSelectedIds(new Set())
+        if (errors.length) alert(`${errors.length} entries delete nahi huin:\n${errors.slice(0, 3).join('\n')}`)
+        fetchSupplierData()
     }
 
     if (!hasFeature('supplier_ledger')) return <UpgradeWall feature="supplier_ledger" />

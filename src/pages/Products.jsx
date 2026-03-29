@@ -12,6 +12,7 @@ function Products() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [brands, setBrands] = useState([])
+  const [units, setUnits] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -51,11 +52,12 @@ function Products() {
       const fetchPromise = Promise.all([
         supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).order('created_at', { ascending: false }),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
-        supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
+        supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name'),
+        supabase.from('units').select('*').eq('shop_id', user.shop_id).order('name')
       ])
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-      const [pData, cData, bData] = await Promise.race([fetchPromise, timeoutPromise])
+      const [pData, cData, bData, uData] = await Promise.race([fetchPromise, timeoutPromise])
 
       if (pData.error || cData.error || bData.error) throw new Error('Supabase fetch failed')
 
@@ -69,21 +71,27 @@ function Products() {
       if (bData.data) {
         await db.brands.bulkPut(JSON.parse(JSON.stringify(bData.data)))
       }
+      if (uData?.data) {
+        await db.units.bulkPut(JSON.parse(JSON.stringify(uData.data))).catch(() => {})
+      }
 
       // Try rendering from local DB first to include any pending offline items
       const sid = String(user.shop_id);
       let finalProducts = []
       let finalCategories = []
       let finalBrands = []
+      let finalUnits = []
       try {
-        const [lProds, lCats, lBrands] = await Promise.all([
+        const [lProds, lCats, lBrands, lUnits] = await Promise.all([
           db.products.toArray(),
           db.categories.toArray(),
-          db.brands.toArray()
+          db.brands.toArray(),
+          db.units.toArray()
         ])
         finalProducts = lProds.filter(x => String(x.shop_id) === sid)
         finalCategories = lCats.filter(x => String(x.shop_id) === sid)
         finalBrands = lBrands.filter(x => String(x.shop_id) === sid)
+        finalUnits = lUnits.filter(x => String(x.shop_id) === sid)
       } catch (dbErr) {
         console.warn('Products: Local DB read failed:', dbErr)
       }
@@ -98,22 +106,28 @@ function Products() {
       if (finalBrands.length === 0 && bData.data && bData.data.length > 0) {
         finalBrands = bData.data.filter(x => String(x.shop_id) === sid)
       }
+      if (finalUnits.length === 0 && uData?.data && uData.data.length > 0) {
+        finalUnits = uData.data.filter(x => String(x.shop_id) === sid)
+      }
 
       setProducts(finalProducts)
       setCategories(finalCategories)
       setBrands(finalBrands)
+      setUnits(finalUnits)
     } catch (e) {
       console.log('Fetching products from local DB (Offline)')
       try {
-        const [localProds, localCats, localBrands] = await Promise.all([
+        const [localProds, localCats, localBrands, localUnits] = await Promise.all([
           db.products.toArray(),
           db.categories.toArray(),
-          db.brands.toArray()
+          db.brands.toArray(),
+          db.units.toArray()
         ])
         const sid = String(user.shop_id)
         setProducts(localProds.filter(x => String(x.shop_id) === sid))
         setCategories(localCats.filter(x => String(x.shop_id) === sid))
         setBrands(localBrands.filter(x => String(x.shop_id) === sid))
+        setUnits(localUnits.filter(x => String(x.shop_id) === sid))
       } catch (err) { console.error('Local DB Products Error', err) }
     } finally {
       setLoading(false)
@@ -132,18 +146,22 @@ function Products() {
     const toExport = selected.length > 0
       ? products.filter(p => selected.includes(p.id))
       : products
-    const exportData = toExport.map(p => ({
-      'SKU': p.sku || '',
-      'Product Name': p.name,
-      'Brand': p.brand || '-',
-      'Category': p.categories?.name || '-',
-      'Stock Qty': p.stock_quantity,
-      'Cost Price': p.cost_price,
-      'Sale Price': p.sale_price,
-      'C.Rate': p.c_rate || 0,
-      'Min Thresh': p.low_stock_threshold,
-      'Status': p.status
-    }))
+    const exportData = toExport.map(p => {
+      const unit = units.find(u => u.id === p.unit_id)
+      return {
+        'SKU': p.sku || '',
+        'Product Name': p.name,
+        'Brand': p.brand || '-',
+        'Category': p.categories?.name || '-',
+        'Unit': unit ? unit.name : '',
+        'Stock Qty': p.stock_quantity,
+        'Cost Price': p.cost_price,
+        'Sale Price': p.sale_price,
+        'C.Rate': p.c_rate || 0,
+        'Min Thresh': p.low_stock_threshold,
+        'Status': p.status
+      }
+    })
 
     const ws = XLSX.utils.json_to_sheet(exportData)
     const wb = XLSX.utils.book_new()
@@ -173,11 +191,15 @@ function Products() {
         const matchedCat = categoryName && categoryName !== '-'
           ? categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
           : null
+        const unitName = String(row['Unit'] || row['unit'] || '').trim()
+        const matchedUnit = unitName ? units.find(u => u.name.toLowerCase() === unitName.toLowerCase()) : null
         previewRows.push({
           name, brand, categoryName: categoryName !== '-' ? categoryName : '',
           categoryId: matchedCat?.id || null,
           matched: !categoryName || categoryName === '-' || !!matchedCat,
           sku: String(row['SKU'] || row['sku'] || '').trim(),
+          unitName,
+          unitId: matchedUnit?.id || null,
           stock_quantity: parseFloat(row['Stock Qty'] || row['stock'] || 0),
           cost_price: parseFloat(row['Cost Price'] || row['cost'] || 0),
           sale_price: parseFloat(row['Sale Price'] || row['sale'] || 0),
@@ -233,6 +255,7 @@ function Products() {
       brand: r.brand,
       sku: r.sku || '',
       category_id: r.categoryId,
+      unit_id: r.unitId || null,
       stock_quantity: r.stock_quantity,
       cost_price: r.cost_price,
       sale_price: r.sale_price,
