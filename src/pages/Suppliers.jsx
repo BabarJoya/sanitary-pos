@@ -286,17 +286,22 @@ function Suppliers() {
   const fetchBrands = async () => {
     try {
       if (!navigator.onLine) throw new Error('Offline')
-      const { data } = await supabase.from('products').select('brand').eq('shop_id', user.shop_id)
+      const { data, error } = await supabase
+        .from('brands')
+        .select('*')
+        .eq('shop_id', user.shop_id)
+        .order('name')
+      if (error) throw error
       if (data) {
-        const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean))].sort()
-        setBrands(uniqueBrands)
+        await db.brands.bulkPut(JSON.parse(JSON.stringify(data))).catch(() => {})
+        setBrands(data)
       }
     } catch (e) {
-      const localProds = await db.products.toArray()
-      const sid = String(user.shop_id)
-      const myProds = localProds.filter(x => String(x.shop_id) === sid)
-      const uniqueBrands = [...new Set(myProds.map(p => p.brand).filter(Boolean))].sort()
-      setBrands(uniqueBrands)
+      try {
+        const localBrands = await db.brands.toArray()
+        const sid = String(user.shop_id)
+        setBrands(localBrands.filter(x => String(x.shop_id) === sid).sort((a, b) => a.name.localeCompare(b.name)))
+      } catch { setBrands([]) }
     }
   }
 
@@ -649,8 +654,8 @@ function Suppliers() {
                   onChange={(e) => setForm({ ...form, brand: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
-                  <option value="">Select Brand</option>
-                  {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                  <option value="">— Select Brand —</option>
+                  {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                   <option value="multi">Multiple Brands</option>
                 </select>
               </div>
