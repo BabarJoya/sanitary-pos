@@ -207,9 +207,15 @@ function Sales() {
       setReturning(false)
       setReturnQtys({})
 
-      // Re-fetch online items if possible
+      // Re-fetch updated sale + items to reflect new returned_qty in modal
       const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
       if (updatedSale) setSelectedSale(updatedSale)
+      const { data: updatedItems } = await supabase.from('sale_items').select('*, products(name, stock_quantity)').eq('sale_id', selectedSale.id)
+      if (updatedItems) {
+        const cleanItems = JSON.parse(JSON.stringify(updatedItems))
+        await db.sale_items.bulkPut(cleanItems)
+        setSaleItems(cleanItems)
+      }
       fetchSales()
     } catch (err) {
       const errMsg = err?.message || String(err)
@@ -242,6 +248,9 @@ function Sales() {
         setReturning(false)
         setReturnQtys({})
         setSelectedSale({ ...selectedSale, total_amount: newSaleTotal })
+        // Reflect updated returned_qty in modal items
+        const localUpdated = await db.sale_items.where({ sale_id: selectedSale.id }).toArray().catch(() => [])
+        if (localUpdated.length > 0) setSaleItems(localUpdated)
         fetchSales()
       } else {
         alert('Error processing return: ' + errMsg)
@@ -287,13 +296,26 @@ function Sales() {
         </thead>
         <tbody>
           ${items.map(i => {
-      const netQty = i.quantity - (i.returned_qty || 0)
-      if (netQty <= 0) return ''
+      const returnedQty = i.returned_qty || 0
+      const netQty = i.quantity - returnedQty
+      if (netQty <= 0 && returnedQty === 0) return ''
+      const netAmount = netQty * Number(i.unit_price)
+      const returnNote = returnedQty > 0
+        ? `<span style="font-size:0.75em;color:#e53e3e;"> (Orig: ${i.quantity}, Returned: ${returnedQty})</span>`
+        : ''
+      if (netQty <= 0) {
+        return `<tr style="color:#aaa;text-decoration:line-through;">
+              <td>${i.product_name} ${returnNote}</td>
+              <td class="right">0</td>
+              <td class="right">${Number(i.unit_price).toFixed(0)}</td>
+              <td class="right">0</td>
+            </tr>`
+      }
       return `<tr>
-              <td>${i.product_name}</td>
+              <td>${i.product_name}${returnNote}</td>
               <td class="right">${netQty}</td>
               <td class="right">${Number(i.unit_price).toFixed(0)}</td>
-              <td class="right">${(netQty * i.unit_price).toFixed(0)}</td>
+              <td class="right">${netAmount.toFixed(0)}</td>
             </tr>`
     }).join('')}
         </tbody>
@@ -515,23 +537,41 @@ function Sales() {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-3 py-2 text-left text-xs text-gray-500 whitespace-nowrap">Product</th>
-                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Qty</th>
+                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Orig. Qty</th>
+                            <th className="px-3 py-2 text-right text-xs text-red-400 whitespace-nowrap">Returned</th>
+                            <th className="px-3 py-2 text-right text-xs text-green-600 whitespace-nowrap">Net Qty</th>
                             <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Rate</th>
-                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Amount</th>
-                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Returned</th>
+                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Net Amount</th>
                             <th className="px-3 py-2 text-center text-xs text-gray-500 whitespace-nowrap">Return Qty</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {saleItems.map(item => {
-                            const maxReturn = item.quantity - (item.returned_qty || 0)
+                            const returnedQty = item.returned_qty || 0
+                            const netQty = item.quantity - returnedQty
+                            const netAmount = netQty * Number(item.unit_price)
+                            const maxReturn = netQty
+                            const fullyReturned = netQty <= 0
                             return (
-                              <tr key={item.id}>
-                                <td className="px-3 py-2 text-gray-800 whitespace-nowrap">{item.product_name}</td>
-                                <td className="px-3 py-2 text-right text-gray-600 whitespace-nowrap">{item.quantity}</td>
+                              <tr key={item.id} className={fullyReturned ? 'bg-red-50/40 opacity-60' : ''}>
+                                <td className="px-3 py-2 text-gray-800 whitespace-nowrap">
+                                  {item.product_name}
+                                  {fullyReturned && <span className="ml-1 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold uppercase">Fully Returned</span>}
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{item.quantity}</td>
+                                <td className="px-3 py-2 text-right text-red-500 font-medium whitespace-nowrap">
+                                  {returnedQty > 0 ? `- ${returnedQty}` : '—'}
+                                </td>
+                                <td className="px-3 py-2 text-right font-bold text-gray-800 whitespace-nowrap">{netQty}</td>
                                 <td className="px-3 py-2 text-right text-gray-600 whitespace-nowrap">Rs. {Number(item.unit_price).toFixed(0)}</td>
-                                <td className="px-3 py-2 text-right font-medium whitespace-nowrap">Rs. {Number(item.line_total || item.total_price || 0).toFixed(0)}</td>
-                                <td className="px-3 py-2 text-right text-red-500 whitespace-nowrap">{item.returned_qty || 0}</td>
+                                <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">
+                                  Rs. {netAmount.toFixed(0)}
+                                  {returnedQty > 0 && (
+                                    <div className="text-[10px] text-gray-400 font-normal">
+                                      orig: Rs. {(item.quantity * Number(item.unit_price)).toFixed(0)}
+                                    </div>
+                                  )}
+                                </td>
                                 <td className="px-3 py-2 text-center whitespace-nowrap">
                                   {maxReturn > 0 ? (
                                     <input type="number" min="0" max={maxReturn}
