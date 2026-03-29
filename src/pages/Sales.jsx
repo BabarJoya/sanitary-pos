@@ -363,6 +363,8 @@ function Sales() {
       if (!item) continue
       try {
         if (navigator.onLine) {
+          // Cascade: delete sale_items first, then sale
+          await supabase.from('sale_items').delete().eq('sale_id', id)
           const { error } = await supabase.from('sales').delete().eq('id', id)
           if (error) {
             console.error('Delete failed:', error)
@@ -370,8 +372,16 @@ function Sales() {
             continue
           }
         } else {
+          // Offline: queue both deletions
+          const localItems = await db.sale_items.where({ sale_id: id }).toArray().catch(() => [])
+          for (const it of localItems) {
+            await db.sale_items.delete(it.id)
+            await addToSyncQueue('sale_items', 'DELETE', { id: it.id })
+          }
           await addToSyncQueue('sales', 'DELETE', { id })
         }
+        // Remove from local IndexedDB
+        await db.sale_items.where({ sale_id: id }).delete().catch(() => {})
 
         await moveToTrash('sales', id, item, user.id, user.shop_id)
         await db.sales.delete(id)
