@@ -352,6 +352,23 @@ function SupplierLedger() {
         }
     }
 
+    // ── Apply filters ──────────────────────────────────────────────────────────
+    const filteredLedger = ledger.filter(item => {
+        const q = search.trim().toLowerCase()
+        if (q) {
+            const inNote = item.note?.toLowerCase().includes(q)
+            const inBill = (item.bill_number || '').toLowerCase().includes(q)
+            const inAmount = String(item.amount).includes(q)
+            if (!inNote && !inBill && !inAmount) return false
+        }
+        if (filterType !== 'all' && item.type !== filterType) return false
+        const itemDate = new Date(item.date)
+        if (filterFrom && itemDate < new Date(filterFrom)) return false
+        if (filterTo && itemDate > new Date(filterTo + 'T23:59:59')) return false
+        return true
+    })
+    const isFiltered = search || filterType !== 'all' || filterFrom || filterTo
+
     // ── Bulk select helpers ────────────────────────────────────────────────────
     const allSelected = filteredLedger.length > 0 && filteredLedger.every(item => selectedIds.has(item.id))
 
@@ -420,23 +437,6 @@ function SupplierLedger() {
     if (!supplier) return <div className="p-8 text-red-500">Supplier not found!</div>
 
     const currentBalance = supplier.outstanding_balance || 0
-
-    // ── Apply filters ──────────────────────────────────────────────────────────
-    const filteredLedger = ledger.filter(item => {
-        const q = search.trim().toLowerCase()
-        if (q) {
-            const inNote = item.note?.toLowerCase().includes(q)
-            const inBill = (item.bill_number || '').toLowerCase().includes(q)
-            const inAmount = String(item.amount).includes(q)
-            if (!inNote && !inBill && !inAmount) return false
-        }
-        if (filterType !== 'all' && item.type !== filterType) return false
-        const itemDate = new Date(item.date)
-        if (filterFrom && itemDate < new Date(filterFrom)) return false
-        if (filterTo && itemDate > new Date(filterTo + 'T23:59:59')) return false
-        return true
-    })
-    const isFiltered = search || filterType !== 'all' || filterFrom || filterTo
 
     return (
         <div>
