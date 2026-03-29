@@ -136,13 +136,30 @@ function Products() {
     }
   }
 
+  // Effective threshold: product-level → category-level → system default (10)
+  const getEffectiveThreshold = (product) => {
+    if (product.low_stock_threshold) return product.low_stock_threshold
+    const cat = categories.find(c => c.id === product.category_id)
+    if (cat?.low_stock_threshold) return cat.low_stock_threshold
+    return 10
+  }
+
   const filteredProducts = products.filter(p => {
     const matchSearch = String(p.name || '').toLowerCase().includes(search.toLowerCase()) ||
       String(p.brand || '').toLowerCase().includes(search.toLowerCase())
     const matchCat = selectedCategory ? String(p.category_id) === String(selectedCategory) : true
-    const matchLow = showLowStockOnly ? p.stock_quantity <= (p.low_stock_threshold || 10) : true
+    const matchLow = showLowStockOnly ? p.stock_quantity <= getEffectiveThreshold(p) : true
     return matchSearch && matchCat && matchLow
   })
+
+  // Category low stock summary for banner
+  const categoryLowStockAlerts = categories
+    .filter(c => c.low_stock_threshold > 0)
+    .map(c => ({
+      cat: c,
+      count: products.filter(p => p.category_id === c.id && p.stock_quantity <= c.low_stock_threshold).length
+    }))
+    .filter(a => a.count > 0)
 
   const handleExport = () => {
     const toExport = selected.length > 0
@@ -614,6 +631,30 @@ function Products() {
         </div>
       </div>
 
+      {/* Category Low Stock Alert Banner */}
+      {!loading && categoryLowStockAlerts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-amber-700 font-bold text-sm">⚠️ Category Low Stock Alerts</span>
+            <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full border border-amber-300">
+              {categoryLowStockAlerts.length} categor{categoryLowStockAlerts.length > 1 ? 'ies' : 'y'}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {categoryLowStockAlerts.map(({ cat, count }) => (
+              <button
+                key={cat.id}
+                onClick={() => { setSelectedCategory(String(cat.id)); setShowLowStockOnly(true) }}
+                className="bg-white border border-amber-300 hover:border-amber-400 text-amber-800 text-xs font-semibold px-3 py-1.5 rounded-full transition cursor-pointer"
+              >
+                📦 {cat.name}: <span className="text-red-600">{count} low</span> (≤{cat.low_stock_threshold})
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-amber-600 mt-2">👆 Kisi category par click karein filtered list dekhne ke liye</p>
+        </div>
+      )}
+
       {/* Loading */}
       {loading && (
         <p className="text-gray-500">Loading products...</p>
@@ -745,7 +786,7 @@ function Products() {
                     })()}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.stock_quantity <= product.low_stock_threshold
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.stock_quantity <= getEffectiveThreshold(product)
                       ? 'bg-red-100 text-red-700'
                       : 'bg-green-100 text-green-700'
                       }`}>
