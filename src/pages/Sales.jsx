@@ -365,7 +365,7 @@ function Sales() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\nNote: Failed items may be linked to specific ledger entries that blocked deletion.`)
+      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh sales mein payments ya ledger entries linked hain.\n\nSahi order:\n1. Pehle Sale Items delete karein (Trash Bin > Sale Items filter)\n2. Phir yeh sales delete ho jayengi`)
     } else if (successCount > 0) {
       alert(`🗑️ ${successCount} sale(s) moved to Trash!`)
     }

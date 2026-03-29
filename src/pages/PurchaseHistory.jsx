@@ -357,7 +357,7 @@ function PurchaseHistory() {
         setSelected([])
 
         if (failCount > 0) {
-            alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\nNote: Failed items may be linked to specific ledger entries that blocked deletion.`)
+            alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh purchases mein ledger entries linked hain.\n\nSahi order:\n1. Pehle Purchase Items delete karein (Trash Bin > Purchase Items filter)\n2. Phir yeh purchases delete ho jayenge`)
         } else if (successCount > 0) {
             alert(`🗑️ ${successCount} purchase(s) moved to Trash!`)
         }

@@ -335,7 +335,7 @@ function Products() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\nNote: Failed items may be linked to existing sales/purchases.`)
+      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh products abhi bhi Sales ya Purchases mein linked hain.\n\nSahi order:\n1. Sale Items delete karein (Trash Bin > Sale Items)\n2. Purchase Items delete karein (Trash Bin > Purchase Items)\n3. Sales & Purchases delete karein\n4. Phir yeh products delete ho jayenge`)
     } else if (successCount > 0) {
       alert(`🗑️ ${successCount} product(s) moved to Trash!`)
     }

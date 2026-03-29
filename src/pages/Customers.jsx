@@ -217,7 +217,7 @@ function Customers() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\nNote: Failed items may be linked to existing sales/payments.`)
+      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh customers ke sales records abhi bhi database mein hain.\n\nSahi order:\n1. Sale Items delete karein (Trash Bin)\n2. Sales delete karein\n3. Phir yeh customers delete ho jayenge`)
     } else if (successCount > 0) {
       alert(`🗑️ ${successCount} customer(s) moved to Trash!`)
     }

@@ -6,6 +6,29 @@ import PasswordModal from '../components/PasswordModal'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 
+// Deletion priority — lower number = delete first (no dependencies)
+const DELETION_ORDER = {
+    sale_items: 1,
+    purchase_items: 1,
+    expenses: 2,
+    sales: 3,
+    purchases: 3,
+    products: 4,
+    customers: 5,
+    suppliers: 5,
+}
+
+const SAFETY_BADGE = {
+    sale_items: { label: 'Safe to delete', color: 'bg-green-100 text-green-700' },
+    purchase_items: { label: 'Safe to delete', color: 'bg-green-100 text-green-700' },
+    expenses: { label: 'Safe to delete', color: 'bg-green-100 text-green-700' },
+    sales: { label: 'Delete after items', color: 'bg-yellow-100 text-yellow-700' },
+    purchases: { label: 'Delete after items', color: 'bg-yellow-100 text-yellow-700' },
+    products: { label: 'Delete last', color: 'bg-red-100 text-red-600' },
+    customers: { label: 'Delete last', color: 'bg-red-100 text-red-600' },
+    suppliers: { label: 'Delete last', color: 'bg-red-100 text-red-600' },
+}
+
 function TrashBin() {
     const { user } = useAuth()
     const [trashItems, setTrashItems] = useState([])
@@ -14,6 +37,7 @@ function TrashBin() {
     const [filterTable, setFilterTable] = useState('')
     const [showPasswordModal, setShowPasswordModal] = useState(false)
     const [pendingAction, setPendingAction] = useState(null)
+    const [showGuide, setShowGuide] = useState(false)
 
     useEffect(() => {
         fetchTrash()
@@ -24,10 +48,14 @@ function TrashBin() {
         try {
             const all = await db.trash.toArray()
             const sid = String(user.shop_id)
-            const filtered = all
+            const sorted = all
                 .filter(x => String(x.shop_id) === sid)
-                .sort((a, b) => new Date(b.deleted_at) - new Date(a.deleted_at))
-            setTrashItems(filtered)
+                .sort((a, b) => {
+                    const orderDiff = (DELETION_ORDER[a.original_table] || 9) - (DELETION_ORDER[b.original_table] || 9)
+                    if (orderDiff !== 0) return orderDiff
+                    return new Date(b.deleted_at) - new Date(a.deleted_at)
+                })
+            setTrashItems(sorted)
         } catch (err) {
             console.error('Trash fetch error:', err)
         } finally {
@@ -58,10 +86,7 @@ function TrashBin() {
     const handleRestore = async (items) => {
         try {
             for (const item of items) {
-                // Restore to local DB
                 await restoreFromTrash(item)
-
-                // Try to restore to Supabase
                 if (navigator.onLine) {
                     try {
                         await supabase.from(item.original_table).upsert([item.data])
@@ -72,7 +97,6 @@ function TrashBin() {
                     await addToSyncQueue(item.original_table, 'INSERT', item.data)
                 }
             }
-
             alert(`✅ ${items.length} item(s) restored successfully!`)
             setSelected([])
             fetchTrash()
@@ -94,6 +118,13 @@ function TrashBin() {
         }
     }
 
+    const handleDeleteInOrder = async (items) => {
+        const sorted = [...items].sort((a, b) =>
+            (DELETION_ORDER[a.original_table] || 9) - (DELETION_ORDER[b.original_table] || 9)
+        )
+        await handlePermanentDelete(sorted)
+    }
+
     const requestPasswordAction = (action, items) => {
         setPendingAction({ action, items })
         setShowPasswordModal(true)
@@ -103,6 +134,8 @@ function TrashBin() {
         setShowPasswordModal(false)
         if (pendingAction?.action === 'delete') {
             handlePermanentDelete(pendingAction.items)
+        } else if (pendingAction?.action === 'delete_ordered') {
+            handleDeleteInOrder(pendingAction.items)
         } else if (pendingAction?.action === 'restore') {
             handleRestore(pendingAction.items)
         }
@@ -122,7 +155,6 @@ function TrashBin() {
     }
 
     const filtered = trashItems.filter(x => filterTable ? x.original_table === filterTable : true)
-
     const uniqueTables = [...new Set(trashItems.map(x => x.original_table))]
 
     if (!hasFeature('trash_bin')) return <UpgradeWall feature="trash_bin" />
@@ -170,14 +202,59 @@ function TrashBin() {
                     )}
 
                     {trashItems.length > 0 && (
-                        <button
-                            onClick={() => requestPasswordAction('delete', trashItems)}
-                            className="px-4 py-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition font-bold text-sm"
-                        >
-                            Empty Trash
-                        </button>
+                        <>
+                            <button
+                                onClick={() => requestPasswordAction('delete_ordered', trashItems)}
+                                className="px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-sm"
+                            >
+                                🔄 Delete In Order
+                            </button>
+                            <button
+                                onClick={() => requestPasswordAction('delete', trashItems)}
+                                className="px-4 py-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition font-bold text-sm"
+                            >
+                                Empty Trash
+                            </button>
+                        </>
                     )}
                 </div>
+            </div>
+
+            {/* Deletion Order Guide */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+                <button
+                    onClick={() => setShowGuide(g => !g)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-amber-800 font-bold text-sm text-left"
+                >
+                    <span>💡 Deletion Order Guide — Kya pehle delete karein?</span>
+                    <span className="text-xs">{showGuide ? '▲ Band karein' : '▼ Dekhein'}</span>
+                </button>
+                {showGuide && (
+                    <div className="px-4 pb-4 text-sm text-amber-900 space-y-3">
+                        <p className="text-xs text-amber-700 italic">Agar deletion fail ho raha hai (Foreign Key error), neeche diya hua order follow karein:</p>
+                        <ol className="space-y-2">
+                            <li className="flex items-start gap-2">
+                                <span className="bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 1</span>
+                                <span><strong>📋 Sale Items & Purchase Items</strong> — Pehle yeh delete karein. Inke koi children nahi hote.</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 2</span>
+                                <span><strong>📜 Sales & 🛒 Purchases</strong> — Sale/Purchase Items delete hone ke baad yeh delete ho sakte hain.</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 3</span>
+                                <span><strong>📦 Products / 👥 Customers / 🚚 Suppliers</strong> — Sab sales/purchases clear hone ke baad in ko delete karein.</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <span className="bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Any time</span>
+                                <span><strong>💸 Expenses</strong> — Kabhi bhi delete ho sakte hain, koi dependency nahi.</span>
+                            </li>
+                        </ol>
+                        <p className="text-xs text-amber-700 bg-amber-100 px-3 py-2 rounded-lg">
+                            💡 <strong>Shortcut:</strong> "<strong>🔄 Delete In Order</strong>" button use karein — yeh automatically sahi order mein delete karta hai.
+                        </p>
+                    </div>
+                )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -195,54 +272,65 @@ function TrashBin() {
                                 </th>
                                 <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Type</th>
                                 <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Name / Description</th>
+                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase hidden sm:table-cell">Status</th>
                                 <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Deleted On</th>
                                 <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
-                                <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400">Loading trash...</td></tr>
+                                <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400">Loading trash...</td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-400 italic">
+                                <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400 italic">
                                     {trashItems.length === 0 ? '🎉 Trash is empty! No deleted items.' : 'No items match the filter.'}
                                 </td></tr>
-                            ) : filtered.map(item => (
-                                <tr key={item.id} className="hover:bg-gray-50 transition">
-                                    <td className="px-4 py-3">
-                                        <input
-                                            type="checkbox"
-                                            checked={selected.includes(item.id)}
-                                            onChange={() => toggleSelect(item.id)}
-                                            className="w-4 h-4 rounded"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-[10px] font-bold uppercase">
-                                            {tableLabels[item.original_table] || item.original_table}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3 font-medium text-gray-800">{getItemLabel(item)}</td>
-                                    <td className="px-4 py-3 text-sm text-gray-500">
-                                        {new Date(item.deleted_at).toLocaleString('en-PK')}
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                        <div className="flex justify-center gap-2">
-                                            <button
-                                                onClick={() => handleRestore([item])}
-                                                className="px-3 py-1 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs font-bold transition"
-                                            >
-                                                ♻️ Restore
-                                            </button>
-                                            <button
-                                                onClick={() => requestPasswordAction('delete', [item])}
-                                                className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition"
-                                            >
-                                                🔥 Delete
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            ) : filtered.map(item => {
+                                const badge = SAFETY_BADGE[item.original_table]
+                                return (
+                                    <tr key={item.id} className="hover:bg-gray-50 transition">
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.includes(item.id)}
+                                                onChange={() => toggleSelect(item.id)}
+                                                className="w-4 h-4 rounded"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-[10px] font-bold uppercase">
+                                                {tableLabels[item.original_table] || item.original_table}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 font-medium text-gray-800">{getItemLabel(item)}</td>
+                                        <td className="px-4 py-3 hidden sm:table-cell">
+                                            {badge && (
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.color}`}>
+                                                    {badge.label}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm text-gray-500">
+                                            {new Date(item.deleted_at).toLocaleString('en-PK')}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex justify-center gap-2">
+                                                <button
+                                                    onClick={() => handleRestore([item])}
+                                                    className="px-3 py-1 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs font-bold transition"
+                                                >
+                                                    ♻️ Restore
+                                                </button>
+                                                <button
+                                                    onClick={() => requestPasswordAction('delete', [item])}
+                                                    className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition"
+                                                >
+                                                    🔥 Delete
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                     </table>
                 </div>

@@ -492,7 +492,7 @@ function Suppliers() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\nNote: Failed items may be linked to existing purchases/payments.`)
+      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh suppliers ke purchase records abhi bhi database mein hain.\n\nSahi order:\n1. Purchase Items delete karein (Trash Bin)\n2. Purchases delete karein\n3. Phir yeh suppliers delete ho jayenge`)
     } else if (successCount > 0) {
       alert(`🗑️ ${successCount} supplier(s) moved to Trash!`)
     }
