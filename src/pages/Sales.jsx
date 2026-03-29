@@ -483,7 +483,7 @@ function Sales() {
                     <tr key={sale.id} className={`hover:bg-gray-50 ${selected.includes(sale.id) ? 'bg-blue-50' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(sale.id)} onChange={() => toggleSelect(sale.id)} className="w-4 h-4 rounded" /></td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">
-                        {sale.sale_type === 'quotation' ? 'QT-' : '#'}${String(sale.id).slice(-8)}
+                        {sale.sale_type === 'quotation' ? 'QT-' : '#'}{String(sale.id).slice(-8)}
                       </td>
                       <td className="px-4 py-3 text-gray-800">
                         {sale.customers?.name || sale.customer_name || <span className="text-gray-400 italic">Walk-in</span>}

@@ -170,11 +170,6 @@ function SupplierLedger() {
             const errMsg = error?.message || String(error)
             if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
                 // Offline: save to local DB
-                for (const row of (purchaseAmt > 0 ? [{ ...row, payment_type: 'debit', amount: purchaseAmt }] : [])) {
-                    const rec = { ...row, id: crypto.randomUUID(), created_at: now }
-                    await db.supplier_payments.add(rec)
-                    await db.sync_queue.add({ table: 'supplier_payments', action: 'INSERT', data: rec, timestamp: now })
-                }
                 if (purchaseAmt > 0) {
                     const rec = { id: crypto.randomUUID(), shop_id: user.shop_id, supplier_id: id, amount: purchaseAmt, payment_type: 'debit', bill_number: txForm.bill_number.trim() || null, note: txForm.note.trim() || 'Purchase Entry', created_at: now }
                     await db.supplier_payments.add(rec)
