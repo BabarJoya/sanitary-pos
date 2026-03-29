@@ -36,6 +36,7 @@ function Products() {
   const [showImportPreview, setShowImportPreview] = useState(false)
   const [importPreviewRows, setImportPreviewRows] = useState([])
   const [autoCreateCategories, setAutoCreateCategories] = useState(false)
+  const [autoCreateBrands, setAutoCreateBrands] = useState(false)
 
   useEffect(() => {
     if (user?.shop_id) fetchProducts()
@@ -193,10 +194,13 @@ function Products() {
           : null
         const unitName = String(row['Unit'] || row['unit'] || '').trim()
         const matchedUnit = unitName ? units.find(u => u.name.toLowerCase() === unitName.toLowerCase()) : null
+        const brandLower = brand.toLowerCase()
+        const brandMatched = brands.some(b => b.name.toLowerCase() === brandLower)
         previewRows.push({
           name, brand, categoryName: categoryName !== '-' ? categoryName : '',
           categoryId: matchedCat?.id || null,
           matched: !categoryName || categoryName === '-' || !!matchedCat,
+          brandMatched,
           sku: String(row['SKU'] || row['sku'] || '').trim(),
           unitName,
           unitId: matchedUnit?.id || null,
@@ -261,6 +265,47 @@ function Products() {
         if (r.categoryName && !r.categoryId) {
           const found = currentCategories.find(c => c.name.toLowerCase() === r.categoryName.toLowerCase())
           return { ...r, categoryId: found?.id || null }
+        }
+        return r
+      })
+    }
+
+    // Auto-create missing brands — same pattern as categories
+    let currentBrands = [...brands]
+    if (autoCreateBrands) {
+      const unmatchedBrandNames = [...new Set(rows
+        .filter(r => r.brand && !r.brandMatched)
+        .map(r => r.brand))]
+
+      for (const brandName of unmatchedBrandNames) {
+        try {
+          const existingLocal = currentBrands.find(b => b.name.toLowerCase() === brandName.toLowerCase())
+          if (existingLocal) continue
+
+          const { data: found } = await supabase
+            .from('brands')
+            .select('*')
+            .eq('shop_id', user.shop_id)
+            .ilike('name', brandName)
+            .maybeSingle()
+
+          if (found) {
+            currentBrands.push(found)
+          } else {
+            const { data: newBrand, error } = await supabase
+              .from('brands')
+              .insert([{ name: brandName, shop_id: user.shop_id }])
+              .select()
+            if (!error && newBrand?.[0]) currentBrands.push(newBrand[0])
+          }
+        } catch (err) { /* skip */ }
+      }
+
+      // Re-map brandMatched after creating
+      rows = rows.map(r => {
+        if (r.brand && !r.brandMatched) {
+          const found = currentBrands.find(b => b.name.toLowerCase() === r.brand.toLowerCase())
+          return { ...r, brandMatched: !!found }
         }
         return r
       })
@@ -751,6 +796,18 @@ function Products() {
               </div>
             )}
 
+            {importPreviewRows.some(r => r.brand && !r.brandMatched) && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+                <p className="text-sm text-orange-800 font-medium">
+                  ⚠️ {importPreviewRows.filter(r => r.brand && !r.brandMatched).length} row(s) mein brand match nahi hui — ye brands aapke system mein nahi hain.
+                </p>
+                <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                  <input type="checkbox" checked={autoCreateBrands} onChange={e => setAutoCreateBrands(e.target.checked)} className="w-4 h-4 rounded accent-orange-500" />
+                  <span className="text-sm text-orange-800">Missing brands auto-create karo</span>
+                </label>
+              </div>
+            )}
+
             <div className="flex-1 overflow-auto border rounded-lg">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
@@ -769,7 +826,17 @@ function Products() {
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
                       <td className="px-3 py-2 font-medium text-gray-800">{row.name}</td>
-                      <td className="px-3 py-2 text-gray-600">{row.brand}</td>
+                      <td className="px-3 py-2">
+                        {row.brand ? (
+                          row.brandMatched ? (
+                            <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded-full text-xs font-medium">✓ {row.brand}</span>
+                          ) : (
+                            <span className="text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full text-xs font-medium">✗ {row.brand}</span>
+                          )
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">
                         {row.categoryName ? (
                           row.categoryId ? (
