@@ -129,7 +129,11 @@ function Products() {
   })
 
   const handleExport = () => {
-    const exportData = products.map(p => ({
+    const toExport = selected.length > 0
+      ? products.filter(p => selected.includes(p.id))
+      : products
+    const exportData = toExport.map(p => ({
+      'SKU': p.sku || '',
       'Product Name': p.name,
       'Brand': p.brand || '-',
       'Category': p.categories?.name || '-',
@@ -173,6 +177,7 @@ function Products() {
           name, brand, categoryName: categoryName !== '-' ? categoryName : '',
           categoryId: matchedCat?.id || null,
           matched: !categoryName || categoryName === '-' || !!matchedCat,
+          sku: String(row['SKU'] || row['sku'] || '').trim(),
           stock_quantity: parseFloat(row['Stock Qty'] || row['stock'] || 0),
           cost_price: parseFloat(row['Cost Price'] || row['cost'] || 0),
           sale_price: parseFloat(row['Sale Price'] || row['sale'] || 0),
@@ -226,6 +231,7 @@ function Products() {
       shop_id: user.shop_id,
       name: r.name,
       brand: r.brand,
+      sku: r.sku || '',
       category_id: r.categoryId,
       stock_quantity: r.stock_quantity,
       cost_price: r.cost_price,
@@ -431,7 +437,7 @@ function Products() {
             onClick={handleExport}
             className="px-4 py-2 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm shadow-blue-50"
           >
-            <span>📤</span> Export
+            <span>📤</span> Export{selected.length > 0 ? ` (${selected.length})` : ''}
           </button>
           {selected.length > 0 && (
             <>

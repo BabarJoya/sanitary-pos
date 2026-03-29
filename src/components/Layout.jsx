@@ -195,10 +195,9 @@ function Layout({ children }) {
               <NavItem to="/products" icon="📦" label="Products" active={location.pathname === '/products'} onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('categories', ['admin', 'manager']) && (
-              <NavItem to="/categories" icon="🗂️" label="Categories" active={location.pathname === '/categories'} onClick={() => setSidebarOpen(false)} />
-            )}
-            {hasAccess('brands', ['admin', 'manager']) && (
-              <NavItem to="/brands" icon="🏷️" label="Brands" active={location.pathname === '/brands'} locked={!hasFeature('brands')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/master-data" icon="📐" label="Master Data"
+                active={location.pathname.startsWith('/master-data') || location.pathname === '/categories' || location.pathname === '/brands'}
+                onClick={() => setSidebarOpen(false)} />
             )}
             {hasAccess('inventory', ['admin', 'manager', 'accountant']) && (
               <NavItem to="/inventory" icon="📋" label="Stock Inventory" active={location.pathname === '/inventory'} onClick={() => setSidebarOpen(false)} />

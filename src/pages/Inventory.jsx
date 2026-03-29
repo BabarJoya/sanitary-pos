@@ -29,7 +29,14 @@ function Inventory() {
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   const handleExport = () => {
-    const exportData = products.map(p => ({
+    // Use `filtered` so active filters (low stock, brand, category) are respected
+    const label = showLowStockOnly ? 'LowStock'
+      : selectedBrand ? `Brand_${selectedBrand.replace(/\s+/g, '_')}`
+      : selectedCategory
+        ? `Cat_${categories.find(c => String(c.id) === String(selectedCategory))?.name?.replace(/\s+/g, '_') || selectedCategory}`
+        : 'All'
+    const exportData = filtered.map(p => ({
+      'SKU': p.sku || '',
       'Product': p.name,
       'Category': p.categories?.name || '-',
       'Brand': p.brand || '-',
@@ -42,7 +49,7 @@ function Inventory() {
     const ws = XLSX.utils.json_to_sheet(exportData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Inventory')
-    XLSX.writeFile(wb, `Inventory_Report_${new Date().toLocaleDateString()}.xlsx`)
+    XLSX.writeFile(wb, `Inventory_${label}_${new Date().toLocaleDateString()}.xlsx`)
   }
 
   const handlePrint = () => {
@@ -175,6 +182,15 @@ function Inventory() {
   const [returnQty, setReturnQty] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Adjust Rates modal (brand → category → %)
+  const [showAdjustRatesModal, setShowAdjustRatesModal] = useState(false)
+  const [arBrand, setArBrand] = useState('')
+  const [arCategory, setArCategory] = useState('')
+  const [arAction, setArAction] = useState('increase')
+  const [arPercent, setArPercent] = useState('')
+  const [arTarget, setArTarget] = useState('sale_price')
+  const [brandCategoryMap, setBrandCategoryMap] = useState({})
+
   useEffect(() => {
     if (user?.shop_id) fetchInventory()
   }, [user?.shop_id])
@@ -219,15 +235,23 @@ function Inventory() {
       let finalProducts = []
       let finalCategories = []
       try {
-        const [lProds, lCats, lBrands] = await Promise.all([
+        const [lProds, lCats, lBrands, lBrandCats] = await Promise.all([
           db.products.toArray(),
           db.categories.toArray(),
-          db.brands.toArray()
+          db.brands.toArray(),
+          db.brand_categories.toArray().catch(() => [])
         ])
         finalProducts = lProds.filter(x => String(x.shop_id) === sid)
         finalCategories = lCats.filter(x => String(x.shop_id) === sid)
         const finalBrands = lBrands.filter(x => String(x.shop_id) === sid)
         setBrands(finalBrands)
+        // Build brand → category[] map for Adjust Rates modal
+        const bcMap = {}
+        lBrandCats.filter(x => String(x.shop_id) === sid).forEach(bc => {
+          if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+          bcMap[bc.brand_id].push(bc.category_id)
+        })
+        setBrandCategoryMap(bcMap)
       } catch (dbErr) {
         console.warn('Inventory: Local DB read failed, using Supabase data directly:', dbErr)
       }
@@ -543,6 +567,43 @@ function Inventory() {
     setNewStock(p.stock_quantity)
   }
 
+  const handleAdjustRates = async (e) => {
+    e.preventDefault()
+    if (!arBrand || !arPercent) return
+    const factor = arAction === 'increase' ? 1 + parseFloat(arPercent) / 100 : 1 - parseFloat(arPercent) / 100
+    const affected = products.filter(p =>
+      p.brand === arBrand && (arCategory ? String(p.category_id) === String(arCategory) : true)
+    )
+    if (affected.length === 0) { alert('Koi product nahi mila is filter ke sath.'); return }
+    if (!confirm(`${arAction === 'increase' ? '+' : '-'}${arPercent}% apply karein ${affected.length} product(s) par?`)) return
+    setSaving(true)
+    try {
+      for (const p of affected) {
+        const updates = {}
+        if (arTarget === 'sale_price' || arTarget === 'both') updates.sale_price = Math.round((p.sale_price || 0) * factor)
+        if (arTarget === 'cost_price' || arTarget === 'both') updates.cost_price = Math.round((p.cost_price || 0) * factor)
+        if (navigator.onLine) {
+          const { error } = await supabase.from('products').update(updates).eq('id', p.id)
+          if (error) throw error
+          await recordAuditLog('PRICE_CHANGE_RATE_ADJ', 'products', p.id,
+            { old: { cost: p.cost_price, sale: p.sale_price }, new: updates, percent: arPercent, action: arAction },
+            user.id, user.shop_id)
+        } else {
+          await addToSyncQueue('products', 'UPDATE', { id: p.id, ...updates })
+        }
+        await db.products.update(p.id, updates)
+      }
+      alert(`✅ ${affected.length} products update ho gaye.`)
+      setShowAdjustRatesModal(false)
+      setArBrand(''); setArCategory(''); setArPercent('')
+      fetchInventory()
+    } catch (err) {
+      alert('Update failed: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -648,6 +709,12 @@ function Inventory() {
                   className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
                 >
                   📈 % Change
+                </button>
+                <button
+                  onClick={() => setShowAdjustRatesModal(true)}
+                  className="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+                >
+                  🎯 Adjust Rates
                 </button>
                 <button
                   onClick={openBulkEditor}
@@ -1090,6 +1157,86 @@ function Inventory() {
           </div>
         </div>
       )}
+
+      {/* ── Adjust Rates Modal ── */}
+      {showAdjustRatesModal && (() => {
+        const arBrandObj = brands.find(b => b.name === arBrand)
+        const arFilteredCategories = arBrandObj && brandCategoryMap[arBrandObj.id]?.length
+          ? categories.filter(c => brandCategoryMap[arBrandObj.id].includes(c.id))
+          : categories
+        const affectedCount = products.filter(p =>
+          p.brand === arBrand && (arCategory ? String(p.category_id) === String(arCategory) : true)
+        ).length
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">🎯 Adjust Rates</h2>
+                <button onClick={() => setShowAdjustRatesModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">Brand aur Category filter karo, phir percentage se rates adjust karo.</p>
+              <form onSubmit={handleAdjustRates} className="space-y-4">
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1 text-sm">Brand *</label>
+                  <select required value={arBrand} onChange={e => { setArBrand(e.target.value); setArCategory('') }}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm">
+                    <option value="">Brand choose karein...</option>
+                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1 text-sm">Category <span className="text-gray-400 text-xs">(optional — blank = all)</span></label>
+                  <select value={arCategory} onChange={e => setArCategory(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm">
+                    <option value="">Tamam Categories</option>
+                    {arFilteredCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1 text-sm">Apply To</label>
+                  <select value={arTarget} onChange={e => setArTarget(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm">
+                    <option value="sale_price">Sale Price sirf</option>
+                    <option value="cost_price">Cost Price sirf</option>
+                    <option value="both">Dono (Sale + Cost)</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1 text-sm">Action</label>
+                    <select value={arAction} onChange={e => setArAction(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm">
+                      <option value="increase">Increase (+)</option>
+                      <option value="decrease">Decrease (-)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1 text-sm">Percentage (%)</label>
+                    <input type="number" step="0.01" min="0" required placeholder="e.g. 10"
+                      value={arPercent} onChange={e => setArPercent(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 text-sm" />
+                  </div>
+                </div>
+                {arBrand && (
+                  <div className={`p-3 rounded-xl border text-xs font-semibold ${affectedCount > 0 ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-red-50 border-red-100 text-red-600'}`}>
+                    {affectedCount > 0 ? `${affectedCount} product(s) affect honge` : 'Koi product nahi mila — filter check karein'}
+                  </div>
+                )}
+                <div className="flex gap-3 pt-2">
+                  <button type="submit" disabled={saving || !affectedCount}
+                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition disabled:opacity-50 text-sm">
+                    {saving ? 'Update ho raha hai...' : 'Apply Karein'}
+                  </button>
+                  <button type="button" onClick={() => setShowAdjustRatesModal(false)}
+                    className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition text-sm">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

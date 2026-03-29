@@ -12,6 +12,7 @@ function AddProduct() {
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [brands, setBrands] = useState([])
+  const [units, setUnits] = useState([])
   const [brandCategoryMap, setBrandCategoryMap] = useState({})
   const [loading, setLoading] = useState(false)
   const [showNewBrandInput, setShowNewBrandInput] = useState(false)
@@ -22,6 +23,7 @@ function AddProduct() {
     brand: '',
     category_id: '',
     supplier_id: '',
+    unit_id: '',
     c_rate: '',
     cost_price: '',
     sale_price: '',
@@ -42,13 +44,15 @@ function AddProduct() {
       const fetchPromise = Promise.all([
         supabase.from('categories').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('suppliers').select('*').eq('shop_id', user.shop_id).order('name'),
-        supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
+        supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name'),
+        supabase.from('units').select('*').eq('shop_id', user.shop_id).order('name')
       ])
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-      const [catResult, supResult, brandResult] = await Promise.race([fetchPromise, timeoutPromise])
+      const [catResult, supResult, brandResult, unitResult] = await Promise.race([fetchPromise, timeoutPromise])
 
       if (catResult.error || supResult.error || brandResult.error) throw new Error('Fetch failed')
+      if (unitResult?.data) { try { await db.units.bulkPut(JSON.parse(JSON.stringify(unitResult.data))) } catch (_) {} }
 
       const sid = String(user.shop_id)
 
@@ -63,15 +67,17 @@ function AddProduct() {
       }
 
       // Always render from local DB to include pending offline items!
-      const [lCats, lSups, lBrands] = await Promise.all([
+      const [lCats, lSups, lBrands, lUnits] = await Promise.all([
         db.categories.toArray(),
         db.suppliers.toArray(),
-        db.brands.toArray()
+        db.brands.toArray(),
+        db.units.toArray().catch(() => [])
       ])
 
       setCategories(lCats.filter(x => String(x.shop_id) === sid))
       setSuppliers(lSups.filter(x => String(x.shop_id) === sid))
       setBrands(lBrands.filter(x => String(x.shop_id) === sid))
+      setUnits(lUnits.filter(x => String(x.shop_id) === sid))
 
       // Load brand-category map
       const lBrandCats = await db.brand_categories.toArray().catch(() => [])
@@ -86,17 +92,19 @@ function AddProduct() {
     } catch (e) {
       console.log('AddProduct: Fetching from local DB (Offline)')
       try {
-        const [lCats, lSups, lBrands] = await Promise.all([
+        const [lCats, lSups, lBrands, lUnits] = await Promise.all([
           db.categories.toArray(),
           db.suppliers.toArray(),
-          db.brands.toArray()
+          db.brands.toArray(),
+          db.units.toArray().catch(() => [])
         ])
-        const sid = String(user.shop_id)
-        setCategories(lCats.filter(x => String(x.shop_id) === sid))
-        setSuppliers(lSups.filter(x => String(x.shop_id) === sid))
-        setBrands(lBrands.filter(x => String(x.shop_id) === sid))
+        const offlineSid = String(user.shop_id)
+        setCategories(lCats.filter(x => String(x.shop_id) === offlineSid))
+        setSuppliers(lSups.filter(x => String(x.shop_id) === offlineSid))
+        setBrands(lBrands.filter(x => String(x.shop_id) === offlineSid))
+        setUnits(lUnits.filter(x => String(x.shop_id) === offlineSid))
         const lBrandCats = await db.brand_categories.toArray().catch(() => [])
-        const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === sid)
+        const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === offlineSid)
         const bcMap = {}
         myBrandCats.forEach(bc => {
           if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
@@ -207,6 +215,7 @@ function AddProduct() {
       const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
       supabaseProductData.category_id = toIntOrNull(supabaseProductData.category_id)
       supabaseProductData.supplier_id = toIntOrNull(supabaseProductData.supplier_id)
+      supabaseProductData.unit_id = toIntOrNull(supabaseProductData.unit_id)
 
       const { error } = await supabase.from('products').insert([supabaseProductData])
       if (error) throw error
@@ -361,6 +370,16 @@ function AddProduct() {
                 <option key={sup.id} value={sup.id}>{sup.name}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-medium mb-1">Unit of Measure</label>
+            <select name="unit_id" value={form.unit_id} onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Select unit...</option>
+              {units.map(u => <option key={u.id} value={u.id}>{u.name}{u.abbreviation ? ` (${u.abbreviation})` : ''}</option>)}
+            </select>
+            {units.length === 0 && <p className="text-xs text-gray-400 mt-1">Units add karne ke liye Master Data → Units mein jayein</p>}
           </div>
 
           {/* Pricing */}

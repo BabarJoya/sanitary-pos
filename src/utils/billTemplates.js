@@ -25,15 +25,16 @@ function itemRows(items, thermal) {
     const qty   = safeNum(i.qty ?? i.quantity)
     const amt   = price * qty
     const name  = `${safeStr(i.name)}${i.brand ? ` (${i.brand})` : ''}`
+    const skuLine = i.sku ? `<span style="display:block;font-size:0.72em;color:#aaa;font-style:italic">${i.sku}</span>` : ''
     if (thermal) {
       return `<tr>
-        <td style="padding:3px 0;vertical-align:top;max-width:130px;word-break:break-word">${name}</td>
+        <td style="padding:3px 0;vertical-align:top;max-width:130px;word-break:break-word">${name}${skuLine}</td>
         <td style="padding:3px 4px;text-align:right;white-space:nowrap">${qty}×${price.toFixed(0)}</td>
         <td style="padding:3px 0;text-align:right;font-weight:bold;white-space:nowrap">${amt.toFixed(0)}</td>
       </tr>`
     }
     return `<tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${name}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${name}${skuLine}</td>
       <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0">${qty}</td>
       <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0">Rs. ${price.toFixed(0)}</td>
       <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;font-weight:600">Rs. ${amt.toFixed(0)}</td>

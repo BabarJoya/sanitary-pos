@@ -96,15 +96,27 @@ function Customers() {
       const formatted = data.map(row => ({
         shop_id: user.shop_id,
         name: row['Name'] || row['name'] || 'New Customer',
-        phone: row['Phone'] || row['phone'] || '',
+        phone: String(row['Phone'] || row['phone'] || '').trim(),
         address: row['Address'] || row['address'] || '',
         outstanding_balance: parseFloat(row['Outstanding Balance'] || row['balance'] || 0)
       }))
 
-      const { error } = await supabase.from('customers').insert(formatted)
+      // Deduplicate by phone against already-loaded customers
+      const existingPhones = new Set(customers.map(c => c.phone).filter(Boolean))
+      const unique = formatted.filter(r => !r.phone || !existingPhones.has(r.phone))
+      const skipped = formatted.length - unique.length
+
+      if (unique.length === 0) {
+        alert('Tamam rows pehle se exist karti hain (phone number match). Kuch import nahi hua.')
+        setLoading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+
+      const { error } = await supabase.from('customers').insert(unique)
       if (error) alert(error.message)
       else {
-        alert('Customers imported successfully! ✅')
+        alert(`Customers import ho gaye! ✅ ${unique.length} add${skipped ? `, ${skipped} skip (duplicate phone)` : ''}`)
         fetchCustomers()
       }
       setLoading(false)
@@ -302,6 +314,15 @@ function Customers() {
               🗑️ Delete Selected ({selected.length})
             </button>
           )}
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
+          <button onClick={handleExport}
+            className="px-4 py-2 border border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition font-bold text-sm flex items-center gap-2">
+            📤 Export
+          </button>
+          <button onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-2 border border-orange-500 text-orange-500 hover:bg-orange-50 rounded-lg transition font-bold text-sm flex items-center gap-2">
+            📥 Import
+          </button>
           <button
             onClick={handlePrintOutstanding}
             className="px-4 py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg transition font-bold text-sm flex items-center gap-2">

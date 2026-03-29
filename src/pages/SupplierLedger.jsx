@@ -262,9 +262,9 @@ function SupplierLedger() {
 
         try {
             const data = await file.arrayBuffer()
-            const wb = XLSX.read(data)
+            const wb = XLSX.read(data, { cellDates: true })
             const ws = wb.Sheets[wb.SheetNames[0]]
-            const rows = XLSX.utils.sheet_to_json(ws)
+            const rows = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' })
 
             if (!rows.length) { alert('File mein koi data nahi mila.'); return }
 
@@ -282,7 +282,17 @@ function SupplierLedger() {
                 const note = String(row['Description'] ?? row['Note'] ?? row['note'] ?? '').trim()
 
                 let parsedDate
-                try { parsedDate = new Date(dateVal).toISOString() } catch { parsedDate = new Date().toISOString() }
+                try {
+                    if (dateVal instanceof Date && !isNaN(dateVal)) {
+                        parsedDate = dateVal.toISOString()
+                    } else if (typeof dateVal === 'number') {
+                        // Excel serial number fallback (days since 1900-01-01)
+                        const d = new Date(Math.round((dateVal - 25569) * 86400 * 1000))
+                        parsedDate = d.toISOString()
+                    } else {
+                        parsedDate = new Date(dateVal).toISOString()
+                    }
+                } catch { parsedDate = new Date().toISOString() }
 
                 if (debit > 0) {
                     insertRows.push({ shop_id: user.shop_id, supplier_id: id, amount: debit, payment_type: 'debit', bill_number: billNo, note: note || 'Imported Purchase', created_at: parsedDate })

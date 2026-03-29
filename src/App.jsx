@@ -11,6 +11,7 @@ import AddProduct from './pages/AddProduct'
 import EditProduct from './pages/EditProduct'
 import Categories from './pages/Categories'
 import Brands from './pages/Brands'
+import MasterData from './pages/MasterData'
 import Inventory from './pages/Inventory'
 import Purchases from './pages/Purchases'
 import Suppliers from './pages/Suppliers'
@@ -49,8 +50,9 @@ function App() {
           <Route path="/products" element={<ProtectedRoute requiredModule="products" allowedRoles={['admin']}><Layout><Products /></Layout></ProtectedRoute>} />
           <Route path="/add-product" element={<ProtectedRoute requiredModule="products" allowedRoles={['admin']}><Layout><AddProduct /></Layout></ProtectedRoute>} />
           <Route path="/edit-product/:id" element={<ProtectedRoute requiredModule="products" allowedRoles={['admin']}><Layout><EditProduct /></Layout></ProtectedRoute>} />
-          <Route path="/categories" element={<ProtectedRoute requiredModule="categories" allowedRoles={['admin']}><Layout><Categories /></Layout></ProtectedRoute>} />
-          <Route path="/brands" element={<ProtectedRoute requiredModule="brands" allowedRoles={['admin']}><Layout><Brands /></Layout></ProtectedRoute>} />
+          <Route path="/master-data" element={<ProtectedRoute requiredModule="categories" allowedRoles={['admin']}><Layout><MasterData /></Layout></ProtectedRoute>} />
+          <Route path="/categories" element={<Navigate to="/master-data" replace />} />
+          <Route path="/brands" element={<Navigate to="/master-data" replace />} />
           <Route path="/suppliers" element={<ProtectedRoute requiredModule="suppliers" allowedRoles={['admin']}><Layout><Suppliers /></Layout></ProtectedRoute>} />
           <Route path="/suppliers/:id" element={<ProtectedRoute requiredModule="suppliers" allowedRoles={['admin']}><Layout><SupplierLedger /></Layout></ProtectedRoute>} />
           <Route path="/purchases" element={<ProtectedRoute requiredModule="purchases" allowedRoles={['admin', 'manager']}><Layout><Purchases /></Layout></ProtectedRoute>} />

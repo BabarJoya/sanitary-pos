@@ -12,6 +12,7 @@ function EditProduct() {
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [brands, setBrands] = useState([])
+  const [units, setUnits] = useState([])
   const [brandCategoryMap, setBrandCategoryMap] = useState({})
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
@@ -23,6 +24,7 @@ function EditProduct() {
     brand: '',
     category_id: '',
     supplier_id: '',
+    unit_id: '',
     c_rate: '',
     cost_price: '',
     sale_price: '',
@@ -44,21 +46,24 @@ function EditProduct() {
         supabase.from('products').select('*').eq('id', id).eq('shop_id', user.shop_id).maybeSingle(),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('suppliers').select('*').eq('shop_id', user.shop_id).order('name'),
-        supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
+        supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name'),
+        supabase.from('units').select('*').eq('shop_id', user.shop_id).order('name')
       ])
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-      const [prodResult, catResult, supResult, brandResult] = await Promise.race([fetchPromise, timeoutPromise])
+      const [prodResult, catResult, supResult, brandResult, unitResult] = await Promise.race([fetchPromise, timeoutPromise])
 
       if (prodResult.error || !prodResult.data) throw new Error('Product not found')
 
       const product = prodResult.data
+      if (unitResult?.data) { setUnits(unitResult.data); try { await db.units.bulkPut(JSON.parse(JSON.stringify(unitResult.data))) } catch (_) {} }
       setForm({
         name: product.name || '',
         sku: product.sku || '',
         brand: product.brand || '',
         category_id: product.category_id || '',
         supplier_id: product.supplier_id || '',
+        unit_id: product.unit_id || '',
         c_rate: product.c_rate || '',
         cost_price: product.cost_price || '',
         sale_price: product.sale_price || '',
@@ -104,6 +109,7 @@ function EditProduct() {
                 brand: localProd.brand || '',
                 category_id: localProd.category_id || '',
                 supplier_id: localProd.supplier_id || '',
+                unit_id: localProd.unit_id || '',
                 c_rate: localProd.c_rate || '',
                 cost_price: localProd.cost_price || '',
                 sale_price: localProd.sale_price || '',
@@ -112,18 +118,20 @@ function EditProduct() {
                 status: localProd.status || 'active'
             })
         }
+        const offlineSid = String(user.shop_id)
+        const lUnits = await db.units.toArray().catch(() => [])
+        setUnits(lUnits.filter(x => String(x.shop_id) === offlineSid))
 
         const [lCats, lSups, lBrands] = await Promise.all([
           db.categories.toArray(),
           db.suppliers.toArray(),
           db.brands.toArray()
         ])
-        const sid = String(user.shop_id)
-        setCategories(lCats.filter(x => String(x.shop_id) === sid))
-        setSuppliers(lSups.filter(x => String(x.shop_id) === sid))
-        setBrands(lBrands.filter(x => String(x.shop_id) === sid))
+        setCategories(lCats.filter(x => String(x.shop_id) === offlineSid))
+        setSuppliers(lSups.filter(x => String(x.shop_id) === offlineSid))
+        setBrands(lBrands.filter(x => String(x.shop_id) === offlineSid))
         const lBrandCats = await db.brand_categories.toArray().catch(() => [])
-        const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === sid)
+        const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === offlineSid)
         const bcMap = {}
         myBrandCats.forEach(bc => {
           if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
@@ -208,6 +216,7 @@ function EditProduct() {
     const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
     updatedProductData.category_id = updatedProductData.category_id ? toIntOrNull(updatedProductData.category_id) : null
     updatedProductData.supplier_id = updatedProductData.supplier_id ? toIntOrNull(updatedProductData.supplier_id) : null
+    updatedProductData.unit_id = updatedProductData.unit_id ? toIntOrNull(updatedProductData.unit_id) : null
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
@@ -351,6 +360,16 @@ function EditProduct() {
                 <option key={sup.id} value={sup.id}>{sup.name}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-medium mb-1">Unit of Measure</label>
+            <select name="unit_id" value={form.unit_id} onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Select unit...</option>
+              {units.map(u => <option key={u.id} value={u.id}>{u.name}{u.abbreviation ? ` (${u.abbreviation})` : ''}</option>)}
+            </select>
+            {units.length === 0 && <p className="text-xs text-gray-400 mt-1">Units add karne ke liye Master Data → Units mein jayein</p>}
           </div>
 
           {/* Pricing */}
