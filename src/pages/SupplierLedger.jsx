@@ -520,7 +520,7 @@ function SupplierLedger() {
                     <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold text-gray-800 mb-5">Add Transaction</h2>
                         <form onSubmit={handleAddTransaction} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-1 text-sm">Date</label>
                                     <input
@@ -542,7 +542,7 @@ function SupplierLedger() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-orange-700 font-semibold mb-1 text-sm">Purchase Amount / Debit (Rs.)</label>
                                     <input
@@ -602,7 +602,7 @@ function SupplierLedger() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-1 text-sm">Payment Mode</label>
                                     <select
