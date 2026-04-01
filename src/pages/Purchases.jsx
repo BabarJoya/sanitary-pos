@@ -598,7 +598,7 @@ function Purchases() {
                   <p className="font-bold text-purple-600">{quickViewProduct.c_rate || 0}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-blue-50 rounded-lg p-2 text-center">
                   <p className="text-[10px] text-blue-500 uppercase font-bold">Current Cost</p>
                   <p className="font-bold text-blue-700 text-lg">Rs. {quickViewProduct.cost_price || 0}</p>

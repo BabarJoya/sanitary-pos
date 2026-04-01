@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
@@ -10,6 +11,7 @@ function CustomerLedger() {
     const { user } = useAuth()
     const navigate = useNavigate()
 
+    const importRef = useRef()
     const [customer, setCustomer] = useState(null)
     const [loading, setLoading] = useState(true)
     const [ledger, setLedger] = useState([])
@@ -213,6 +215,111 @@ function CustomerLedger() {
         <p class="c" style="font-size:11px;color:#888;">Thank you! Payment received in full.</p>
         </body></html>`)
         win.document.close(); win.print()
+    }
+
+    // ── Excel Export ──────────────────────────────────────────────────────────
+    const handleExport = () => {
+        if (!ledger.length) return alert('Koi transaction nahi hai export karne ke liye.')
+        const rows = [...ledger].reverse().map((item, idx) => ({
+            'Sr#': idx + 1,
+            'Date': new Date(item.date).toLocaleDateString('en-PK'),
+            'Bill #': item.bill_number || (item.type === 'sale' ? `INV-${String(item.id).slice(-8)}` : ''),
+            'Description': item.note,
+            'Type': item.type === 'sale' ? 'Sale' : item.type === 'debit' ? 'Manual Sale' : item.type === 'return' ? 'Return' : 'Payment',
+            'Debit (Sale)': (item.type === 'sale' || item.type === 'debit') ? Number(item.amount) : '',
+            'Credit (Payment)': (item.type === 'payment' || item.type === 'return') ? Math.abs(Number(item.amount)) : '',
+            'Balance': Number(item.balance),
+            'Details': item.details || '',
+            'Payment Mode': item.payment_mode || '',
+            'Transaction Ref': item.transaction_ref || '',
+        }))
+        const ws = XLSX.utils.json_to_sheet(rows)
+        ws['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 18 }]
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Ledger')
+        const safeName = (customer?.name || 'customer').replace(/[^a-z0-9]/gi, '_')
+        XLSX.writeFile(wb, `${safeName}_ledger.xlsx`)
+    }
+
+    // ── Excel Import ──────────────────────────────────────────────────────────
+    const handleImport = async (e) => {
+        const file = e.target.files[0]
+        e.target.value = ''
+        if (!file) return
+
+        try {
+            const data = await file.arrayBuffer()
+            const wb = XLSX.read(data, { cellDates: true })
+            const ws = wb.Sheets[wb.SheetNames[0]]
+            const rows = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' })
+
+            if (!rows.length) { alert('File mein koi data nahi mila.'); return }
+
+            const confirmed = window.confirm(`${rows.length} transactions import karein?\n\nNote: "Debit (Sale)" column se sale entries aur "Credit (Payment)" column se payment entries banegi.`)
+            if (!confirmed) return
+
+            const insertRows = []
+            let balanceDelta = 0
+
+            for (const row of rows) {
+                const debit = parseFloat(row['Debit (Sale)'] ?? row['Debit'] ?? row['debit'] ?? 0) || 0
+                const credit = parseFloat(row['Credit (Payment)'] ?? row['Credit'] ?? row['credit'] ?? 0) || 0
+                const dateVal = row['Date'] || row['date'] || new Date().toLocaleDateString('en-PK')
+                const billNo = String(row['Bill #'] ?? row['bill_number'] ?? '').trim() || null
+                const note = String(row['Description'] ?? row['Note'] ?? row['note'] ?? '').trim()
+                const details = String(row['Details'] ?? row['details'] ?? '').trim() || null
+                const paymentMode = String(row['Payment Mode'] ?? row['payment_mode'] ?? '').trim() || null
+                const txRef = String(row['Transaction Ref'] ?? row['transaction_ref'] ?? '').trim() || null
+
+                let parsedDate
+                try {
+                    if (dateVal instanceof Date && !isNaN(dateVal)) {
+                        parsedDate = dateVal.toISOString()
+                    } else if (typeof dateVal === 'number') {
+                        parsedDate = new Date(Math.round((dateVal - 25569) * 86400 * 1000)).toISOString()
+                    } else {
+                        parsedDate = new Date(dateVal).toISOString()
+                    }
+                } catch { parsedDate = new Date().toISOString() }
+
+                const common = { shop_id: user.shop_id, customer_id: id, bill_number: billNo, details, payment_mode: paymentMode, transaction_ref: txRef, created_at: parsedDate }
+                if (debit > 0) {
+                    insertRows.push({ ...common, amount: debit, payment_type: 'debit', note: note || 'Imported Sale Entry' })
+                    balanceDelta += debit
+                }
+                if (credit > 0) {
+                    insertRows.push({ ...common, amount: credit, payment_type: 'payment', note: note || 'Imported Payment' })
+                    balanceDelta -= credit
+                }
+            }
+
+            if (!insertRows.length) { alert('Koi valid row nahi mili (Debit/Credit columns check karein).'); return }
+
+            if (navigator.onLine) {
+                const { error } = await supabase.from('customer_payments').insert(insertRows)
+                if (error) throw error
+                const newBal = Math.max(0, (customer?.outstanding_balance || 0) + balanceDelta)
+                try {
+                    await supabase.from('customers').update({ outstanding_balance: newBal }).eq('id', id)
+                    setCustomer(c => c ? { ...c, outstanding_balance: newBal } : c)
+                } catch (_) {}
+            } else {
+                for (const row of insertRows) {
+                    const rec = { ...row, id: crypto.randomUUID() }
+                    await db.customer_payments.add(rec)
+                    await db.sync_queue.add({ table: 'customer_payments', action: 'INSERT', data: rec, timestamp: rec.created_at })
+                }
+                const newBal = Math.max(0, (customer?.outstanding_balance || 0) + balanceDelta)
+                await db.customers.update(parseInt(id), { outstanding_balance: newBal })
+                setCustomer(c => c ? { ...c, outstanding_balance: newBal } : c)
+            }
+
+            alert(`${insertRows.length} entries import ho gayi! ✅`)
+            fetchCustomerData()
+        } catch (err) {
+            console.error('Import error:', err)
+            alert('Import failed: ' + err.message)
+        }
     }
 
     const resetTxForm = () => {
@@ -420,7 +527,7 @@ function CustomerLedger() {
                             Rs. {customer.outstanding_balance || 0}
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap justify-end">
                         {customer.phone && (
                             <button
                                 onClick={async (e) => {
@@ -629,7 +736,7 @@ function CustomerLedger() {
                             <form onSubmit={handleAddTransaction} className="space-y-4">
 
                                 {/* Date + Bill # */}
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-gray-700 font-medium mb-1 text-sm">Date</label>
                                         <input type="date" value={txForm.date}
@@ -702,7 +809,7 @@ function CustomerLedger() {
                                 </div>
 
                                 {/* Payment Mode + Transaction Ref */}
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-gray-700 font-medium mb-1 text-sm">Payment Mode</label>
                                         <select value={txForm.payment_mode}

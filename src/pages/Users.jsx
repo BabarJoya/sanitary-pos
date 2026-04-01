@@ -306,7 +306,7 @@ function Users() {
                   Admins implicitly have full access to all modules natively. Custom restrictions are ignored.
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {AVAILABLE_MODULES.map(mod => (
                     <label key={mod.id} className="flex items-center gap-2 cursor-pointer group">
                       <input

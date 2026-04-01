@@ -909,7 +909,7 @@ function Settings() {
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Active Plan</label>
                   <p className="text-xl font-black text-gray-800">{planInfo.plan_name} <span className="text-blue-600 italic">Tier</span></p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Product Limit</label>
                     <p className="font-bold text-gray-800">{planInfo.product_limit} items</p>

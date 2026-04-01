@@ -671,15 +671,15 @@ function SupplierLedger() {
 
             {/* ── Add Transaction Modal ── */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold text-gray-800 mb-1">➕ Add Transaction</h2>
                         <p className="text-xs text-gray-400 mb-4">Purchase aur payment ek saath darj kar saktay hain</p>
 
                         <form onSubmit={handleSubmitTransaction} className="space-y-4">
 
                             {/* Date + Bill # */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-1 text-sm">Date</label>
                                     <input type="date" value={txForm.date}
@@ -758,7 +758,7 @@ function SupplierLedger() {
                             </div>
 
                             {/* Payment Mode + Transaction Ref */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-1 text-sm">Payment Mode</label>
                                     <select value={txForm.payment_mode}

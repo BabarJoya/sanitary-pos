@@ -265,7 +265,7 @@ function AddProduct() {
           {/* Basic Info */}
           <h2 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-700 font-medium mb-1">Product Name *</label>
               <input
@@ -322,7 +322,7 @@ function AddProduct() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-700 font-medium mb-1">SKU / Barcode</label>
               <div className="flex gap-2">
@@ -438,7 +438,7 @@ function AddProduct() {
           {/* Stock */}
           <h2 className="font-semibold text-gray-700 border-b pb-2 pt-2">Stock</h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-700 font-medium mb-1">Stock Quantity *</label>
               <input
