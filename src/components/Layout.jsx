@@ -264,20 +264,22 @@ function Layout({ children }) {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-gray-200 px-4 md:px-6 flex items-center justify-between shrink-0 shadow-sm z-20">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden w-8 h-8 flex items-center justify-center text-xl cursor-pointer hover:bg-gray-100 rounded-lg transition">☰</button>
-            <div className="flex flex-col">
-              <span className="text-gray-900 font-black tracking-tight text-sm sm:text-lg leading-none truncate max-w-[150px] sm:max-w-[300px]">{shopName}</span>
+        <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shrink-0 shadow-sm z-20">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden w-8 h-8 flex items-center justify-center text-xl cursor-pointer hover:bg-gray-100 rounded-lg transition flex-shrink-0">☰</button>
+            <div className="flex flex-col min-w-0">
+              <span className="text-gray-900 font-black tracking-tight text-sm sm:text-lg leading-none truncate max-w-[140px] sm:max-w-[300px]">{shopName}</span>
               <span className="text-gray-400 font-bold tracking-tight text-[10px] uppercase mt-0.5">{pageTitle}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Status Indicator */}
-            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${isOnline ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-orange-50 text-orange-600 border border-orange-100 animate-pulse'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500' : 'bg-orange-500'}`}></span>
-              {isOnline ? 'System Online' : 'Offline Mode'}
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Status Indicator — dot only on mobile, full pill on sm+ */}
+            <div className={`flex items-center gap-1.5 rounded-full font-black uppercase tracking-widest ${isOnline ? 'text-green-600' : 'text-orange-600 animate-pulse'}`}>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-orange-500'}`}></span>
+              <span className={`hidden sm:inline text-[9px] px-2 py-1 rounded-full border ${isOnline ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100'}`}>
+                {isOnline ? 'System Online' : 'Offline Mode'}
+              </span>
             </div>
 
             {/* Notification Bell */}
@@ -300,7 +302,7 @@ function Layout({ children }) {
 
               {/* Notification Dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 origin-top-right">
+                <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 origin-top-right">
                   <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
                     <h3 className="font-bold text-gray-800">Alerts</h3>
                     <span className="text-[10px] font-black text-white bg-red-600 px-2 py-0.5 rounded-full uppercase tracking-wider">{lowStock.length} Now</span>
@@ -335,9 +337,9 @@ function Layout({ children }) {
               )}
             </div>
 
-            <div className="h-6 w-px bg-gray-200"></div>
+            <div className="h-6 w-px bg-gray-200 hidden sm:block"></div>
 
-            <div className="flex items-center gap-3 relative" ref={userDropdownRef}>
+            <div className="flex items-center gap-2 sm:gap-3 relative" ref={userDropdownRef}>
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-black text-gray-800 leading-none">{user?.username}</p>
                 <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{user?.role}</p>
