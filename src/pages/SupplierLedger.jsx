@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import * as XLSX from 'xlsx'
 
 function SupplierLedger() {
     const { id } = useParams()
@@ -14,11 +15,20 @@ function SupplierLedger() {
     const [supplier, setSupplier] = useState(null)
     const [loading, setLoading] = useState(true)
     const [ledger, setLedger] = useState([])
-    const [showPaymentModal, setShowPaymentModal] = useState(false)
-    const [paymentAmount, setPaymentAmount] = useState('')
-    const [paymentNote, setPaymentNote] = useState('')
+    const [showTxModal, setShowTxModal] = useState(false)
+    const [txForm, setTxForm] = useState({
+        date: new Date().toISOString().slice(0, 10),
+        bill_number: '',
+        purchase_amount: '',
+        paid_amount: '',
+        details: '',
+        payment_mode: 'cash',
+        transaction_ref: '',
+        note: ''
+    })
     const [saving, setSaving] = useState(false)
     const [expandedBill, setExpandedBill] = useState(null)
+    const importRef = useRef()
 
     useEffect(() => {
         if (id && user?.shop_id) fetchSupplierData()
@@ -39,12 +49,11 @@ function SupplierLedger() {
 
             setSupplier(supRes.data)
 
-            const purchases = purchasesRes.data
-            const payments = paymentsRes.data
+            const purchases = purchasesRes.data || []
+            const payments = paymentsRes.data || []
 
-            // 4. Combine into Ledger
             const combined = [
-                ...(purchases || []).map(p => ({
+                ...(purchases).map(p => ({
                     id: p.id,
                     date: p.created_at,
                     type: 'purchase',
@@ -53,31 +62,32 @@ function SupplierLedger() {
                     note: `Bill #${String(p.id).slice(-8)}`,
                     items: p.purchase_items || []
                 })),
-                ...(payments || []).map(p => ({
+                ...(payments).map(p => ({
                     id: p.id,
                     date: p.created_at,
-                    type: p.payment_type === 'return' ? 'return' : 'payment',
+                    type: p.payment_type === 'return' ? 'return' : p.payment_type === 'debit' ? 'debit' : 'payment',
+                    payment_type: p.payment_type,
                     amount: p.amount,
                     note: p.note || 'Cash Payment',
+                    bill_number: p.bill_number || null,
+                    details: p.details || null,
+                    payment_mode: p.payment_mode || null,
+                    transaction_ref: p.transaction_ref || null,
+                    source: 'payment'
                 }))
             ]
 
-            // Sort by date
             combined.sort((a, b) => new Date(a.date) - new Date(b.date))
 
-            // Calculate running balance
             let running = 0
             const withBalance = combined.map(item => {
-                // A purchase means we bought stock, increasing our debt to the supplier (+)
                 if (item.type === 'purchase') {
                     running += item.amount
-                }
-                // A payment means we paid the supplier, decreasing our debt (-)
-                // A return means we returned stock, decreasing our debt (-)
-                else {
+                } else if (item.payment_type === 'debit') {
+                    running += Number(item.amount)
+                } else {
                     running -= Math.abs(item.amount)
                 }
-
                 return { ...item, balance: running }
             })
 
@@ -85,7 +95,6 @@ function SupplierLedger() {
         } catch (e) {
             console.log('SupplierLedger: Reconstructing from local DB (Offline)')
             try {
-                const sid = String(user.shop_id)
                 const [lSups, lPurchases, lItems, lPayments] = await Promise.all([
                     db.suppliers.toArray(),
                     db.purchases.toArray(),
@@ -112,9 +121,15 @@ function SupplierLedger() {
                     ...myPayments.map(p => ({
                         id: p.id,
                         date: p.created_at,
-                        type: p.payment_type === 'return' ? 'return' : 'payment',
+                        type: p.payment_type === 'return' ? 'return' : p.payment_type === 'debit' ? 'debit' : 'payment',
+                        payment_type: p.payment_type,
                         amount: p.amount,
                         note: p.note || 'Cash Payment',
+                        bill_number: p.bill_number || null,
+                        details: p.details || null,
+                        payment_mode: p.payment_mode || null,
+                        transaction_ref: p.transaction_ref || null,
+                        source: 'payment'
                     }))
                 ]
 
@@ -123,6 +138,8 @@ function SupplierLedger() {
                 const withBalance = combined.map(item => {
                     if (item.type === 'purchase') {
                         running += item.amount
+                    } else if (item.payment_type === 'debit') {
+                        running += Number(item.amount)
                     } else {
                         running -= Math.abs(item.amount)
                     }
@@ -135,65 +152,67 @@ function SupplierLedger() {
         }
     }
 
-    const handleAddPayment = async (e) => {
-        e.preventDefault()
-        if (!paymentAmount || parseFloat(paymentAmount) <= 0) return
+    const resetTxForm = () => {
+        setTxForm({
+            date: new Date().toISOString().slice(0, 10),
+            bill_number: '',
+            purchase_amount: '',
+            paid_amount: '',
+            details: '',
+            payment_mode: 'cash',
+            transaction_ref: '',
+            note: ''
+        })
+        setShowTxModal(false)
+    }
 
+    const handleAddTransaction = async (e) => {
+        e.preventDefault()
+        const purchAmt = parseFloat(txForm.purchase_amount) || 0
+        const paidAmt = parseFloat(txForm.paid_amount) || 0
+        if (purchAmt === 0 && paidAmt === 0) return alert('Purchase amount ya payment amount mein se koi ek lazmi hai.')
         setSaving(true)
-        const amount = parseFloat(paymentAmount)
+        const now = txForm.date ? new Date(txForm.date + 'T12:00:00').toISOString() : new Date().toISOString()
+        const commonFields = {
+            shop_id: user.shop_id,
+            supplier_id: id,
+            bill_number: txForm.bill_number.trim() || null,
+            details: txForm.details.trim() || null,
+            payment_mode: txForm.payment_mode || null,
+            transaction_ref: txForm.transaction_ref.trim() || null,
+            note: txForm.note.trim() || null,
+            created_at: now
+        }
+        const insertRows = []
+        if (purchAmt > 0) insertRows.push({ ...commonFields, amount: purchAmt, payment_type: 'debit', note: commonFields.note || 'Manual Purchase Entry' })
+        if (paidAmt > 0) insertRows.push({ ...commonFields, amount: paidAmt, payment_type: 'payment', note: commonFields.note || 'Cash Paid to Supplier' })
 
         try {
             if (!navigator.onLine) throw new TypeError('Failed to fetch')
-
-            // 1. Insert payment record
-            const { error: pError } = await supabase.from('supplier_payments').insert([{
-                shop_id: user.shop_id,
-                supplier_id: id,
-                amount: amount,
-                payment_type: 'payment',
-                note: paymentNote || 'Cash Paid to Supplier'
-            }])
-
-            if (pError) throw pError
-
-            // 2. Update supplier balance
-            const newBalance = Math.max(0, (supplier.outstanding_balance || 0) - amount)
-            const { error: sError } = await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
-            if (sError) throw sError
-
-            alert('Payment recorded successfully! ✅')
-            setPaymentAmount('')
-            setPaymentNote('')
-            setShowPaymentModal(false)
+            const { error } = await supabase.from('supplier_payments').insert(insertRows)
+            if (error) throw error
+            const newBalance = Math.max(0, (supplier.outstanding_balance || 0) + purchAmt - paidAmt)
+            try {
+                await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
+                setSupplier(s => s ? { ...s, outstanding_balance: newBalance } : s)
+            } catch (_) {}
+            resetTxForm()
             fetchSupplierData()
-        } catch (error) {
-            const errMsg = error?.message || String(error)
+        } catch (err) {
+            const errMsg = err?.message || String(err)
             if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-                const paymentId = crypto.randomUUID()
-                const paymentData = {
-                    id: paymentId,
-                    shop_id: user.shop_id,
-                    supplier_id: id,
-                    amount: amount,
-                    payment_type: 'payment',
-                    note: (paymentNote || 'Cash Paid to Supplier') + ' (Offline)',
-                    created_at: new Date().toISOString()
+                for (const row of insertRows) {
+                    const rowId = crypto.randomUUID()
+                    const offlineRow = { ...row, id: rowId }
+                    await db.supplier_payments.add(offlineRow)
+                    await db.sync_queue.add({ table: 'supplier_payments', action: 'INSERT', data: offlineRow, timestamp: now })
                 }
-
-                // 1. Record payment locally
-                await db.supplier_payments.add(paymentData)
-                await db.sync_queue.add({ table: 'supplier_payments', action: 'INSERT', data: paymentData, timestamp: paymentData.created_at })
-
-                // 2. Update local balance
-                const newBal = Math.max(0, (supplier?.outstanding_balance || 0) - amount)
+                const newBal = Math.max(0, (supplier?.outstanding_balance || 0) + purchAmt - paidAmt)
                 await db.suppliers.update(id, { outstanding_balance: newBal })
-                await db.sync_queue.add({ table: 'suppliers', action: 'UPDATE', data: { id, outstanding_balance: newBal }, timestamp: paymentData.created_at })
-
-                alert('Offline mode: Payment saved locally. Will sync when online! 🔄')
-                setPaymentAmount('')
-                setPaymentNote('')
-                setShowPaymentModal(false)
-                setSupplier({ ...supplier, outstanding_balance: newBal })
+                await db.sync_queue.add({ table: 'suppliers', action: 'UPDATE', data: { id, outstanding_balance: newBal }, timestamp: now })
+                setSupplier(s => s ? { ...s, outstanding_balance: newBal } : s)
+                alert('Offline mode: Transaction saved locally. Will sync when online! 🔄')
+                resetTxForm()
                 fetchSupplierData()
             } else {
                 alert('Error: ' + errMsg)
@@ -203,9 +222,158 @@ function SupplierLedger() {
         }
     }
 
+    const handleDeleteTransaction = async (item) => {
+        if (item.type === 'purchase') return
+        if (!confirm('Kya aap yeh transaction delete karna chahte hain?')) return
+
+        try {
+            let newBalance = supplier.outstanding_balance || 0
+            if (item.payment_type === 'debit') {
+                newBalance = Math.max(0, newBalance - Number(item.amount))
+            } else {
+                newBalance = newBalance + Math.abs(item.amount)
+            }
+
+            if (!navigator.onLine) throw new TypeError('Failed to fetch')
+            const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
+            if (error) throw error
+            try {
+                await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
+                setSupplier(s => s ? { ...s, outstanding_balance: newBalance } : s)
+            } catch (_) {}
+            fetchSupplierData()
+        } catch (err) {
+            const errMsg = err?.message || String(err)
+            if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
+                await db.supplier_payments.delete(item.id)
+                await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+                alert('Offline mode: Deletion queued. Will sync when online.')
+                fetchSupplierData()
+            } else {
+                alert('Error: ' + errMsg)
+            }
+        }
+    }
+
+    const handleExport = () => {
+        const supplierName = supplier?.name || 'Supplier'
+        const rows = [...ledger].reverse().map((item, idx) => ({
+            'Sr#': idx + 1,
+            'Date': new Date(item.date).toLocaleDateString('en-PK'),
+            'Bill #': item.bill_number || '',
+            'Description': item.note || '',
+            'Type': item.type === 'purchase' ? 'Purchase' : item.type === 'debit' ? 'Manual Debit' : item.type === 'return' ? 'Return' : 'Payment',
+            'Debit (Purchase)': (item.type === 'purchase' || item.type === 'debit') ? Number(item.amount) : '',
+            'Credit (Payment)': (item.type === 'payment' || item.type === 'return') ? Number(item.amount) : '',
+            'Balance': Number(item.balance),
+            'Details': item.details || '',
+            'Payment Mode': item.payment_mode || '',
+            'Transaction Ref': item.transaction_ref || ''
+        }))
+
+        const ws = XLSX.utils.json_to_sheet(rows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Ledger')
+        XLSX.writeFile(wb, `${supplierName}_ledger.xlsx`)
+    }
+
+    const handleImport = async (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+        e.target.value = ''
+
+        try {
+            const data = await file.arrayBuffer()
+            const wb = XLSX.read(data, { cellDates: true })
+            const ws = wb.Sheets[wb.SheetNames[0]]
+            const rows = XLSX.utils.sheet_to_json(ws, { cellDates: true })
+
+            if (!rows.length) return alert('File mein koi data nahi mila.')
+
+            const parseDate = (val) => {
+                if (!val) return new Date().toISOString()
+                if (val instanceof Date) return val.toISOString()
+                if (typeof val === 'number') {
+                    const excelEpoch = new Date(1899, 11, 30)
+                    return new Date(excelEpoch.getTime() + val * 86400000).toISOString()
+                }
+                const d = new Date(val)
+                return isNaN(d) ? new Date().toISOString() : d.toISOString()
+            }
+
+            const insertRows = []
+            let totalDebit = 0
+            let totalCredit = 0
+
+            for (const row of rows) {
+                const dateStr = parseDate(row['Date'])
+                const debit = parseFloat(row['Debit (Purchase)']) || 0
+                const credit = parseFloat(row['Credit (Payment)']) || 0
+                const bill = String(row['Bill #'] || '').trim() || null
+                const details = String(row['Details'] || '').trim() || null
+                const payMode = String(row['Payment Mode'] || '').trim() || null
+                const txRef = String(row['Transaction Ref'] || '').trim() || null
+                const desc = String(row['Description'] || '').trim() || null
+
+                const common = {
+                    shop_id: user.shop_id,
+                    supplier_id: id,
+                    bill_number: bill,
+                    details,
+                    payment_mode: payMode,
+                    transaction_ref: txRef,
+                    created_at: dateStr
+                }
+                if (debit > 0) {
+                    insertRows.push({ ...common, amount: debit, payment_type: 'debit', note: desc || 'Imported Debit' })
+                    totalDebit += debit
+                }
+                if (credit > 0) {
+                    insertRows.push({ ...common, amount: credit, payment_type: 'payment', note: desc || 'Imported Payment' })
+                    totalCredit += credit
+                }
+            }
+
+            if (!insertRows.length) return alert('Koi valid debit/credit rows nahi milein.')
+            if (!confirm(`${insertRows.length} transactions import ki jayengi. Kya confirm karte hain?`)) return
+
+            if (!navigator.onLine) {
+                for (const row of insertRows) {
+                    const rowId = crypto.randomUUID()
+                    const offlineRow = { ...row, id: rowId }
+                    await db.supplier_payments.add(offlineRow)
+                    await db.sync_queue.add({ table: 'supplier_payments', action: 'INSERT', data: offlineRow, timestamp: row.created_at })
+                }
+                const newBal = Math.max(0, (supplier?.outstanding_balance || 0) + totalDebit - totalCredit)
+                await db.suppliers.update(id, { outstanding_balance: newBal })
+                setSupplier(s => s ? { ...s, outstanding_balance: newBal } : s)
+                alert('Offline: Import queued locally!')
+                fetchSupplierData()
+                return
+            }
+
+            const { error } = await supabase.from('supplier_payments').insert(insertRows)
+            if (error) throw error
+            const newBal = Math.max(0, (supplier?.outstanding_balance || 0) + totalDebit - totalCredit)
+            try {
+                await supabase.from('suppliers').update({ outstanding_balance: newBal }).eq('id', id)
+                setSupplier(s => s ? { ...s, outstanding_balance: newBal } : s)
+            } catch (_) {}
+            alert(`${insertRows.length} transactions imported successfully!`)
+            fetchSupplierData()
+        } catch (err) {
+            alert('Import Error: ' + (err?.message || String(err)))
+        }
+    }
+
     if (!hasFeature('supplier_ledger')) return <UpgradeWall feature="supplier_ledger" />
     if (loading) return <div className="p-8">Loading ledger...</div>
     if (!supplier) return <div className="p-8 text-red-500">Supplier not found!</div>
+
+    const purchAmt = parseFloat(txForm.purchase_amount) || 0
+    const paidAmt = parseFloat(txForm.paid_amount) || 0
+    const prevBal = supplier.outstanding_balance || 0
+    const newPreviewBal = prevBal + purchAmt - paidAmt
 
     return (
         <div>
@@ -222,11 +390,26 @@ function SupplierLedger() {
                             Rs. {supplier.outstanding_balance || 0}
                         </p>
                     </div>
-                    <button
-                        onClick={() => setShowPaymentModal(true)}
-                        className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold shadow-lg">
-                        💸 Record Payment
-                    </button>
+                    <div className="flex flex-wrap gap-2 justify-end">
+                        <button
+                            onClick={handleExport}
+                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition font-semibold shadow-lg flex items-center gap-2"
+                        >
+                            📥 Export Excel
+                        </button>
+                        <button
+                            onClick={() => importRef.current?.click()}
+                            className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-semibold shadow-lg flex items-center gap-2"
+                        >
+                            📤 Import Excel
+                        </button>
+                        <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
+                        <button
+                            onClick={() => setShowTxModal(true)}
+                            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold shadow-lg flex items-center gap-2">
+                            ➕ Add Transaction
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -236,20 +419,21 @@ function SupplierLedger() {
                         <thead className="bg-gray-50 border-b">
                             <tr>
                                 <th className="px-6 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Date</th>
-                                <th className="px-6 py-4 text-left font-semibold text-gray-600 min-w-[200px]">Description</th>
+                                <th className="px-6 py-4 text-left font-semibold text-gray-600 min-w-[220px]">Description</th>
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Debit (Purchase)</th>
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Credit (Payment)</th>
                                 <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Balance</th>
+                                <th className="px-6 py-4 text-center font-semibold text-gray-600 whitespace-nowrap">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {ledger.map((item, idx) => (
                                 <React.Fragment key={idx}>
                                     <tr className="hover:bg-gray-50 transition font-medium">
-                                        <td className="px-6 py-4 text-gray-500 font-normal">{new Date(item.date).toLocaleDateString('en-PK')}</td>
+                                        <td className="px-6 py-4 text-gray-500 font-normal whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-PK')}</td>
                                         <td className="px-6 py-4">
-                                            <div className="flex flex-col">
-                                                <div className="flex items-center gap-2">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-medium text-gray-800">{item.note}</span>
                                                     {item.type === 'purchase' && (
                                                         <button
@@ -259,23 +443,46 @@ function SupplierLedger() {
                                                             {expandedBill === item.id ? 'Collapse ▲' : 'Details ▼'}
                                                         </button>
                                                     )}
+                                                    {item.type === 'debit' && (
+                                                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold uppercase">Manual Purchase</span>
+                                                    )}
                                                 </div>
-                                                {item.type === 'return' && <span className="w-fit px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold mt-1">Return</span>}
+                                                {item.bill_number && (
+                                                    <span className="text-[11px] text-blue-700 font-semibold">Bill #{item.bill_number}</span>
+                                                )}
+                                                {item.details && (
+                                                    <span className="text-[11px] text-gray-500">{item.details}</span>
+                                                )}
+                                                <div className="flex flex-wrap gap-1">
+                                                    {item.type === 'return' && <span className="w-fit px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold">Return</span>}
+                                                    {item.payment_mode && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-[10px] font-semibold capitalize">{item.payment_mode}</span>}
+                                                    {item.transaction_ref && <span className="text-[10px] text-gray-400">Ref: {item.transaction_ref}</span>}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right text-orange-600 font-medium">
-                                            {item.type === 'purchase' ? `+ Rs. ${item.amount.toLocaleString()}` : ''}
+                                            {(item.type === 'purchase' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toLocaleString()}` : ''}
                                         </td>
                                         <td className="px-6 py-4 text-right text-green-600 font-medium">
-                                            {item.type !== 'purchase' ? `- Rs. ${Math.abs(item.amount).toLocaleString()}` : ''}
+                                            {(item.type === 'payment' || item.type === 'return') ? `- Rs. ${Math.abs(item.amount).toLocaleString()}` : ''}
                                         </td>
                                         <td className="px-6 py-4 text-right font-bold text-gray-900">
-                                            Rs. {item.balance.toLocaleString()}
+                                            Rs. {Number(item.balance).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {item.source === 'payment' && (
+                                                <button
+                                                    onClick={() => handleDeleteTransaction(item)}
+                                                    className="text-red-400 hover:text-red-600 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50 transition"
+                                                >
+                                                    Delete
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                     {item.type === 'purchase' && expandedBill === item.id && (
                                         <tr className="bg-orange-50/50 border-b border-gray-100">
-                                            <td colSpan="5" className="px-6 py-3">
+                                            <td colSpan="6" className="px-6 py-3">
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
@@ -299,7 +506,7 @@ function SupplierLedger() {
                             ))}
                             {ledger.length === 0 && (
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-12 text-center text-gray-400">No transactions found for this supplier.</td>
+                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400">No transactions found for this supplier.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -307,55 +514,151 @@ function SupplierLedger() {
                 </div>
             </div>
 
-            {/* Payment Modal */}
-            {
-                showPaymentModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-                            <h2 className="text-xl font-bold text-gray-800 mb-4">Record Payment to Supplier</h2>
-                            <form onSubmit={handleAddPayment} className="space-y-4">
+            {/* Add Transaction Modal */}
+            {showTxModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-xl font-bold text-gray-800 mb-5">Add Transaction</h2>
+                        <form onSubmit={handleAddTransaction} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1">Amount Paid (Rs.)</label>
+                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Date</label>
                                     <input
-                                        type="number"
-                                        autoFocus
-                                        required
-                                        value={paymentAmount}
-                                        onChange={e => setPaymentAmount(e.target.value)}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                        placeholder="0.00"
+                                        type="date"
+                                        value={txForm.date}
+                                        onChange={e => setTxForm(f => ({ ...f, date: e.target.value }))}
+                                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1">Note (Optional)</label>
-                                    <textarea
-                                        value={paymentNote}
-                                        onChange={e => setPaymentNote(e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                        placeholder="e.g. Paid via Cash / Cheque #..."
-                                        rows="2"
-                                    ></textarea>
+                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Bill # (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={txForm.bill_number}
+                                        onChange={e => setTxForm(f => ({ ...f, bill_number: e.target.value }))}
+                                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                        placeholder="INV-001"
+                                    />
                                 </div>
-                                <div className="flex gap-3 pt-2">
-                                    <button
-                                        type="submit"
-                                        disabled={saving}
-                                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:opacity-50">
-                                        {saving ? 'Processing...' : 'Confirm Payment'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPaymentModal(false)}
-                                        className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition">
-                                        Cancel
-                                    </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-orange-700 font-semibold mb-1 text-sm">Purchase Amount / Debit (Rs.)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={txForm.purchase_amount}
+                                        onChange={e => setTxForm(f => ({ ...f, purchase_amount: e.target.value }))}
+                                        className="w-full px-3 py-2.5 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                                        placeholder="Kitna maal uthaya (Rs.)"
+                                    />
                                 </div>
-                            </form>
-                        </div>
+                                <div>
+                                    <label className="block text-green-700 font-semibold mb-1 text-sm">Payment Made / Credit (Rs.)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={txForm.paid_amount}
+                                        onChange={e => setTxForm(f => ({ ...f, paid_amount: e.target.value }))}
+                                        className="w-full px-3 py-2.5 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-400 outline-none text-sm"
+                                        placeholder="Kitni payment ki (Rs.)"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Balance Preview */}
+                            <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 text-sm space-y-1">
+                                <div className="flex justify-between text-gray-600">
+                                    <span>Previous Balance:</span>
+                                    <span className="font-semibold">Rs. {prevBal.toLocaleString()}</span>
+                                </div>
+                                {purchAmt > 0 && (
+                                    <div className="flex justify-between text-orange-600">
+                                        <span>+ Purchase (Debit):</span>
+                                        <span className="font-semibold">Rs. {purchAmt.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                {paidAmt > 0 && (
+                                    <div className="flex justify-between text-green-600">
+                                        <span>− Payment (Credit):</span>
+                                        <span className="font-semibold">Rs. {paidAmt.toLocaleString()}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between font-bold text-gray-800 border-t pt-1 mt-1">
+                                    <span>New Balance:</span>
+                                    <span className={newPreviewBal > 0 ? 'text-orange-600' : 'text-green-600'}>Rs. {newPreviewBal.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-1 text-sm">Details (Optional)</label>
+                                <textarea
+                                    value={txForm.details}
+                                    onChange={e => setTxForm(f => ({ ...f, details: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                    placeholder="Saman ki tafseel ya bill link..."
+                                    rows="2"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Payment Mode</label>
+                                    <select
+                                        value={txForm.payment_mode}
+                                        onChange={e => setTxForm(f => ({ ...f, payment_mode: e.target.value }))}
+                                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                    >
+                                        <option value="cash">Cash</option>
+                                        <option value="bank">Bank Transfer</option>
+                                        <option value="cheque">Cheque</option>
+                                        <option value="online">Online/JazzCash</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Transaction Ref (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={txForm.transaction_ref}
+                                        onChange={e => setTxForm(f => ({ ...f, transaction_ref: e.target.value }))}
+                                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                        placeholder="Cheque # / Transaction ID"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-1 text-sm">Note (Optional)</label>
+                                <textarea
+                                    value={txForm.note}
+                                    onChange={e => setTxForm(f => ({ ...f, note: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                    placeholder="Additional notes..."
+                                    rows="2"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:opacity-50">
+                                    {saving ? 'Saving...' : 'Save Transaction'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={resetTxForm}
+                                    className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     )
 }
 
