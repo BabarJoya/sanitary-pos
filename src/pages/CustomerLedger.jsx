@@ -13,9 +13,17 @@ function CustomerLedger() {
     const [customer, setCustomer] = useState(null)
     const [loading, setLoading] = useState(true)
     const [ledger, setLedger] = useState([])
-    const [showPaymentModal, setShowPaymentModal] = useState(false)
-    const [paymentAmount, setPaymentAmount] = useState('')
-    const [paymentNote, setPaymentNote] = useState('')
+    const [showTxModal, setShowTxModal] = useState(false)
+    const [txForm, setTxForm] = useState({
+        date: new Date().toISOString().slice(0, 10),
+        bill_number: '',
+        sale_amount: '',
+        payment_amount: '',
+        details: '',
+        payment_mode: 'cash',
+        transaction_ref: '',
+        note: ''
+    })
     const [saving, setSaving] = useState(false)
     const [expandedSale, setExpandedSale] = useState(null)
     const [lastPayment, setLastPayment] = useState(null) // for print voucher after recording
@@ -60,10 +68,14 @@ function CustomerLedger() {
                 ...(payments || []).map(p => ({
                     id: p.id,
                     date: p.created_at,
-                    type: p.payment_type === 'return' ? 'return' : 'payment',
+                    type: p.payment_type === 'return' ? 'return' : p.payment_type === 'debit' ? 'debit' : 'payment',
                     payment_type: p.payment_type,
                     amount: p.amount,
                     note: p.note || 'Cash Payment',
+                    bill_number: p.bill_number || null,
+                    details: p.details || null,
+                    payment_mode: p.payment_mode || null,
+                    transaction_ref: p.transaction_ref || null,
                 }))
             ]
 
@@ -74,20 +86,18 @@ function CustomerLedger() {
             let running = 0
             const withBalance = combined.map(item => {
                 if (item.type === 'sale') {
-                    // Add only the unpaid portion (handles credit, partial, split)
                     const owed = Math.max(0, item.amount - (item.paid_amount || 0))
                     if (owed > 0) running += owed
+                } else if (item.type === 'debit') {
+                    running += Number(item.amount)
+                } else if (item.payment_type === 'refund') {
+                    // cash refund — no balance change
                 } else {
-                    // 'refund' = cash was given back, no balance change; payments/returns reduce balance
-                    if (item.payment_type !== 'refund') {
-                        running -= Math.abs(item.amount)
-                    }
+                    running -= Math.abs(item.amount)
                 }
                 return { ...item, balance: running }
             })
 
-            // If customer has outstanding balance but no transactions explain it,
-            // add an "Opening Balance" entry so the ledger isn't confusingly empty
             const ob = custRes.data.outstanding_balance || 0
             if (withBalance.length === 0 && ob !== 0) {
                 withBalance.push({
@@ -134,10 +144,14 @@ function CustomerLedger() {
                     ...myPayments.map(p => ({
                         id: p.id,
                         date: p.created_at,
-                        type: p.payment_type === 'return' ? 'return' : 'payment',
+                        type: p.payment_type === 'return' ? 'return' : p.payment_type === 'debit' ? 'debit' : 'payment',
                         payment_type: p.payment_type,
                         amount: p.amount,
                         note: p.note || 'Cash Payment',
+                        bill_number: p.bill_number || null,
+                        details: p.details || null,
+                        payment_mode: p.payment_mode || null,
+                        transaction_ref: p.transaction_ref || null,
                     }))
                 ]
 
@@ -147,10 +161,12 @@ function CustomerLedger() {
                     if (item.type === 'sale') {
                         const owed = Math.max(0, item.amount - (item.paid_amount || 0))
                         if (owed > 0) running += owed
+                    } else if (item.type === 'debit') {
+                        running += Number(item.amount)
+                    } else if (item.payment_type === 'refund') {
+                        // no balance change
                     } else {
-                        if (item.payment_type !== 'refund') {
-                            running -= Math.abs(item.amount)
-                        }
+                        running -= Math.abs(item.amount)
                     }
                     return { ...item, balance: running }
                 })
@@ -199,66 +215,60 @@ function CustomerLedger() {
         win.document.close(); win.print()
     }
 
-    const handleAddPayment = async (e) => {
-        e.preventDefault()
-        if (!paymentAmount || parseFloat(paymentAmount) <= 0) return
+    const resetTxForm = () => {
+        setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', sale_amount: '', payment_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })
+        setShowTxModal(false)
+    }
 
+    const handleAddTransaction = async (e) => {
+        e.preventDefault()
+        const saleAmt = parseFloat(txForm.sale_amount) || 0
+        const payAmt = parseFloat(txForm.payment_amount) || 0
+        if (saleAmt === 0 && payAmt === 0) return alert('Sale amount ya payment amount mein se koi ek lazmi hai.')
         setSaving(true)
-        const amount = parseFloat(paymentAmount)
+        const now = txForm.date ? new Date(txForm.date + 'T12:00:00').toISOString() : new Date().toISOString()
+        const commonFields = {
+            shop_id: user.shop_id,
+            customer_id: id,
+            bill_number: txForm.bill_number.trim() || null,
+            details: txForm.details.trim() || null,
+            payment_mode: txForm.payment_mode || null,
+            transaction_ref: txForm.transaction_ref.trim() || null,
+            created_at: now
+        }
+        const insertRows = []
+        if (saleAmt > 0) insertRows.push({ ...commonFields, amount: saleAmt, payment_type: 'debit', note: txForm.note.trim() || 'Manual Sale Entry' })
+        if (payAmt > 0) insertRows.push({ ...commonFields, amount: payAmt, payment_type: 'payment', note: txForm.note.trim() || 'Cash Received' })
 
         try {
             if (!navigator.onLine) throw new TypeError('Failed to fetch')
-
-            // 1. Insert payment record
-            const { error: pError } = await supabase.from('customer_payments').insert([{
-                shop_id: user.shop_id,
-                customer_id: id,
-                amount: amount,
-                payment_type: 'payment',
-                note: paymentNote || 'Cash Received'
-            }])
-
-            if (pError) throw pError
-
-            // 2. Update customer balance
-            const newBalance = Math.max(0, (customer.outstanding_balance || 0) - amount)
-            const { error: cError } = await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
-            if (cError) throw cError
-
-            setLastPayment({ amount, note: paymentNote || 'Cash Received', date: new Date().toISOString() })
-            setPaymentAmount('')
-            setPaymentNote('')
-            setShowPaymentModal(false)
+            const { error } = await supabase.from('customer_payments').insert(insertRows)
+            if (error) throw error
+            const newBalance = Math.max(0, (customer.outstanding_balance || 0) + saleAmt - payAmt)
+            try {
+                await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
+                setCustomer(c => c ? { ...c, outstanding_balance: newBalance } : c)
+            } catch (_) {}
+            if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: now })
+            resetTxForm()
             fetchCustomerData()
         } catch (error) {
             const errMsg = error?.message || String(error)
             if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-                const paymentId = crypto.randomUUID()
-                const paymentData = {
-                    id: paymentId,
-                    shop_id: user.shop_id,
-                    customer_id: id,
-                    amount: amount,
-                    payment_type: 'payment',
-                    note: (paymentNote || 'Cash Received') + ' (Offline)',
-                    created_at: new Date().toISOString()
+                const ts = new Date().toISOString()
+                for (const row of insertRows) {
+                    const rec = { ...row, id: crypto.randomUUID() }
+                    await db.customer_payments.add(rec)
+                    await db.sync_queue.add({ table: 'customer_payments', action: 'INSERT', data: rec, timestamp: ts })
                 }
-
-                // 1. Record payment locally
-                await db.customer_payments.add(paymentData)
-                await db.sync_queue.add({ table: 'customer_payments', action: 'INSERT', data: paymentData, timestamp: paymentData.created_at })
-
-                // 2. Update local balance
-                const newBal = Math.max(0, (customer?.outstanding_balance || 0) - amount)
-                await db.customers.update(id, { outstanding_balance: newBal })
-                await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: newBal }, timestamp: paymentData.created_at })
-
-                setLastPayment({ amount, note: (paymentNote || 'Cash Received') + ' (Offline)', date: paymentData.created_at })
-                setPaymentAmount('')
-                setPaymentNote('')
-                setShowPaymentModal(false)
-                setCustomer({ ...customer, outstanding_balance: newBal })
+                const newBal = Math.max(0, (customer.outstanding_balance || 0) + saleAmt - payAmt)
+                await db.customers.update(parseInt(id), { outstanding_balance: newBal })
+                await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: newBal }, timestamp: ts })
+                setCustomer(c => c ? { ...c, outstanding_balance: newBal } : c)
+                if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: ts })
+                resetTxForm()
                 fetchCustomerData()
+                alert('Offline mode: Transaction locally save ho gaya. Online hone par sync hoga! 🔄')
             } else {
                 alert('Error: ' + errMsg)
             }
@@ -300,8 +310,12 @@ function CustomerLedger() {
                     await db.customer_payments.delete(item.id)
                     await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
                 }
-                // Reverse: payment/return was reducing balance, so deleting it adds back
-                if (item.payment_type !== 'refund') {
+                // Reverse balance effect
+                if (item.payment_type === 'refund') {
+                    // no change
+                } else if (item.payment_type === 'debit') {
+                    newBalance = Math.max(0, newBalance - Number(item.amount))
+                } else {
                     newBalance = newBalance + Math.abs(item.amount)
                 }
             }
@@ -367,7 +381,9 @@ function CustomerLedger() {
                         await db.customer_payments.delete(item.id)
                         await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
                     }
-                    if (item.payment_type !== 'refund') newBalance = newBalance + Math.abs(item.amount)
+                    if (item.payment_type === 'refund') { /* no change */ }
+                    else if (item.payment_type === 'debit') { newBalance = Math.max(0, newBalance - Number(item.amount)) }
+                    else { newBalance = newBalance + Math.abs(item.amount) }
                 }
             }
             try {
@@ -445,9 +461,9 @@ function CustomerLedger() {
                             </button>
                         )}
                         <button
-                            onClick={() => setShowPaymentModal(true)}
-                            className="w-full sm:w-auto px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-semibold shadow-lg">
-                            💸 Add Payment
+                            onClick={() => setShowTxModal(true)}
+                            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold shadow-lg">
+                            ➕ Add Transaction
                         </button>
                     </div>
                 </div>
@@ -499,9 +515,12 @@ function CustomerLedger() {
                                     </td>
                                     <td className="px-6 py-4 text-gray-500 font-normal">{new Date(item.date).toLocaleDateString('en-PK')}</td>
                                     <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <div className="flex items-center gap-2">
+                                        <div className="flex flex-col gap-0.5">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-medium text-gray-800">{item.note}</span>
+                                                {item.bill_number && (
+                                                    <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">Bill #{item.bill_number}</span>
+                                                )}
                                                 {item.type === 'sale' && (
                                                     <button
                                                         onClick={() => setExpandedSale(expandedSale === item.id ? null : item.id)}
@@ -511,21 +530,31 @@ function CustomerLedger() {
                                                     </button>
                                                 )}
                                             </div>
-                                            {item.type === 'payment' && (
-                                                <button
-                                                    onClick={() => printPaymentVoucher(item.amount, item.note, item.date)}
-                                                    className="text-[10px] text-gray-400 hover:text-green-600 font-medium mt-0.5 transition"
-                                                    title="Print Payment Voucher"
-                                                >🖨️ Print Voucher</button>
-                                            )}
-                                            {item.type === 'return' && <span className="w-fit px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold mt-1">Return</span>}
+                                            {item.details && <span className="text-xs text-gray-500 truncate max-w-xs">{item.details}</span>}
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                {item.payment_mode && (
+                                                    <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
+                                                )}
+                                                {item.transaction_ref && (
+                                                    <span className="text-[10px] text-gray-400">Ref: {item.transaction_ref}</span>
+                                                )}
+                                                {item.type === 'payment' && (
+                                                    <button
+                                                        onClick={() => printPaymentVoucher(item.amount, item.note, item.date)}
+                                                        className="text-[10px] text-gray-400 hover:text-green-600 font-medium transition"
+                                                        title="Print Payment Voucher"
+                                                    >🖨️ Print</button>
+                                                )}
+                                                {item.type === 'return' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold">Return</span>}
+                                                {item.type === 'debit' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] uppercase font-bold">Manual Sale</span>}
+                                            </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-right text-red-600 font-medium font-semibold">
-                                        {item.type === 'sale' ? `+ Rs. ${item.amount.toFixed(0)}` : ''}
+                                    <td className="px-6 py-4 text-right text-red-600 font-semibold">
+                                        {(item.type === 'sale' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toFixed(0)}` : ''}
                                     </td>
-                                    <td className="px-6 py-4 text-right text-green-600 font-medium font-semibold">
-                                        {item.type !== 'sale' ? `- Rs. ${Math.abs(item.amount).toFixed(0)}` : ''}
+                                    <td className="px-6 py-4 text-right text-green-600 font-semibold">
+                                        {(item.type === 'payment' || item.type === 'return') ? `- Rs. ${Math.abs(item.amount).toFixed(0)}` : ''}
                                     </td>
                                     <td className="px-6 py-4 text-right font-bold text-gray-900">
                                         Rs. {item.balance.toFixed(0)}
@@ -586,45 +615,130 @@ function CustomerLedger() {
                 </div>
             )}
 
-            {/* Payment Modal */}
-            {
-                showPaymentModal && (
+            {/* Add Transaction Modal */}
+            {showTxModal && (() => {
+                const prevBalance = ledger.length > 0 ? ledger[0].balance : (customer?.outstanding_balance || 0)
+                const saleAmt = parseFloat(txForm.sale_amount) || 0
+                const payAmt = parseFloat(txForm.payment_amount) || 0
+                const newBalance = prevBalance + saleAmt - payAmt
+                return (
                     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-                            <h2 className="text-xl font-bold text-gray-800 mb-4">Receive Payment</h2>
-                            <form onSubmit={handleAddPayment} className="space-y-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-1">Amount Received (Rs.)</label>
-                                    <input
-                                        type="number"
-                                        autoFocus
-                                        required
-                                        value={paymentAmount}
-                                        onChange={e => setPaymentAmount(e.target.value)}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                                        placeholder="0.00"
-                                    />
+                        <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                            <h2 className="text-xl font-bold text-gray-800 mb-1">➕ Add Transaction</h2>
+                            <p className="text-xs text-gray-400 mb-4">Sale aur payment ek saath ya alag alag darj karein</p>
+                            <form onSubmit={handleAddTransaction} className="space-y-4">
+
+                                {/* Date + Bill # */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Date</label>
+                                        <input type="date" value={txForm.date}
+                                            onChange={e => setTxForm(f => ({ ...f, date: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Bill # (Optional)</label>
+                                        <input type="text" value={txForm.bill_number}
+                                            onChange={e => setTxForm(f => ({ ...f, bill_number: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                            placeholder="e.g. INV-001" />
+                                    </div>
                                 </div>
+
+                                {/* Sale Amount (Debit) */}
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1">Note (Optional)</label>
-                                    <textarea
-                                        value={paymentNote}
-                                        onChange={e => setPaymentNote(e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                                        placeholder="Payment detail..."
-                                        rows="2"
-                                    ></textarea>
+                                    <label className="block font-semibold mb-1 text-sm text-orange-600">🛒 Sale Amount / Debit</label>
+                                    <input type="number" min="0" step="any" value={txForm.sale_amount}
+                                        onChange={e => setTxForm(f => ({ ...f, sale_amount: e.target.value }))}
+                                        className="w-full px-4 py-2.5 border border-orange-200 bg-orange-50 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                                        placeholder="0  — kitna maal becha (Rs.)" />
+                                    <p className="text-xs text-gray-400 mt-0.5">Customer ko jo maal diya uski value</p>
                                 </div>
-                                <div className="flex gap-3 pt-2">
-                                    <button
-                                        type="submit"
-                                        disabled={saving}
-                                        className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition disabled:opacity-50">
-                                        {saving ? 'Processing...' : 'Confirm Payment'}
+
+                                {/* Payment Received (Credit) */}
+                                <div>
+                                    <label className="block font-semibold mb-1 text-sm text-green-600">💵 Payment Received / Credit</label>
+                                    <input type="number" min="0" step="any" value={txForm.payment_amount}
+                                        onChange={e => setTxForm(f => ({ ...f, payment_amount: e.target.value }))}
+                                        className="w-full px-4 py-2.5 border border-green-200 bg-green-50 rounded-lg focus:ring-2 focus:ring-green-400 outline-none text-sm"
+                                        placeholder="0  — kitni payment ayi (Rs.)" />
+                                    <p className="text-xs text-gray-400 mt-0.5">Customer sy jo payment mili</p>
+                                </div>
+
+                                {/* Balance Preview */}
+                                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wide mb-2">Balance Calculation</p>
+                                    <div className="flex flex-col gap-1 text-sm">
+                                        <div className="flex justify-between text-gray-600">
+                                            <span>Previous Balance</span>
+                                            <span className="font-semibold">Rs. {Number(prevBalance).toLocaleString()}</span>
+                                        </div>
+                                        {saleAmt > 0 && (
+                                            <div className="flex justify-between text-orange-600">
+                                                <span>+ Sale (Debit)</span>
+                                                <span className="font-semibold">Rs. {saleAmt.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        {payAmt > 0 && (
+                                            <div className="flex justify-between text-green-600">
+                                                <span>− Payment (Credit)</span>
+                                                <span className="font-semibold">Rs. {payAmt.toLocaleString()}</span>
+                                            </div>
+                                        )}
+                                        <div className="border-t border-gray-300 mt-1 pt-1 flex justify-between font-bold text-base">
+                                            <span className="text-gray-800">New Balance</span>
+                                            <span className={newBalance > 0 ? 'text-red-600' : 'text-green-700'}>Rs. {newBalance.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Details */}
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Details (Optional)</label>
+                                    <textarea rows="2" value={txForm.details}
+                                        onChange={e => setTxForm(f => ({ ...f, details: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"
+                                        placeholder="Saman ki tafseel ya bill link..." />
+                                </div>
+
+                                {/* Payment Mode + Transaction Ref */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Payment Mode</label>
+                                        <select value={txForm.payment_mode}
+                                            onChange={e => setTxForm(f => ({ ...f, payment_mode: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            <option value="cash">Cash</option>
+                                            <option value="bank">Bank Transfer</option>
+                                            <option value="cheque">Cheque</option>
+                                            <option value="online">Online/JazzCash</option>
+                                            <option value="other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Transaction Ref</label>
+                                        <input type="text" value={txForm.transaction_ref}
+                                            onChange={e => setTxForm(f => ({ ...f, transaction_ref: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                            placeholder="Cheque # / Txn ID" />
+                                    </div>
+                                </div>
+
+                                {/* Note */}
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Note (Optional)</label>
+                                    <textarea rows="2" value={txForm.note}
+                                        onChange={e => setTxForm(f => ({ ...f, note: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"
+                                        placeholder="e.g. Advance payment / Credit sale..." />
+                                </div>
+
+                                <div className="flex gap-3 pt-1">
+                                    <button type="submit" disabled={saving}
+                                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:opacity-50">
+                                        {saving ? 'Saving...' : '✅ Save Transaction'}
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPaymentModal(false)}
+                                    <button type="button" onClick={resetTxForm}
                                         className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition">
                                         Cancel
                                     </button>
@@ -633,7 +747,7 @@ function CustomerLedger() {
                         </div>
                     </div>
                 )
-            }
+            })()}
         </div >
     )
 }
