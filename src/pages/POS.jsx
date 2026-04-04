@@ -1123,8 +1123,8 @@ function POS() {
 
       {/* Save Walk-in as Customer Modal */}
       {showSaveCustomer && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h3 className="font-bold text-gray-800 text-lg mb-1">👤 Customer Save Karein</h3>
             <p className="text-sm text-gray-500 mb-4">Yeh walk-in customer ko apni customer list mein add karein</p>
             <div className="space-y-3">
@@ -1171,8 +1171,8 @@ function POS() {
 
       {/* Brand Discount Modal */}
       {showBrandDiscount && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h3 className="font-bold text-gray-800 mb-2">🏷️ {selectedBrand} — Brand Discount</h3>
 
             {/* Mode Toggle */}
@@ -1257,8 +1257,8 @@ function POS() {
 
       {/* Receipt Modal */}
       {lastReceipt && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <div className="text-center mb-4">
               <div className="text-4xl mb-1">✅</div>
               <h2 className="text-xl font-bold text-gray-800">Sale Complete!</h2>
@@ -1338,8 +1338,8 @@ function POS() {
       )}
       {/* Quotation Search Modal */}
       {showQuotationSearch && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Search Quotation</h2>
             <p className="text-sm text-gray-500 mb-4">Quotation number (e.g. QT-abcd1234) enter karein jo bill par likha hai.</p>
             <div className="space-y-4">
@@ -1371,8 +1371,8 @@ function POS() {
       )}
       {/* Held Carts Modal */}
       {showHeldCarts && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">⏸️ Held Bills</h2>
               <button onClick={() => setShowHeldCarts(false)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
@@ -1409,8 +1409,8 @@ function POS() {
       )}
       {/* Split Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-gray-800 mb-4">🔀 Split Payment</h2>
             <div className="space-y-3 mb-4 max-h-[300px] overflow-y-auto">
               {payments.map((p, idx) => (
@@ -1471,8 +1471,8 @@ function POS() {
       )}
       {/* Quick View Modal */}
       {showQuickView && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <span>🔍 Cart Quick View</span>

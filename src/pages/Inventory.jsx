@@ -833,8 +833,8 @@ function Inventory() {
 
       {/* Adjust Stock Modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">Manual Adjustment</h2>
               <button onClick={() => setSelectedProduct(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
@@ -884,8 +884,8 @@ function Inventory() {
       )}
       {/* Record Return Modal */}
       {returnProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">Record Product Return</h2>
               <button onClick={() => setReturnProduct(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
@@ -947,8 +947,8 @@ function Inventory() {
 
       {/* Bulk Price Update Modal */}
       {showBulkPriceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">Bulk Price Update</h2>
               <button onClick={() => setShowBulkPriceModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
@@ -1027,7 +1027,7 @@ function Inventory() {
 
       {/* History Modal */}
       {historyProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <div>
@@ -1068,8 +1068,8 @@ function Inventory() {
 
       {/* Bulk Price Editor Modal */}
       {showBulkEditor && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-gray-800">Individual Bulk Price Editor</h2>
@@ -1168,8 +1168,8 @@ function Inventory() {
           p.brand === arBrand && (arCategory ? String(p.category_id) === String(arCategory) : true)
         ).length
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-            <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-gray-800">🎯 Adjust Rates</h2>
                 <button onClick={() => setShowAdjustRatesModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>

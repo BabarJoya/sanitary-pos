@@ -573,8 +573,8 @@ function Purchases() {
 
       {/* Quick View Modal */}
       {quickViewProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4" onClick={() => setQuickViewProduct(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setQuickViewProduct(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h3 className="text-lg font-bold text-gray-800">📋 Product Details & Price History</h3>
               <button onClick={() => setQuickViewProduct(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
@@ -654,8 +654,8 @@ function Purchases() {
 
       {/* Held Purchases Modal */}
       {showHeldPurchases && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4" onClick={() => setShowHeldPurchases(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowHeldPurchases(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800">⏸️ Held Purchases</h3>
               <button onClick={() => setShowHeldPurchases(false)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>

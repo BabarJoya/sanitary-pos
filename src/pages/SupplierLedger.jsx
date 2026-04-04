@@ -671,8 +671,8 @@ function SupplierLedger() {
 
             {/* ── Add Transaction Modal ── */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-2 sm:p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
                         <h2 className="text-xl font-bold text-gray-800 mb-1">➕ Add Transaction</h2>
                         <p className="text-xs text-gray-400 mb-4">Purchase aur payment ek saath darj kar saktay hain</p>
 
