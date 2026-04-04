@@ -12,6 +12,12 @@
       "runtimeExecutable": "node.exe",
       "runtimeArgs": ["C:/sanitary-pos/superadmin/node_modules/vite/bin/vite.js", "superadmin", "--port", "5175"],
       "port": 5175
+    },
+    {
+      "name": "PharmaCare POS",
+      "runtimeExecutable": "node.exe",
+      "runtimeArgs": ["C:/pharmacy/node_modules/vite/bin/vite.js", "C:/pharmacy", "--host", "--port", "5177"],
+      "port": 5177
     }
   ]
 }
