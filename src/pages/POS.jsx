@@ -1472,7 +1472,7 @@ function POS() {
       {/* Quick View Modal */}
       {showQuickView && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <span>🔍 Cart Quick View</span>
