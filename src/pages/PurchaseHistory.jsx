@@ -7,6 +7,7 @@ import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
+import { printHTML } from '../utils/printUtils'
 
 function PurchaseHistory() {
     const { user } = useAuth()
@@ -37,10 +38,14 @@ function PurchaseHistory() {
     }, [user?.shop_id])
 
     const fetchShopSettings = async () => {
+        // Load from shop-scoped localStorage first, then refresh from Supabase
+        const sid = user?.shop_id
+        const cached = (sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full')
+        if (cached) { try { setShopSettings(JSON.parse(cached)) } catch (_) {} }
         try {
             if (!navigator.onLine) throw new Error('Offline')
             const { data } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
-            if (data) setShopSettings(data)
+            if (data) setShopSettings(prev => ({ ...prev, ...data }))
         } catch (e) {
             console.log('PurchaseHistory: Using cached settings')
         }
@@ -255,28 +260,30 @@ function PurchaseHistory() {
     }
 
     const printPurchase = (p, items) => {
-        const isThermal = shopSettings.print_size === 'thermal'
+        const sid = user?.shop_id
+        const savedSettings = (() => { try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) { return {} } })()
+        const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || savedSettings.logo_url || shopSettings.logo_url || ''
+        const merged = { ...shopSettings, ...savedSettings, logo_url: freshLogo }
+        const isThermal = merged.print_size !== 'a4'
 
-        const win = window.open('', '_blank')
-        win.document.write(`
+        printHTML(`
       <html><head><title>Purchase Invoice</title>
       <style>
-        body { font-family: ${isThermal ? 'monospace' : "'Segoe UI', sans-serif"}; width: ${isThermal ? '320px' : '794px'}; margin: auto; padding: 20px; font-size: 13px; border: ${isThermal ? 'none' : '1px solid #eee'}; }
+        @page{size:${isThermal ? '80mm auto' : 'A4 portrait'};margin:${isThermal ? '2mm' : '12mm'}}
+        *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+        body { font-family: ${isThermal ? 'monospace' : "'Segoe UI', sans-serif"}; width: ${isThermal ? '302px' : '100%'}; margin: ${isThermal ? '0 auto' : '0'}; padding: ${isThermal ? '10px 8px' : '0'}; font-size: 13px; }
         h2, p.center { text-align: center; margin: 2px 0; }
         hr { border-top: 1px dashed #000; margin: 6px 0; }
         table { width: 100%; border-collapse: collapse; }
         td, th { padding: ${isThermal ? '5px 0' : '10px'}; vertical-align: top; }
         .right { text-align: right; } .bold { font-weight: bold; }
         .logo { display: block; margin: 0 auto 10px; max-width: 100px; }
-        ${!isThermal ? `
-          table { border: 1px solid #ddd; }
-          th, td { border: 1px solid #ddd; }
-        ` : ''}
+        ${!isThermal ? `table { border: 1px solid #ddd; } th, td { border: 1px solid #ddd; }` : ''}
       </style></head><body>
-      ${shopSettings.logo_url ? `<img src="${shopSettings.logo_url}" class="logo" />` : ''}
-      <h2>${shopSettings.name || 'Sanitary POS'}</h2>
-      <p class="center">${shopSettings.address || ''}</p>
-      <p class="center">Phone: ${shopSettings.phone || ''}</p>
+      ${merged.logo_url ? `<img src="${merged.logo_url}" class="logo" />` : ''}
+      <h2>${merged.name || 'Sanitary POS'}</h2>
+      <p class="center">${merged.address || ''}</p>
+      <p class="center">Phone: ${merged.phone || ''}</p>
       <hr/>
       <p>Purchase Invoice #: PR-${String(p.id).slice(-8)}</p>
       <p>Supplier: ${p.suppliers?.name || 'Unknown'}</p>
@@ -311,7 +318,6 @@ function PurchaseHistory() {
       <p class="center" style="font-size: 14px; margin-top: 10px; color: #888;">Computer Generated Purchase Record</p>
       </body></html>
     `)
-        win.document.close(); win.print()
     }
 
     const requestDelete = (ids) => {

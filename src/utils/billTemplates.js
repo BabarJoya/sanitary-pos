@@ -6,13 +6,14 @@
 const safeNum = (v) => Number(v || 0)
 const safeStr = (v, fb = '') => v || fb
 
-// Auto-close print script (handles images loading before print)
+// Print script — works in both window.open popup AND hidden iframe.
+// Note: window.close() is intentionally omitted — iframe doesn't need it.
 const printScript = `<script>
 window.onload = function() {
   var imgs = document.images;
-  if (!imgs.length) { setTimeout(function(){ window.print(); window.close(); }, 400); return; }
+  if (!imgs.length) { setTimeout(function(){ window.print(); }, 500); return; }
   var n = 0;
-  function done() { if (++n >= imgs.length) setTimeout(function(){ window.print(); window.close(); }, 400); }
+  function done() { if (++n >= imgs.length) setTimeout(function(){ window.print(); }, 400); }
   for (var i = 0; i < imgs.length; i++) {
     if (imgs[i].complete) done(); else { imgs[i].onload = done; imgs[i].onerror = done; }
   }
@@ -101,9 +102,9 @@ function template1(r, isQuotation, s) {
   // A4 Simple
   return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
   <style>
-    @page{size:A4 portrait;margin:12mm}
-    *{box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#333;font-size:14px}
+    @page{size:A4 portrait;margin:15mm}
+    *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:0;color:#333;font-size:14px}
     .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:24px}
     .shop-name{font-size:24px;font-weight:800;letter-spacing:-0.5px}
     .inv-box{text-align:right}
@@ -199,24 +200,25 @@ function template2(r, isQuotation, s) {
   // A4 Classic
   return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
   <style>
-    @page{size:A4 portrait;margin:10mm}
-    *{box-sizing:border-box}
+    @page{size:A4 portrait;margin:12mm}
+    *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
     body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:0;color:#333;font-size:14px}
-    .page{padding:40px;max-width:794px;margin:auto}
-    .header-box{background:#1e3a5f;color:#fff;padding:24px 32px;border-radius:0}
-    .shop-name{font-size:26px;font-weight:800}
-    .inv-badge{background:rgba(255,255,255,0.2);padding:12px 20px;border-radius:8px;text-align:right;min-width:180px}
-    .meta{display:flex;justify-content:space-between;padding:16px 0;border-bottom:1px solid #e5e7eb;margin-bottom:16px}
+    .page{padding:24px;max-width:100%;margin:auto}
+    .header-box{background:#1e3a5f;color:#fff;padding:20px 24px}
+    .shop-name{font-size:24px;font-weight:800}
+    .inv-badge{background:rgba(255,255,255,0.2);padding:10px 16px;border-radius:8px;text-align:right;min-width:160px}
+    .meta{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid #e5e7eb;margin-bottom:14px}
     table{width:100%;border-collapse:collapse}
     thead tr{background:#f3f4f6}
-    th{padding:10px 14px;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#555;border-bottom:2px solid #e5e7eb}
-    td{padding:9px 14px;border-bottom:1px solid #f0f0f0}
+    th{padding:9px 12px;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#555;border-bottom:2px solid #e5e7eb}
+    td{padding:8px 12px;border-bottom:1px solid #f0f0f0}
     th:not(:first-child),td:not(:first-child){text-align:right}
     .tot-section{margin-top:8px;display:flex;justify-content:flex-end}
-    .tot-box{width:260px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden}
-    .tot-row{display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #f0f0f0}
-    .tot-row:last-child{border-bottom:none;background:#1e3a5f;color:#fff;font-weight:700;font-size:16px}
-    .footer-area{margin-top:32px;padding-top:12px;border-top:1px dashed #ccc;display:flex;justify-content:space-between;align-items:flex-end}
+    .tot-box{width:240px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden}
+    .tot-row{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #f0f0f0}
+    .tot-row:last-child{border-bottom:none;background:#1e3a5f;color:#fff;font-weight:700;font-size:15px}
+    .footer-area{margin-top:24px;padding-top:10px;border-top:1px dashed #ccc;display:flex;justify-content:space-between;align-items:flex-end}
+    @media print{.page{padding:0}}
   </style></head><body><div class="page">
   <div class="header-box" style="display:flex;justify-content:space-between;align-items:center">
     <div>
@@ -316,64 +318,67 @@ function template3(r, isQuotation, s) {
   // A4 Professional
   return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
   <style>
-    @page{size:A4 portrait;margin:0} *{box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;margin:0;color:#1a1a2e;font-size:14px;background:#fff}
-    .page{padding:0;max-width:794px;margin:auto;min-height:1122px;display:flex;flex-direction:column}
-    .letterhead{background:linear-gradient(135deg,#1e3a5f 0%,#2d6a9f 100%);padding:30px 40px;color:#fff}
-    .letterhead-grid{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center}
-    .shop-name{font-size:28px;font-weight:900;letter-spacing:-0.5px}
-    .inv-number-box{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:14px 20px;text-align:center;min-width:180px}
-    .body-section{padding:28px 40px;flex:1}
-    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;padding:16px 20px;background:#f8fafc;border-radius:10px;border:1px solid #e8edf2}
-    .info-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:4px}
-    .info-value{font-size:14px;font-weight:600;color:#1e293b}
-    table{width:100%;border-collapse:collapse;margin-bottom:24px}
+    @page{size:A4 portrait;margin:0}
+    *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    body{font-family:'Segoe UI',Arial,sans-serif;margin:0;color:#1a1a2e;font-size:13px;background:#fff}
+    .page{padding:0;max-width:794px;margin:auto;display:flex;flex-direction:column}
+    .letterhead{background:linear-gradient(135deg,#1e3a5f 0%,#2d6a9f 100%);padding:24px 32px;color:#fff}
+    .letterhead-row{display:flex;justify-content:space-between;align-items:center;gap:16px}
+    .shop-name{font-size:24px;font-weight:900;letter-spacing:-0.5px}
+    .inv-number-box{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:10px;padding:12px 18px;text-align:center;min-width:160px;flex-shrink:0}
+    .body-section{padding:20px 32px;flex:1}
+    .info-row{display:flex;gap:16px;margin-bottom:18px;padding:14px 18px;background:#f8fafc;border-radius:8px;border:1px solid #e8edf2}
+    .info-cell{flex:1}
+    .info-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:3px}
+    .info-value{font-size:13px;font-weight:600;color:#1e293b}
+    table{width:100%;border-collapse:collapse;margin-bottom:18px}
     thead tr{background:#1e3a5f;color:#fff}
-    th{padding:11px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left}
-    td{padding:10px 14px;border-bottom:1px solid #f1f5f9}
+    th{padding:9px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+    td{padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px}
     tbody tr:nth-child(even){background:#f8fafc}
     tbody tr:last-child td{border-bottom:2px solid #e2e8f0}
     th:not(:first-child),td:not(:first-child){text-align:right}
     .totals-wrap{display:flex;justify-content:flex-end}
-    .totals-card{width:280px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
-    .totals-card-header{background:#f8fafc;padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;border-bottom:1px solid #e2e8f0}
-    .tot-r{display:flex;justify-content:space-between;padding:8px 16px;border-bottom:1px solid #f1f5f9}
-    .grand-r{display:flex;justify-content:space-between;padding:12px 16px;background:#1e3a5f;color:#fff;font-weight:800;font-size:17px}
-    .footer-section{background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 40px;display:flex;justify-content:space-between;align-items:flex-end}
-    .sig-line{border-top:1px solid #333;width:160px;padding-top:6px;font-size:11px;color:#666;text-align:center}
+    .totals-card{width:260px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+    .totals-card-header{background:#f8fafc;padding:8px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;border-bottom:1px solid #e2e8f0}
+    .tot-r{display:flex;justify-content:space-between;padding:7px 14px;border-bottom:1px solid #f1f5f9;font-size:13px}
+    .grand-r{display:flex;justify-content:space-between;padding:10px 14px;background:#1e3a5f;color:#fff;font-weight:800;font-size:15px}
+    .footer-section{margin-top:20px;border-top:1px solid #e2e8f0;padding:16px 32px;display:flex;justify-content:space-between;align-items:flex-end;background:#f8fafc}
+    .sig-line{border-top:1px solid #333;width:140px;padding-top:5px;font-size:11px;color:#666;text-align:center}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body><div class="page">
   <div class="letterhead">
-    <div class="letterhead-grid">
+    <div class="letterhead-row">
       <div>
-        ${s.logo_url ? `<img src="${s.logo_url}" style="max-height:60px;margin-bottom:10px;display:block;filter:brightness(10)">` : ''}
+        ${s.logo_url ? `<img src="${s.logo_url}" style="max-height:55px;margin-bottom:8px;display:block;filter:brightness(10)">` : ''}
         <div class="shop-name">${safeStr(s.name, 'Shop')}</div>
-        ${s.address ? `<div style="font-size:13px;opacity:0.8;margin-top:6px">📍 ${s.address}</div>` : ''}
-        ${s.phone ? `<div style="font-size:13px;opacity:0.8">☎ ${s.phone}</div>` : ''}
+        ${s.address ? `<div style="font-size:12px;opacity:0.8;margin-top:5px">📍 ${s.address}</div>` : ''}
+        ${s.phone ? `<div style="font-size:12px;opacity:0.8">☎ ${s.phone}</div>` : ''}
       </div>
       <div class="inv-number-box">
-        <div style="font-size:11px;opacity:0.8;letter-spacing:1px;margin-bottom:6px">${isQuotation ? 'QUOTATION' : 'TAX INVOICE'}</div>
-        <div style="font-size:24px;font-weight:900"># ${invoiceNo}</div>
-        <div style="font-size:12px;opacity:0.75;margin-top:6px">${dateStr}</div>
+        <div style="font-size:10px;opacity:0.8;letter-spacing:1px;margin-bottom:5px">${isQuotation ? 'QUOTATION' : 'TAX INVOICE'}</div>
+        <div style="font-size:20px;font-weight:900"># ${invoiceNo}</div>
+        <div style="font-size:11px;opacity:0.75;margin-top:5px">${dateStr}</div>
       </div>
     </div>
   </div>
   <div class="body-section">
-    <div class="info-grid">
-      <div>
+    <div class="info-row">
+      <div class="info-cell">
         <div class="info-label">Bill To</div>
         <div class="info-value">${customerLine(r)}</div>
       </div>
-      <div>
+      <div class="info-cell">
         <div class="info-label">Cashier</div>
         <div class="info-value">${safeStr(r.sale?.created_by, 'Staff')}</div>
       </div>
       ${!isQuotation && r.sale?.payment_type ? `
-      <div>
-        <div class="info-label">Payment Method</div>
+      <div class="info-cell">
+        <div class="info-label">Payment</div>
         <div class="info-value">${String(r.sale.payment_type).toUpperCase()}</div>
       </div>` : ''}
       ${!isQuotation && remaining > 0 ? `
-      <div>
+      <div class="info-cell">
         <div class="info-label">Balance Due</div>
         <div class="info-value" style="color:#dc2626">Rs. ${remaining.toFixed(0)}</div>
       </div>` : ''}
@@ -385,7 +390,7 @@ function template3(r, isQuotation, s) {
           const price = safeNum(i.custom_price ?? i.unit_price ?? i.price)
           const qty   = safeNum(i.qty ?? i.quantity)
           return `<tr>
-            <td style="color:#94a3b8;font-size:12px">${idx + 1}</td>
+            <td style="color:#94a3b8;font-size:11px">${idx + 1}</td>
             <td>${safeStr(i.name)}${i.brand ? `<br><span style="font-size:11px;color:#94a3b8">${i.brand}</span>` : ''}</td>
             <td style="text-align:right">${qty}</td>
             <td style="text-align:right">Rs. ${price.toFixed(0)}</td>
@@ -407,8 +412,8 @@ function template3(r, isQuotation, s) {
   </div>
   <div class="footer-section">
     <div>
-      <div style="font-weight:700;color:#1e3a5f;font-size:15px">${footer}</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:4px">★ Thank you for your business ★</div>
+      <div style="font-weight:700;color:#1e3a5f;font-size:14px">${footer}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">★ Thank you for your business ★</div>
     </div>
     <div style="text-align:center">
       <div class="sig-line">Authorized Signature</div>

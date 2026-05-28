@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { db } from '../services/db'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import { printHTML } from '../utils/printUtils'
 
 function Reports() {
   const { user } = useAuth()
@@ -215,22 +216,23 @@ function Reports() {
   }
 
   const handlePrintSummary = () => {
-    const win = window.open('', '_blank')
-    win.document.write(`
+    printHTML(`
       <html><head><title>Business Report - ${range.toUpperCase()}</title>
       <style>
-        body { font-family: sans-serif; padding: 30px; line-height: 1.6; }
+        @page{size:A4 portrait;margin:12mm}
+        *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+        body { font-family: sans-serif; padding: 0; line-height: 1.6; }
         .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        .stat-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
-        .stat-item { border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
-        .stat-label { color: #666; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-        .stat-value { font-size: 20px; font-weight: bold; margin-top: 5px; }
+        .stat-grid { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+        .stat-item { border: 1px solid #ddd; padding: 12px; border-radius: 8px; flex: 1; min-width: 45%; }
+        .stat-label { color: #666; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+        .stat-value { font-size: 18px; font-weight: bold; margin-top: 5px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border-bottom: 1px solid #eee; padding: 12px; text-align: left; }
+        th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
         th { color: #666; font-size: 12px; }
-        .total-box { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-top: 20px; border: 1px solid #eee; }
-        .total-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
-        .final-profit { border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 22px; font-weight: bold; }
+        .total-box { background: #f9f9f9; padding: 16px; border-radius: 8px; margin-top: 20px; border: 1px solid #eee; }
+        .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .final-profit { border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 20px; font-weight: bold; display: flex; justify-content: space-between; }
       </style></head><body>
       <div class="header">
         <h1>Business Performance Report</h1>
@@ -271,8 +273,6 @@ function Reports() {
       </table>
       </body></html>
     `)
-    win.document.close()
-    win.print()
   }
 
   if (!hasFeature('reports')) return <UpgradeWall feature="reports" />

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
+import { printHTML } from '../utils/printUtils'
 import { db } from '../services/db'
 import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 
@@ -189,12 +190,16 @@ function CustomerLedger() {
     }
 
     const printPaymentVoucher = (amount, note, date) => {
-        const shopName = JSON.parse(localStorage.getItem('plan_limits') || '{}').shop_name || 'Our Shop'
-        const cachedShopName = localStorage.getItem('shop_name') || shopName
-        const win = window.open('', '_blank')
-        win.document.write(`<html><head><title>Payment Receipt</title>
+        const sid = user?.shop_id
+        const cachedShopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null)
+          || localStorage.getItem('shop_name')
+          || JSON.parse(localStorage.getItem('plan_limits') || '{}').shop_name
+          || 'Our Shop'
+        printHTML(`<html><head><title>Payment Receipt</title>
         <style>
-          body{font-family:monospace;width:320px;margin:auto;padding:20px;font-size:13px;}
+          @page{size:80mm auto;margin:2mm}
+          *{box-sizing:border-box}
+          body{font-family:monospace;width:302px;margin:0 auto;padding:12px 8px;font-size:13px;}
           h2,p.c{text-align:center;margin:3px 0;}
           hr{border-top:1px dashed #000;margin:8px 0;}
           .row{display:flex;justify-content:space-between;padding:3px 0;}
@@ -214,7 +219,6 @@ function CustomerLedger() {
         <hr/>
         <p class="c" style="font-size:11px;color:#888;">Thank you! Payment received in full.</p>
         </body></html>`)
-        win.document.close(); win.print()
     }
 
     // ── Excel Export ──────────────────────────────────────────────────────────

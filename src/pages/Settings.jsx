@@ -6,6 +6,7 @@ import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
 import { buildSalesReportHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
+import { printHTML } from '../utils/printUtils'
 
 function Settings() {
   const { user } = useAuth()
@@ -13,17 +14,18 @@ function Settings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(() => {
-    const saved = localStorage.getItem('shop_settings_full')
+    const sid = user?.shop_id
+    const saved = sid ? localStorage.getItem(`shop_settings_${sid}`) : localStorage.getItem('shop_settings_full')
     if (saved) {
       try {
         return JSON.parse(saved)
       } catch (e) { /* fallback */ }
     }
     return {
-      name: localStorage.getItem('shop_name') || 'Sanitary POS',
+      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Sanitary POS',
       phone: '',
       address: '',
-      logo_url: localStorage.getItem('shop_logo') || '',
+      logo_url: (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || '',
       invoice_footer: 'شکریہ! دوبارہ تشریف لائیں',
       quotation_footer: 'یہ صرف قیمت نامہ ہے',
       print_size: 'thermal',
@@ -55,7 +57,10 @@ function Settings() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [planInfo, setPlanInfo] = useState(null)
-  const [printTemplate, setPrintTemplate] = useState(() => localStorage.getItem('print_template') || '2')
+  const [printTemplate, setPrintTemplate] = useState(() => {
+    const sid = user?.shop_id
+    return (sid ? localStorage.getItem(`print_template_${sid}`) : null) || localStorage.getItem('print_template') || '2'
+  })
   const [reportPeriod, setReportPeriod] = useState('today')
   const [reportLoading, setReportLoading] = useState(false)
 
@@ -99,7 +104,8 @@ function Settings() {
     // Read the full saved settings from localStorage — this is what the user last saved.
     // We only use Supabase data to fill in values that localStorage doesn't have yet.
     let saved = {}
-    try { saved = JSON.parse(localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
+    const sid = user?.shop_id
+    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
 
     setForm(prev => ({
       name:                 saved.name                 || data.name    || prev.name    || 'Sanitary POS',
@@ -126,22 +132,23 @@ function Settings() {
   }
 
   const fetchPlanInfo = async () => {
+    const sid = user?.shop_id
     // Try localStorage first for instant info
-    const cached = localStorage.getItem('plan_limits')
+    const cached = sid ? localStorage.getItem(`plan_limits_${sid}`) : localStorage.getItem('plan_limits')
     if (cached) {
       try {
         setPlanInfo(JSON.parse(cached))
       } catch (e) { /* ignore */ }
     }
 
-    if (!navigator.onLine || !user?.shop_id) return
+    if (!navigator.onLine || !sid) return
     try {
-      const { data, error } = await supabase.rpc('get_shop_config', { p_shop_id: user.shop_id })
+      const { data, error } = await supabase.rpc('get_shop_config', { p_shop_id: sid })
       if (!error && data) {
         setPlanInfo(data)
-        localStorage.setItem('plan_limits', JSON.stringify(data))
+        localStorage.setItem(`plan_limits_${sid}`, JSON.stringify(data))
         if (data.features) {
-          localStorage.setItem('plan_features', JSON.stringify(data.features))
+          localStorage.setItem(`plan_features_${sid}`, JSON.stringify(data.features))
         }
       }
     } catch (e) {
@@ -160,8 +167,8 @@ function Settings() {
 
     // Save everything to localStorage immediately — this is the source of truth
     // for print preferences, WA templates, footers, print size etc.
-    localStorage.setItem('shop_settings_full', JSON.stringify(fullSettings))
-    localStorage.setItem('shop_name', form.name || 'Sanitary POS')
+    localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(fullSettings))
+    localStorage.setItem(`shop_name_${sid}`, form.name || 'Sanitary POS')
 
     // Only send columns that are guaranteed to exist in the shops table to Supabase.
     // Extra fields (invoice_footer, print_size, wa_templates etc.) may not be DB columns
@@ -246,15 +253,13 @@ function Settings() {
 
       // 1. Update dedicated logo state immediately — this is the single source of truth
       setLogoUrl(compressed)
-      // Always write to BOTH keys so every code path that reads the logo finds it
       localStorage.setItem(`shop_logo_${sid}`, compressed)   // shop-specific key
-      localStorage.setItem('shop_logo', compressed)           // legacy key for POS/bill printing
 
       // 2. Keep form.logo_url in sync so bill printing works
       // Use functional updater but write localStorage AFTER setForm to avoid race
       const updatedForm = { ...form, logo_url: compressed }
       setForm(updatedForm)
-      localStorage.setItem('shop_settings_full', JSON.stringify(updatedForm))
+      localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(updatedForm))
 
       // 3. Save to Dexie
       try { await db.shops.update(sid, { logo_url: compressed }) } catch (_) { /* ignore */ }
@@ -322,9 +327,7 @@ function Settings() {
       }
 
       const shopSettings = { ...form, print_template: printTemplate }
-      const win = window.open('', '_blank')
-      win.document.write(buildSalesReportHTML(sales, saleItems, reportPeriod, shopSettings))
-      win.document.close()
+      printHTML(buildSalesReportHTML(sales, saleItems, reportPeriod, shopSettings))
     } catch (err) {
       alert('Report failed: ' + err.message)
     } finally {
@@ -391,10 +394,9 @@ function Settings() {
                         const sid = Number(user.shop_id)
                         setLogoUrl('')
                         localStorage.removeItem(`shop_logo_${sid}`)
-                        localStorage.removeItem('shop_logo')
                         const updatedForm = { ...form, logo_url: '' }
                         setForm(updatedForm)
-                        localStorage.setItem('shop_settings_full', JSON.stringify(updatedForm))
+                        localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(updatedForm))
                         window.dispatchEvent(new Event('storage'))
                         try { await db.shops.update(sid, { logo_url: '' }) } catch (_) { /* ignore */ }
                         if (navigator.onLine) {
@@ -845,7 +847,11 @@ function Settings() {
             <button
               key={t.id}
               type="button"
-              onClick={() => { setPrintTemplate(t.id); localStorage.setItem('print_template', t.id) }}
+              onClick={() => {
+                const sid = user?.shop_id
+                setPrintTemplate(t.id)
+                localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', t.id)
+              }}
               className={`text-left p-4 rounded-xl border-2 transition ${printTemplate === t.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
             >
               <div className="text-2xl mb-2">{t.icon}</div>

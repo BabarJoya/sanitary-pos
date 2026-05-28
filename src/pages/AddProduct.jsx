@@ -188,7 +188,8 @@ function AddProduct() {
 
     // Phase 4: Enforce Product Limits
     try {
-      const limits = JSON.parse(localStorage.getItem('plan_limits') || '{}')
+      const sid = user?.shop_id
+      const limits = JSON.parse((sid ? localStorage.getItem(`plan_limits_${sid}`) : null) || localStorage.getItem('plan_limits') || '{}')
       const currentCount = await db.products.where('shop_id').equals(user.shop_id).count()
 
       if (limits.product_limit && currentCount >= limits.product_limit) {

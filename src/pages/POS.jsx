@@ -7,6 +7,7 @@ import { recordAuditLog } from '../services/auditService'
 import { buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
+import { printHTML } from '../utils/printUtils'
 
 function POS() {
   const { user } = useAuth()
@@ -38,21 +39,22 @@ function POS() {
   const [showQuotationSearch, setShowQuotationSearch] = useState(false)
   const [quotationIdInput, setQuotationIdInput] = useState('')
   const [form, setForm] = useState(() => {
-    const saved = localStorage.getItem('shop_settings_full')
+    const sid = user?.shop_id
+    const saved = sid ? localStorage.getItem(`shop_settings_${sid}`) : localStorage.getItem('shop_settings_full')
     if (saved) {
       try {
         return JSON.parse(saved)
       } catch (e) { /* fallback */ }
     }
     return {
-      name: localStorage.getItem('shop_name') || 'Sanitary POS',
+      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Sanitary POS',
       phone: '',
       address: '',
       invoice_footer: 'شکریہ! دوبارہ تشریف لائیں',
       quotation_footer: 'یہ صرف قیمت نامہ ہے',
       print_size: 'thermal',
       print_mode: 'manual',
-      logo_url: localStorage.getItem('shop_logo') || '',
+      logo_url: (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || '',
       wa_reminder_template: 'Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!',
       wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
     }
@@ -670,12 +672,9 @@ function POS() {
 
     // Auto print for quotation
     if (saleType === 'quotation') {
-      const win = window.open('', '_blank')
-      const receiptHTML = buildReceiptHTML({
+      printHTML(buildReceiptHTML({
         sale: finalSale, items: cart, customer, subtotal, totalDiscount, total, paymentType
-      }, true)
-      win.document.write(receiptHTML)
-      win.document.close()
+      }, true))
     }
 
     // Audit Log
@@ -758,13 +757,12 @@ function POS() {
 
   const buildReceiptHTML = (r, isQuotation = false) => {
     // Always read shop settings fresh from localStorage at print time.
-    // This ensures name/phone/address/logo updated in Settings show immediately
-    // without the user needing to refresh the POS page.
+    // Uses shop_id-scoped keys for full multitenancy.
+    const sid = user?.shop_id
     let saved = {}
-    try { saved = JSON.parse(localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
+    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
 
-    const freshLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`)
-      || localStorage.getItem('shop_logo')
+    const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null)
       || saved.logo_url || form.logo_url || ''
 
     const shopSettings = {
@@ -776,16 +774,14 @@ function POS() {
       quotation_footer: saved.quotation_footer || form.quotation_footer,
       print_size:       saved.print_size       || form.print_size       || 'thermal',
       print_mode:       saved.print_mode       || form.print_mode       || 'manual',
-      print_template:   localStorage.getItem('print_template')          || '2',
+      print_template:   (sid ? localStorage.getItem(`print_template_${sid}`) : null) || localStorage.getItem('print_template') || '2',
       logo_url:         freshLogo,
     }
     return buildBillHTML(r, isQuotation, shopSettings)
   }
 
   const printReceipt = () => {
-    const win = window.open('', '_blank')
-    win.document.write(buildReceiptHTML(lastReceipt, false))
-    win.document.close()
+    printHTML(buildReceiptHTML(lastReceipt, false))
   }
 
   const printQuotation = () => {
@@ -794,9 +790,7 @@ function POS() {
     const disc = parseFloat(discount) || 0
     const tot = Math.max(0, sub - disc)
     const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
-    const win = window.open('', '_blank')
-    win.document.write(buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true))
-    win.document.close()
+    printHTML(buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true))
   }
 
   const waQuotation = async (e) => {

@@ -10,10 +10,14 @@ function Layout({ children }) {
   const location = useLocation()
 
   const [lowStock, setLowStock] = useState([])
-  const [shopName, setShopName] = useState(localStorage.getItem('shop_name') || 'EDGEX POS')
-  const [shopLogo, setShopLogo] = useState(
-    localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
-  )
+  const [shopName, setShopName] = useState(() => {
+    const sid = user?.shop_id
+    return (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'EDGEX POS'
+  })
+  const [shopLogo, setShopLogo] = useState(() => {
+    const sid = user?.shop_id
+    return (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || ''
+  })
   const [announcements, setAnnouncements] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
@@ -40,26 +44,26 @@ function Layout({ children }) {
 
   const fetchShopName = async () => {
     if (!user?.shop_id) return
+    const sid = user.shop_id
     try {
-      const { data } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
+      const { data } = await supabase.from('shops').select('*').eq('id', sid).maybeSingle()
       if (data?.name) {
         setShopName(data.name)
-        localStorage.setItem('shop_name', data.name)
+        localStorage.setItem(`shop_name_${sid}`, data.name)
       }
       // For logo: always prefer the locally-saved version (set immediately on upload)
       // Only fall back to Supabase value if we have nothing locally
-      const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+      const localLogo = localStorage.getItem(`shop_logo_${sid}`) || ''
       if (localLogo) {
         setShopLogo(localLogo)
       } else if (data?.logo_url) {
         setShopLogo(data.logo_url)
-        localStorage.setItem('shop_logo', data.logo_url)
-        if (user?.shop_id) localStorage.setItem(`shop_logo_${user.shop_id}`, data.logo_url)
+        localStorage.setItem(`shop_logo_${sid}`, data.logo_url)
       }
     } catch (e) {
-      const cachedName = localStorage.getItem('shop_name')
+      const cachedName = localStorage.getItem(`shop_name_${sid}`) || localStorage.getItem('shop_name')
       if (cachedName) setShopName(cachedName)
-      const cachedLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+      const cachedLogo = localStorage.getItem(`shop_logo_${sid}`) || localStorage.getItem('shop_logo') || ''
       if (cachedLogo) setShopLogo(cachedLogo)
     }
   }
@@ -67,8 +71,9 @@ function Layout({ children }) {
   useEffect(() => {
     // Re-read logo + shop name whenever Settings saves them to localStorage
     const handleStorage = () => {
-      const freshLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
-      const freshName = localStorage.getItem('shop_name') || ''
+      const sid = user?.shop_id
+      const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || ''
+      const freshName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || ''
       if (freshLogo) setShopLogo(freshLogo)
       if (freshName) setShopName(freshName)
     }

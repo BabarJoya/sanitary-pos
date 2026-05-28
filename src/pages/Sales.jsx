@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
+import { printHTML } from '../utils/printUtils'
 
 function Sales() {
   const { user } = useAuth()
@@ -37,10 +38,16 @@ function Sales() {
   }, [user?.shop_id])
 
   const fetchShopSettings = async () => {
+    // Read from shop-scoped localStorage first for instant load
+    const sid = user?.shop_id
+    const cached = (sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full')
+    if (cached) {
+      try { setShopSettings(JSON.parse(cached)) } catch (_) {}
+    }
     try {
       if (!navigator.onLine) throw new Error('Offline')
       const { data } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
-      if (data) setShopSettings(data)
+      if (data) setShopSettings(prev => ({ ...prev, ...data }))
     } catch (e) {
       console.log('Sales: Using cached shop settings')
     }
@@ -260,14 +267,22 @@ function Sales() {
   }
 
   const printInvoice = (sale, items) => {
-    const isThermal = shopSettings.print_size === 'thermal'
-    const footer = sale.sale_type === 'quotation' ? shopSettings.quotation_footer : shopSettings.invoice_footer
+    const sid = user?.shop_id
+    const savedSettings = (() => {
+      try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) { return {} }
+    })()
+    const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || savedSettings.logo_url || shopSettings.logo_url || ''
+    const mergedSettings = { ...shopSettings, ...savedSettings, logo_url: freshLogo }
 
-    const win = window.open('', '_blank')
-    win.document.write(`
+    const isThermal = mergedSettings.print_size !== 'a4'
+    const footer = sale.sale_type === 'quotation' ? mergedSettings.quotation_footer : mergedSettings.invoice_footer
+
+    printHTML(`
       <html><head><title>Invoice</title>
       <style>
-        body { font-family: monospace; width: ${isThermal ? '320px' : '794px'}; margin: auto; padding: 20px; font-size: 13px; border: ${isThermal ? 'none' : '1px solid #eee'}; }
+        @page{size:${isThermal ? '80mm auto' : 'A4 portrait'};margin:${isThermal ? '2mm' : '12mm'}}
+        *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+        body { font-family: ${isThermal ? 'monospace' : "'Segoe UI',Arial,sans-serif"}; width: ${isThermal ? '302px' : '100%'}; margin: ${isThermal ? '0 auto' : '0'}; padding: ${isThermal ? '10px 8px' : '0'}; font-size: 13px; }
         h2, p.center { text-align: center; margin: 2px 0; }
         hr { border-top: 1px dashed #000; margin: 6px 0; }
         table { width: 100%; border-collapse: collapse; } 
@@ -275,15 +290,15 @@ function Sales() {
         .right { text-align: right; } .bold { font-weight: bold; }
         .logo { display: block; margin: 0 auto 10px; max-width: 100px; }
         ${!isThermal ? `
-          body { font-family: 'Segoe UI', sans-serif; }
+          body { font-family: 'Segoe UI', sans-serif; padding: 24px; }
           table { border: 1px solid #ddd; }
           th, td { border: 1px solid #ddd; padding: 10px; }
         ` : ''}
       </style></head><body>
-      ${shopSettings.logo_url ? `<img src="${shopSettings.logo_url}" class="logo" />` : ''}
-      <h2>${shopSettings.name || 'Sanitary POS'}</h2>
-      <p class="center">${shopSettings.address || ''}</p>
-      <p class="center">Phone: ${shopSettings.phone || ''}</p>
+      ${mergedSettings.logo_url ? `<img src="${mergedSettings.logo_url}" class="logo" />` : ''}
+      <h2>${mergedSettings.name || 'Sanitary POS'}</h2>
+      <p class="center">${mergedSettings.address || ''}</p>
+      <p class="center">Phone: ${mergedSettings.phone || ''}</p>
       <hr/>
       <p>${sale.sale_type === 'quotation' ? 'Quotation' : 'Invoice'} #: ${sale.sale_type === 'quotation' ? 'QT-' : ''}${String(sale.id).slice(-8)}</p>
       <p>Date: ${new Date(sale.created_at).toLocaleString('en-PK')}</p>
@@ -332,7 +347,6 @@ function Sales() {
       <p class="center" style="font-size: 16px; font-weight: bold; margin-top: 10px;">${footer || 'شکریہ! دوبارہ تشریف لائیں'}</p>
       </body></html>
     `)
-    win.document.close(); win.print()
   }
 
   const filtered = sales.filter(s => {

@@ -105,14 +105,14 @@ function Login() {
       }
 
       // Store plan limits for client-side enforcement
-      localStorage.setItem('plan_limits', JSON.stringify({
+      localStorage.setItem(`plan_limits_${userData.shop_id}`, JSON.stringify({
         product_limit: shopConfig?.product_limit || 100,
         user_limit: shopConfig?.user_limit || 3,
         plan_name: shopConfig?.plan_name || 'Trial',
         status: shopConfig?.status || 'active'
       }))
       // Store feature flags for feature gating
-      localStorage.setItem('plan_features', JSON.stringify(shopConfig?.features || {}))
+      localStorage.setItem(`plan_features_${userData.userData?.shop_id || userData.shop_id}`, JSON.stringify(shopConfig?.features || {}))
 
       // Save user to IndexedDB for offline access
       try {

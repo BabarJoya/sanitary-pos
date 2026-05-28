@@ -50,22 +50,25 @@ export function AuthProvider({ children }) {
 
     setUser(impersonatedUser)
     localStorage.setItem('user', JSON.stringify(impersonatedUser))
-    localStorage.setItem('shop_name', shopData.name)
+    localStorage.setItem(`shop_name_${shopId}`, shopData.name)
     if (shopData.logo_url) {
-      localStorage.setItem('shop_logo', shopData.logo_url)
+      localStorage.setItem(`shop_logo_${shopId}`, shopData.logo_url)
     } else {
-      localStorage.removeItem('shop_logo')
+      localStorage.removeItem(`shop_logo_${shopId}`)
     }
   }
 
   const stopImpersonating = () => {
     if (originalUser) {
+      const currentShopId = user?.shop_id
       setUser(originalUser)
       localStorage.setItem('user', JSON.stringify(originalUser))
       setOriginalUser(null)
       localStorage.removeItem('originalUser')
-      localStorage.removeItem('shop_name')
-      localStorage.removeItem('shop_logo')
+      if (currentShopId) {
+        localStorage.removeItem(`shop_name_${currentShopId}`)
+        localStorage.removeItem(`shop_logo_${currentShopId}`)
+      }
     }
   }
 
@@ -74,8 +77,6 @@ export function AuthProvider({ children }) {
     setOriginalUser(null)
     localStorage.removeItem('user')
     localStorage.removeItem('originalUser')
-    localStorage.removeItem('shop_name')
-    localStorage.removeItem('shop_logo')
     localStorage.removeItem('user_pw_hash')
   }
 

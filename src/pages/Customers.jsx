@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import { printHTML } from '../utils/printUtils'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 
@@ -289,14 +290,15 @@ function Customers() {
       return
     }
 
-    const win = window.open('', '_blank')
-    win.document.write(`
+    printHTML(`
       <html><head><title>Outstanding Balances</title>
       <style>
-        body { font-family: sans-serif; padding: 20px; }
+        @page{size:A4 portrait;margin:12mm}
+        *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+        body { font-family: sans-serif; padding: 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { bg-color: #f4f4f4; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f4f4f4; }
         h1 { text-align: center; margin-bottom: 5px; }
         p.center { text-align: center; color: #666; margin-top: 0; }
         .total-row { font-weight: bold; background: #f9f9f9; }
@@ -331,8 +333,6 @@ function Customers() {
       </table>
       </body></html>
     `)
-    win.document.close()
-    win.print()
   }
 
   return (

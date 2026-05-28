@@ -5,6 +5,7 @@ import { recordAuditLog } from '../services/auditService'
 import { db, addToSyncQueue } from '../services/db'
 import * as XLSX from 'xlsx'
 import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
+import { printHTML } from '../utils/printUtils'
 
 function Inventory() {
   const { user } = useAuth()
@@ -53,20 +54,23 @@ function Inventory() {
   }
 
   const handlePrint = () => {
-    const win = window.open('', '_blank')
-    win.document.write(`
+    const sid = user?.shop_id
+    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Our Shop'
+    printHTML(`
       <html><head><title>Stock Report - ${new Date().toLocaleDateString()}</title>
       <style>
-        body { font-family: sans-serif; padding: 30px; line-height: 1.6; }
+        @page{size:A4 portrait;margin:12mm}
+        *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
         .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #eee; padding: 12px; text-align: left; }
+        th, td { border: 1px solid #eee; padding: 10px; text-align: left; }
         th { background: #f9f9f9; font-size: 12px; text-transform: uppercase; color: #666; }
         .low-stock { color: red; font-weight: bold; }
         .footer { margin-top: 30px; text-align: center; color: #888; font-size: 10px; }
       </style></head><body>
       <div class="header">
-        <h1>Inventory Stock Report</h1>
+        <h1>${shopName} — Inventory Stock Report</h1>
         <p>Date: ${new Date().toLocaleString()}</p>
       </div>
       <table>
@@ -98,8 +102,6 @@ function Inventory() {
       <div class="footer">Computer Generated Stock Report</div>
       </body></html>
     `)
-    win.document.close()
-    win.print()
   }
 
   const handleReorderWhatsApp = async (e) => {
@@ -116,8 +118,9 @@ function Inventory() {
       bySupplier[supName].items.push(p)
     })
 
-    const shopName = localStorage.getItem('shop_name') || 'Our Shop'
-    const shopSettings = JSON.parse(localStorage.getItem('shop_settings_full') || '{}')
+    const sid = user?.shop_id
+    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Our Shop'
+    const shopSettings = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}')
     const reorderTemplate = shopSettings.wa_reorder_template ||
       'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!'
     const supplierNames = Object.keys(bySupplier)

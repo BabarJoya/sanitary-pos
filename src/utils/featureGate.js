@@ -7,9 +7,19 @@
 
 const CORE_FEATURES = ['pos', 'products', 'categories', 'customers', 'sales_history', 'discount']
 
+function getShopId() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.shop_id || null
+  } catch {
+    return null
+  }
+}
+
 export function getFeatures() {
   try {
-    const raw = localStorage.getItem('plan_features')
+    const sid = getShopId()
+    const raw = sid ? localStorage.getItem(`plan_features_${sid}`) : localStorage.getItem('plan_features')
     if (!raw) return null
     return JSON.parse(raw)
   } catch {
@@ -37,7 +47,8 @@ export function getPrintTemplateCount() {
 
 export function getPlanName() {
   try {
-    const limits = JSON.parse(localStorage.getItem('plan_limits') || '{}')
+    const sid = getShopId()
+    const limits = JSON.parse((sid ? localStorage.getItem(`plan_limits_${sid}`) : null) || localStorage.getItem('plan_limits') || '{}')
     return limits.plan_name || 'Trial'
   } catch {
     return 'Trial'

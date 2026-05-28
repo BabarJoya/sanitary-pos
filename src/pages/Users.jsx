@@ -22,7 +22,8 @@ function Users() {
 
   const [limits] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('plan_limits') || '{"user_limit": 2, "plan_name": "TRIAL"}')
+      const sid = user?.shop_id
+      return JSON.parse((sid ? localStorage.getItem(`plan_limits_${sid}`) : null) || localStorage.getItem('plan_limits') || '{"user_limit": 2, "plan_name": "TRIAL"}')
     } catch {
       return { user_limit: 2, plan_name: 'TRIAL' }
     }

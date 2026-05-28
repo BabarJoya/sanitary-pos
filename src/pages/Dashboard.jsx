@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
+import { printHTML } from '../utils/printUtils'
 
 function Dashboard() {
   const { user, logout } = useAuth()
@@ -185,7 +186,8 @@ function Dashboard() {
     const d = eodData
     if (!d) return
     const dateStr = new Date().toLocaleDateString('en-PK')
-    const shopName = localStorage.getItem('shop_name') || 'My Shop'
+    const sid = user?.shop_id
+    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'My Shop'
     const msg =
       `🌙 *End of Day — ${dateStr}*\n*${shopName}*\n\n` +
       `💵 Cash Sales: Rs. ${d.cashSales.toLocaleString()}\n` +
@@ -202,10 +204,11 @@ function Dashboard() {
     const d = eodData
     if (!d) return
     const dateStr = new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    const win = window.open('', '_blank')
-    win.document.write(`<html><head><title>End of Day Report</title>
+    printHTML(`<html><head><title>End of Day Report</title>
       <style>
-        body{font-family:monospace;width:320px;margin:auto;padding:20px;font-size:13px;}
+        @page{size:80mm auto;margin:2mm}
+        *{box-sizing:border-box}
+        body{font-family:monospace;width:302px;margin:0 auto;padding:12px 8px;font-size:13px;}
         h2,p.center{text-align:center;margin:2px 0;}
         hr{border-top:1px dashed #000;margin:8px 0;}
         .row{display:flex;justify-content:space-between;padding:4px 0;}
@@ -219,7 +222,7 @@ function Dashboard() {
       <div class="row"><span>📒 Credit (Udhaar)</span><span class="red bold">Rs. ${d.creditSales.toLocaleString()}</span></div>
       <div class="row bold"><span>Total Sales</span><span>Rs. ${d.totalSales.toLocaleString()}</span></div>
       <hr/>
-      <p class="center bold">EXPENSES & PURCHASES</p>
+      <p class="center bold">EXPENSES &amp; PURCHASES</p>
       <div class="row"><span>💸 Expenses</span><span class="red">Rs. ${d.expenses.toLocaleString()}</span></div>
       <div class="row"><span>📦 Cash Purchases</span><span class="red">Rs. ${d.cashPurchases.toLocaleString()}</span></div>
       <div class="row"><span>📦 Credit Purchases</span><span>Rs. ${d.creditPurchases.toLocaleString()}</span></div>
@@ -229,7 +232,6 @@ function Dashboard() {
       <hr/>
       <p class="center" style="font-size:11px;color:#888;">Generated: ${new Date().toLocaleTimeString('en-PK')}</p>
       </body></html>`)
-    win.document.close(); win.print()
   }
 
   const StatCard = ({ title, value, icon, color, subValue }) => (
