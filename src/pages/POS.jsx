@@ -61,13 +61,44 @@ function POS() {
   })
 
   // Barcode scanner mode
-  const [barcodeMode, setBarcodeMode] = useState(false)
+  const [barcodeMode, setBarcodeMode] = useState(true) // Enabled by default for automatic scanning
   const [barcodeInput, setBarcodeInput] = useState('')
   const barcodeRef = useRef(null)
 
   useEffect(() => {
     if (barcodeMode && barcodeRef.current) barcodeRef.current.focus()
   }, [barcodeMode])
+
+  // Global keydown listener to redirect barcode scans automatically
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+         activeEl.tagName === 'TEXTAREA' ||
+         activeEl.tagName === 'SELECT' ||
+         activeEl.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Ignore modifier keys
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Capture single printable characters to activate/focus barcode input
+      if (e.key.length === 1) {
+        setBarcodeMode(true);
+        setBarcodeInput(prev => prev + e.key);
+        setTimeout(() => {
+          barcodeRef.current?.focus();
+        }, 20);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [barcodeMode]);
 
   const handleBarcodeSubmit = (e) => {
     e.preventDefault()
