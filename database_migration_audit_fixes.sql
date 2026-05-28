@@ -111,7 +111,51 @@ $$;
 
 GRANT EXECUTE ON FUNCTION secure_login(TEXT, TEXT) TO anon, authenticated;
 
--- 4. Apply tightened RLS policies scoped to verified session tokens
+-- 4. Create a robust session token helper function
+-- This handles missing headers, invalid formats, and other database exceptions safely.
+CREATE OR REPLACE FUNCTION current_session_token()
+RETURNS UUID
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER  -- Bypasses RLS to query headers safely
+SET search_path = public
+AS $$
+DECLARE
+    v_headers TEXT;
+    v_token_str TEXT;
+BEGIN
+    v_headers := current_setting('request.headers', true);
+    IF v_headers IS NULL OR v_headers = '' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Extract token string safely from json headers
+    v_token_str := v_headers::jsonb->>'x-session-token';
+    IF v_token_str IS NULL OR v_token_str !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        RETURN NULL;
+    END IF;
+    
+    RETURN v_token_str::uuid;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN NULL;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION current_session_token() TO anon, authenticated, public;
+
+-- Enable RLS on sessions
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+
+-- Define RLS Policy for sessions table itself
+-- This is critical! Without it, subqueries on sessions inside other policies evaluate to 0 rows.
+DROP POLICY IF EXISTS "Sessions Access" ON sessions;
+CREATE POLICY "Sessions Access" ON sessions
+AS PERMISSIVE FOR ALL TO public
+USING (token = current_session_token())
+WITH CHECK (true);
+
+-- Apply tightened RLS policies scoped to verified session tokens
 -- Dynamically loop and update policies for all scoped tables.
 DO $$ 
 DECLARE 
@@ -127,22 +171,14 @@ BEGIN
         EXECUTE format('CREATE POLICY "Tenant Isolation" ON %I AS PERMISSIVE FOR ALL TO public USING (
             EXISTS (
                 SELECT 1 FROM sessions s
-                WHERE s.token = CASE 
-                    WHEN (current_setting(''request.headers'', true)::jsonb->>''x-session-token'') ~ ''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'' 
-                    THEN (current_setting(''request.headers'', true)::jsonb->>''x-session-token'')::uuid
-                    ELSE NULL 
-                END
+                WHERE s.token = current_session_token()
                   AND s.shop_id = %I.shop_id
                   AND s.expires_at > NOW()
             )
         ) WITH CHECK (
             EXISTS (
                 SELECT 1 FROM sessions s
-                WHERE s.token = CASE 
-                    WHEN (current_setting(''request.headers'', true)::jsonb->>''x-session-token'') ~ ''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'' 
-                    THEN (current_setting(''request.headers'', true)::jsonb->>''x-session-token'')::uuid
-                    ELSE NULL 
-                END
+                WHERE s.token = current_session_token()
                   AND s.shop_id = %I.shop_id
                   AND s.expires_at > NOW()
             )
@@ -159,11 +195,7 @@ USING (
         SELECT 1 FROM sales s
         JOIN sessions sess ON sess.shop_id = s.shop_id
         WHERE s.id = sale_id
-          AND sess.token = CASE 
-              WHEN (current_setting('request.headers', true)::jsonb->>'x-session-token') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
-              THEN (current_setting('request.headers', true)::jsonb->>'x-session-token')::uuid
-              ELSE NULL 
-          END
+          AND sess.token = current_session_token()
           AND sess.expires_at > NOW()
     )
 ) WITH CHECK (
@@ -171,11 +203,7 @@ USING (
         SELECT 1 FROM sales s
         JOIN sessions sess ON sess.shop_id = s.shop_id
         WHERE s.id = sale_id
-          AND sess.token = CASE 
-              WHEN (current_setting('request.headers', true)::jsonb->>'x-session-token') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
-              THEN (current_setting('request.headers', true)::jsonb->>'x-session-token')::uuid
-              ELSE NULL 
-          END
+          AND sess.token = current_session_token()
           AND sess.expires_at > NOW()
     )
 );
@@ -188,11 +216,7 @@ USING (
         SELECT 1 FROM purchases p
         JOIN sessions sess ON sess.shop_id = p.shop_id
         WHERE p.id = purchase_id
-          AND sess.token = CASE 
-              WHEN (current_setting('request.headers', true)::jsonb->>'x-session-token') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
-              THEN (current_setting('request.headers', true)::jsonb->>'x-session-token')::uuid
-              ELSE NULL 
-          END
+          AND sess.token = current_session_token()
           AND sess.expires_at > NOW()
     )
 ) WITH CHECK (
@@ -200,27 +224,27 @@ USING (
         SELECT 1 FROM purchases p
         JOIN sessions sess ON sess.shop_id = p.shop_id
         WHERE p.id = purchase_id
-          AND sess.token = CASE 
-              WHEN (current_setting('request.headers', true)::jsonb->>'x-session-token') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
-              THEN (current_setting('request.headers', true)::jsonb->>'x-session-token')::uuid
-              ELSE NULL 
-          END
+          AND sess.token = current_session_token()
           AND sess.expires_at > NOW()
     )
 );
 
--- 6. Tighten shops read policy
+-- 6. Tighten shops access policy
+DROP POLICY IF EXISTS "Shop Self Access" ON shops;
 DROP POLICY IF EXISTS "Shop Self Read" ON shops;
-CREATE POLICY "Shop Self Read" ON shops
-AS PERMISSIVE FOR SELECT TO public
+CREATE POLICY "Shop Self Access" ON shops
+AS PERMISSIVE FOR ALL TO public
 USING (
     EXISTS (
         SELECT 1 FROM sessions s
-        WHERE s.token = CASE 
-            WHEN (current_setting('request.headers', true)::jsonb->>'x-session-token') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
-            THEN (current_setting('request.headers', true)::jsonb->>'x-session-token')::uuid
-            ELSE NULL 
-        END
+        WHERE s.token = current_session_token()
+          AND s.shop_id = id
+          AND s.expires_at > NOW()
+    )
+) WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM sessions s
+        WHERE s.token = current_session_token()
           AND s.shop_id = id
           AND s.expires_at > NOW()
     )

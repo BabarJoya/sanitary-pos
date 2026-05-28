@@ -422,11 +422,202 @@ function template3(r, isQuotation, s, isPurchase = false) {
   </div>${printScript}</body></html>`
 }
 
+
+// ── TEMPLATE 4 — MODERN ──────────────────────────────────────
+function template4(r, isQuotation, s, isPurchase = false) {
+  const isThermal = s.print_size !== 'a4'
+  const footer = isPurchase ? '' : (isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں'))
+  const invoiceNo = isPurchase ? `PR-${String(r.sale?.id ?? Date.now()).slice(-8)}` : `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const dateStr = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK')
+  const remaining = r.sale ? safeNum(r.total) - safeNum(r.sale.paid_amount) : 0
+
+  if (isThermal) {
+    return `<html><head><title>${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Receipt')}</title>
+    <style>
+      @page{size:80mm auto;margin:1.5mm}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:system-ui,-apple-system,sans-serif;width:302px;margin:0 auto;padding:12px 6px;font-size:12px;color:#1e293b;background:#fff;line-height:1.4}
+      p{margin:3px 0}
+      .c{text-align:center} .r{text-align:right} .b{font-weight:700}
+      .line{border-top:1px solid #cbd5e1;margin:8px 0}
+      .header-card{text-align:center;margin-bottom:8px;padding-bottom:4px}
+      .shop-title{font-size:1.4em;font-weight:800;color:#0f172a;letter-spacing:-0.3px}
+      .badge{display:inline-block;padding:2px 8px;background:#f1f5f9;color:#475569;border-radius:4px;font-size:0.85em;font-weight:600;text-transform:uppercase;margin:4px 0}
+      table{width:100%;border-collapse:collapse;margin:4px 0}
+      th{font-size:0.85em;font-weight:600;color:#64748b;border-bottom:1px solid #e2e8f0;padding:4px 0;text-align:left}
+      th:not(:first-child){text-align:right}
+      .total-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin:8px 0}
+      .total-row{display:flex;justify-content:space-between;padding:3px 0;font-size:0.95em}
+      .grand-row{display:flex;justify-content:space-between;padding:5px 0;margin-top:4px;border-top:1px solid #e2e8f0;font-weight:800;font-size:1.15em;color:#0f172a}
+    </style></head><body>
+    <div class="header-card">
+      ${s.logo_url ? `<img src="${s.logo_url}" style="display:block;margin:0 auto 6px;max-height:55px;object-contain:true">` : ''}
+      <p class="shop-title">${safeStr(s.name, 'Shop')}</p>
+      ${s.address ? `<p style="font-size:0.9em;color:#64748b">${s.address}</p>` : ''}
+      ${s.phone ? `<p style="font-size:0.9em;color:#64748b;font-weight:500">📞 ${s.phone}</p>` : ''}
+      <span class="badge">${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Sales Receipt')}</span>
+    </div>
+    <div class="line"></div>
+    <div style="font-size:0.9em;color:#475569;margin-bottom:6px">
+      <p><span style="color:#94a3b8">Invoice:</span> <span class="b" style="color:#0f172a">${invoiceNo}</span></p>
+      <p><span style="color:#94a3b8">Date:</span> ${dateStr}</p>
+      <p><span style="color:#94a3b8">Customer:</span> ${customerLine(r)}</p>
+      ${r.sale?.created_by ? `<p><span style="color:#94a3b8">Cashier:</span> ${r.sale.created_by}</p>` : ''}
+    </div>
+    <div class="line"></div>
+    <table>
+      <thead><tr><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>
+        ${r.items.map(i => {
+          const price = safeNum(i.custom_price ?? i.unit_price ?? i.price)
+          const qty   = safeNum(i.qty ?? i.quantity)
+          const amt   = price * qty
+          const name  = `${safeStr(i.name)}${i.brand ? ` (${i.brand})` : ''}`
+          const skuLine = i.sku ? `<span style="display:block;font-size:0.72em;color:#94a3b8;font-style:italic">${i.sku}</span>` : ''
+          return `<tr>
+            <td style="padding:4px 0;vertical-align:top;max-width:130px;word-break:break-word;font-weight:500">${name}${skuLine}</td>
+            <td style="padding:4px 0;text-align:right;vertical-align:top">${qty}</td>
+            <td style="padding:4px 0;text-align:right;vertical-align:top">${price.toFixed(0)}</td>
+            <td style="padding:4px 0;text-align:right;vertical-align:top;font-weight:700;color:#0f172a">${amt.toFixed(0)}</td>
+          </tr>`
+        }).join('')}
+      </tbody>
+    </table>
+    <div class="line"></div>
+    <div class="total-card">
+      <div class="total-row"><span>Subtotal</span><span>Rs. ${safeNum(r.subtotal ?? r.total).toFixed(0)}</span></div>
+      ${r.totalDiscount > 0 ? `<div class="total-row" style="color:#16a34a"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
+      ${!isQuotation && r.sale?.paid_amount ? `<div class="total-row"><span>Amount Paid</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
+      ${!isQuotation && remaining > 0 ? `<div class="total-row" style="color:#dc2626;font-weight:600"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+      ${!isQuotation && r.change > 0 ? `<div class="total-row" style="color:#2563eb"><span>Change</span><span>Rs. ${safeNum(r.change).toFixed(0)}</span></div>` : ''}
+      <div class="grand-row"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
+    </div>
+    ${paymentLine(r)}
+    <div class="line"></div>
+    <p class="c b" style="font-size:1.1em;color:#0f172a;margin-top:6px">${footer}</p>
+    <p class="c" style="font-size:0.8em;color:#94a3b8;margin-top:4px">★ Powered by EdgeX Digital ★</p>
+    ${printScript}</body></html>`
+  }
+
+  // A4 Modern
+  return `<html><head><title>${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Invoice')}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @page{size:A4 portrait;margin:0}
+    *{box-sizing:border-box;margin:0;padding:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    body{font-family:'Inter',sans-serif;color:#0f172a;background:#f8fafc;padding:30px;font-size:13px;line-height:1.5}
+    .wrapper{max-width:794px;margin:0 auto;background:#fff;border-radius:16px;box-shadow:0 10px 25px -5px rgba(0,0,0,0.05),0 8px 10px -6px rgba(0,0,0,0.05);border:1px solid #f1f5f9;overflow:hidden;display:flex;flex-direction:column;min-height:920px}
+    .top-bar{height:6px;background:linear-gradient(90deg,#0ea5e9 0%,#2563eb 50%,#1e3a5f 100%)}
+    .header-block{padding:32px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #f1f5f9}
+    .logo-container{max-height:60px;margin-bottom:12px;display:block}
+    .shop-title{font-size:24px;font-weight:800;color:#0f172a;letter-spacing:-0.5px}
+    .meta-badge{background:#eff6ff;border:1px solid #dbeafe;color:#2563eb;font-weight:700;padding:4px 10px;border-radius:6px;font-size:0.85em;text-transform:uppercase;display:inline-block;margin-bottom:8px}
+    .invoice-card{text-align:right}
+    .inv-title{font-size:20px;font-weight:800;color:#0f172a;margin-top:4px}
+    .main-body{padding:24px 32px;flex:1}
+    .info-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:24px}
+    .cell-label{font-size:0.75em;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px}
+    .cell-val{font-size:0.95em;font-weight:600;color:#0f172a}
+    table{width:100%;border-collapse:collapse;margin-bottom:24px}
+    thead tr{background:#0f172a}
+    th{padding:10px 14px;color:#fff;font-size:0.85em;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+    th:first-child{border-top-left-radius:8px;border-bottom-left-radius:8px}
+    th:last-child{border-top-right-radius:8px;border-bottom-right-radius:8px}
+    td{padding:10px 14px;border-bottom:1px solid #f1f5f9}
+    tbody tr:hover{background:#fafafa}
+    tbody tr:last-child td{border-bottom:none}
+    th:not(:nth-child(2)),td:not(:nth-child(2)){text-align:right}
+    th:nth-child(2),td:nth-child(2){text-align:left}
+    .summary-section{display:flex;justify-content:flex-end}
+    .summary-card{width:280px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.02)}
+    .summary-row{display:flex;justify-content:space-between;padding:8px 16px;border-bottom:1px solid #f1f5f9;font-size:0.95em}
+    .summary-grand{display:flex;justify-content:space-between;padding:12px 16px;background:#0f172a;color:#fff;font-weight:800;font-size:1.15em}
+    .footer-block{padding:24px 32px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:flex-end}
+    .stamp-text{font-size:11px;color:#94a3b8;margin-top:4px}
+    .signature-box{text-align:center}
+    .sig-line{border-top:1px solid #cbd5e1;width:150px;margin:0 auto;padding-top:6px;font-size:0.8em;color:#64748b;font-weight:500}
+    @media print{body{padding:0} .wrapper{border-radius:0;box-shadow:none;border:none;min-height:auto}}
+  </style></head><body><div class="wrapper">
+    <div class="top-bar"></div>
+    <div class="header-block">
+      <div>
+        ${s.logo_url ? `<img src="${s.logo_url}" class="logo-container">` : ''}
+        <div class="shop-title">${safeStr(s.name, 'Shop')}</div>
+        ${s.address ? `<div style="color:#64748b;font-size:0.95em;margin-top:6px">📍 ${s.address}</div>` : ''}
+        ${s.phone ? `<div style="color:#64748b;font-size:0.95em">📞 ${s.phone}</div>` : ''}
+      </div>
+      <div class="invoice-card">
+        <span class="meta-badge">${isPurchase ? 'Purchase' : (isQuotation ? 'Quotation' : 'Tax Invoice')}</span>
+        <div class="inv-title"># ${invoiceNo}</div>
+        <div style="color:#64748b;margin-top:6px;font-size:0.95em">${dateStr}</div>
+      </div>
+    </div>
+    <div class="main-body">
+      <div class="info-grid">
+        <div class="cell">
+          <div class="cell-label">${isPurchase ? 'Supplier' : 'Customer'}</div>
+          <div class="cell-val">${customerLine(r)}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Cashier</div>
+          <div class="cell-val">${safeStr(r.sale?.created_by, 'Staff')}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Payment Mode</div>
+          <div class="cell-val">${!isQuotation && r.sale?.payment_type ? String(r.sale.payment_type).toUpperCase() : 'N/A'}</div>
+        </div>
+        <div class="cell">
+          <div class="cell-label">Status</div>
+          <div class="cell-val" style="color:${isQuotation ? '#f59e0b' : (remaining > 0 ? '#dc2626' : '#16a34a')}">
+            ${isQuotation ? 'QUOTATION' : (remaining > 0 ? 'PARTIAL' : '✓ PAID')}
+          </div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
+        <tbody>
+          ${r.items.map((i, idx) => {
+            const price = safeNum(i.custom_price ?? i.unit_price ?? i.price)
+            const qty   = safeNum(i.qty ?? i.quantity)
+            const skuLine = i.sku ? `<br><span style="font-size:0.8em;color:#94a3b8;font-style:italic">SKU: ${i.sku}</span>` : ''
+            return `<tr>
+              <td style="color:#94a3b8;font-size:0.9em;width:30px">${idx + 1}</td>
+              <td style="font-weight:500">${safeStr(i.name)}${i.brand ? ` <span style="font-weight:400;color:#94a3b8;font-size:0.9em">(${i.brand})</span>` : ''}${skuLine}</td>
+              <td>${qty}</td>
+              <td>Rs. ${price.toFixed(0)}</td>
+              <td style="font-weight:600;color:#0f172a">Rs. ${(price * qty).toFixed(0)}</td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table>
+      <div class="summary-section">
+        <div class="summary-card">
+          <div class="summary-row"><span>Subtotal (${r.items.length} items)</span><span>Rs. ${safeNum(r.subtotal ?? r.total).toFixed(0)}</span></div>
+          ${r.totalDiscount > 0 ? `<div class="summary-row" style="color:#16a34a;font-weight:500"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
+          ${!isQuotation && r.sale?.paid_amount ? `<div class="summary-row"><span>Paid Amount</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
+          ${!isQuotation && remaining > 0 ? `<div class="summary-row" style="color:#dc2626;font-weight:600"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+          <div class="summary-grand"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="footer-block">
+      <div>
+        <div style="font-weight:700;color:#0f172a;font-size:1.15em">${footer}</div>
+        <div class="stamp-text">★ Thank you for shopping with us ★</div>
+      </div>
+      <div class="signature-box">
+        <div class="sig-line">Authorized Signature</div>
+      </div>
+    </div>
+  </div>${printScript}</body></html>`
+}
+
 // ── PUBLIC API ───────────────────────────────────────────────
 export function buildBillHTML(r, isQuotation = false, shopSettings = {}, isPurchase = false) {
   const template = shopSettings.print_template || localStorage.getItem(`print_template_${shopSettings.shop_id || ''}`) || localStorage.getItem('print_template') || '2'
   if (template === '1') return template1(r, isQuotation, shopSettings, isPurchase)
   if (template === '3') return template3(r, isQuotation, shopSettings, isPurchase)
+  if (template === '4') return template4(r, isQuotation, shopSettings, isPurchase)
   return template2(r, isQuotation, shopSettings, isPurchase)
 }
 

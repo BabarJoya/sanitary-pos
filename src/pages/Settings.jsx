@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
-import { buildSalesReportHTML } from '../utils/billTemplates'
+import { buildSalesReportHTML, buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { printHTML } from '../utils/printUtils'
 import { syncOfflineData } from '../services/syncService'
@@ -62,6 +62,53 @@ function Settings() {
   })
   const [reportPeriod, setReportPeriod] = useState('today')
   const [reportLoading, setReportLoading] = useState(false)
+  const [previewTemplateId, setPreviewTemplateId] = useState(null)
+  const [previewSize, setPreviewSize] = useState('thermal')
+
+  const dummyInvoiceData = {
+    sale: {
+      id: 87654321,
+      created_at: new Date().toISOString(),
+      created_by: user?.username || 'Staff Cashier',
+      payment_type: 'cash',
+      paid_amount: 24750,
+    },
+    items: [
+      { name: 'Super Toilet Commode Porta', brand: 'Porta', qty: 1, custom_price: 15000, sku: 'SAN-PORTA-12' },
+      { name: 'Master Mixer Wall Shower Faisal', brand: 'Faisal', qty: 2, custom_price: 4500, sku: 'SAN-FAIS-MIX' },
+      { name: 'CP Waste Coupling 1.25" Brass', brand: 'Local', qty: 5, custom_price: 350, sku: 'CP-WASTE-125' },
+    ],
+    customer: {
+      name: 'Sajid Mahmood',
+      phone: '0300-1234567'
+    },
+    total: 24750,
+    subtotal: 25750,
+    totalDiscount: 1000,
+    change: 0
+  }
+
+  const getPreviewHTML = (templateId, size) => {
+    const tempSettings = {
+      name: form.name || 'Sanitary POS Demo',
+      address: form.address || '123 Main Bazaar, Sanitary Market',
+      phone: form.phone || '0301-2616367',
+      logo_url: form.logo_url || '',
+      invoice_footer: form.invoice_footer || 'شکریہ! دوبارہ تشریف لائیں',
+      quotation_footer: form.quotation_footer || 'یہ صرف قیمت نامہ ہے',
+      invoice_prefix: form.invoice_prefix || 'INV',
+      print_size: size,
+      print_template: templateId,
+      shop_id: user?.shop_id
+    }
+    
+    let html = buildBillHTML(dummyInvoiceData, false, tempSettings)
+    
+    // Strip print scripts to prevent triggering browser print dialog in preview iframe
+    html = html.replace(/<script>[\s\S]*?<\/script>/gi, '')
+    
+    return html
+  }
 
   useEffect(() => {
     fetchShop()
@@ -835,29 +882,51 @@ function Settings() {
           <h2 className="font-bold text-gray-700">Billing Template</h2>
           <p className="text-xs text-gray-400">Choose how your receipts and invoices look when printed. Works for both 80mm thermal and A4.</p>
         </div>
-        <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[
             { id: '1', name: 'Simple', desc: 'Minimal & clean. No logo area, compact spacing. Fast to print.', icon: '📄' },
             { id: '2', name: 'Classic', desc: 'Standard receipt style with logo, dashed lines and item table. Recommended.', icon: '🧾' },
             { id: '3', name: 'Professional', desc: 'Full invoice look — letterhead, invoice number box, PAID stamp, signature line.', icon: '📋' },
+            { id: '4', name: 'Modern', desc: 'Elegant & spacious. System sans-serif font, thin grey borders, cards for totals. (Premium)', icon: '✨' },
           ].map(t => (
-            <button
+            <div
               key={t.id}
-              type="button"
-              onClick={() => {
-                const sid = user?.shop_id
-                setPrintTemplate(t.id)
-                localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', t.id)
-              }}
-              className={`text-left p-4 rounded-xl border-2 transition ${printTemplate === t.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+              className={`flex flex-col justify-between p-4 rounded-xl border-2 transition ${printTemplate === t.id ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 hover:border-gray-300'}`}
             >
-              <div className="text-2xl mb-2">{t.icon}</div>
-              <div className="font-bold text-gray-800 flex items-center gap-2">
-                {t.name}
-                {printTemplate === t.id && <span className="text-[10px] font-black bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase">Active</span>}
+              <div>
+                <div className="text-2xl mb-2">{t.icon}</div>
+                <div className="font-bold text-gray-800 flex items-center gap-2">
+                  {t.name}
+                  {printTemplate === t.id && <span className="text-[10px] font-black bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase">Active</span>}
+                </div>
+                <p className="text-xs text-gray-500 mt-1 leading-relaxed mb-4">{t.desc}</p>
               </div>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">{t.desc}</p>
-            </button>
+              
+              <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sid = user?.shop_id
+                    setPrintTemplate(t.id)
+                    localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', t.id)
+                  }}
+                  className={`flex-1 text-center py-1.5 px-3 rounded-lg text-xs font-bold transition ${printTemplate === t.id ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                >
+                  {printTemplate === t.id ? 'Selected' : 'Select'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewTemplateId(t.id)
+                    setPreviewSize(form.print_size || 'thermal')
+                  }}
+                  className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 px-2 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                  title="Quick View Template"
+                >
+                  👁️ Preview
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -1027,6 +1096,113 @@ function Settings() {
           }}
           onCancel={() => setShowPasswordModal(false)}
         />
+      )}
+
+      {/* ── Billing Template Quick View Modal ── */}
+      {previewTemplateId && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
+            {/* Header */}
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-lg flex items-center gap-2">
+                  <span>✨</span> Quick View Template Preview
+                </h3>
+                <p className="text-xs text-slate-400">See exactly how your invoice will print.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewTemplateId(null)}
+                className="text-slate-400 hover:text-white transition text-xl p-1 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+              {/* Left Control Column */}
+              <div className="w-full md:w-80 bg-slate-50 border-r border-slate-100 p-6 flex flex-col justify-between overflow-y-auto">
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block mb-2">Select Format Size</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewSize('thermal')}
+                        className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition ${previewSize === 'thermal' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                      >
+                        📟 Thermal (80mm)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewSize('a4')}
+                        className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition ${previewSize === 'a4' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                      >
+                        📄 A4 Page
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-sm">
+                    <h4 className="font-extrabold text-slate-800 text-sm mb-2">Template Specs</h4>
+                    <ul className="text-xs text-slate-500 space-y-2">
+                      <li className="flex justify-between"><span className="text-slate-400">Option:</span> <span className="font-semibold text-slate-700">{previewTemplateId === '1' ? 'Simple' : previewTemplateId === '2' ? 'Classic' : previewTemplateId === '3' ? 'Professional' : 'Modern'}</span></li>
+                      <li className="flex justify-between"><span className="text-slate-400">Paper Width:</span> <span className="font-semibold text-slate-700">{previewSize === 'thermal' ? '80mm (Thermal)' : '210mm (A4)'}</span></li>
+                      <li className="flex justify-between"><span className="text-slate-400">Layout type:</span> <span className="font-semibold text-slate-700">{previewSize === 'thermal' ? 'Continuous Roll' : 'Portrait Sheet'}</span></li>
+                    </ul>
+                  </div>
+
+                  <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100/50 text-[11px] text-blue-700 leading-relaxed">
+                    💡 <strong>Tip:</strong> The printed layout is dynamic and will adjust perfectly according to the printer size defined in settings.
+                  </div>
+                </div>
+
+                <div className="mt-8 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sid = user?.shop_id
+                      setPrintTemplate(previewTemplateId)
+                      localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', previewTemplateId)
+                      setPreviewTemplateId(null)
+                      alert('Template applied successfully!')
+                    }}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                  >
+                    <span>✓</span> Apply This Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTemplateId(null)}
+                    className="w-full py-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Iframe Preview Area */}
+              <div className="flex-1 bg-slate-200 p-6 flex items-center justify-center overflow-y-auto">
+                <div 
+                  className="bg-white shadow-2xl transition-all duration-300 overflow-hidden border border-slate-300 rounded"
+                  style={{
+                    width: previewSize === 'thermal' ? '320px' : '650px',
+                    height: previewSize === 'thermal' ? '500px' : '750px',
+                    maxHeight: '100%'
+                  }}
+                >
+                  <iframe
+                    srcDoc={getPreviewHTML(previewTemplateId, previewSize)}
+                    className="w-full h-full border-none bg-white"
+                    title="Invoice Template Preview"
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
