@@ -559,7 +559,94 @@ function SupplierLedger() {
 
             {/* ── Ledger Table ── */}
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-                <div className="overflow-x-auto">
+                <div className="divide-y divide-gray-100 md:hidden">
+                    {filteredLedger.length === 0 ? (
+                        <p className="p-6 text-center text-gray-400 text-sm">
+                            {isFiltered ? `"${search || filterType}" se koi result nahi mila. Filter clear karein.` : 'Koi transaction nahi mili. "Add Transaction" se pehli entry karein.'}
+                        </p>
+                    ) : (
+                        filteredLedger.map((item, idx) => (
+                            <div key={idx} className={`p-4 ${selectedIds.has(item.id) ? 'bg-red-50/40' : ''}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-xs text-gray-400">{new Date(item.date).toLocaleDateString('en-PK')}</p>
+                                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-semibold text-gray-800">{item.note}</span>
+                                            {item.bill_number && (
+                                                <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
+                                            )}
+                                        </div>
+                                        {item.details && <p className="mt-1 text-xs text-gray-500">{item.details}</p>}
+                                        
+                                        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                                            {item.payment_mode && (
+                                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
+                                            )}
+                                            {item.transaction_ref && (
+                                                <span className="text-[10px] text-gray-400">Ref: {item.transaction_ref}</span>
+                                            )}
+                                            {item.type === 'purchase' && (
+                                                <button
+                                                    onClick={() => setExpandedBill(expandedBill === item.id ? null : item.id)}
+                                                    className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-tighter"
+                                                >
+                                                    {expandedBill === item.id ? 'Collapse ▲' : 'Details ▼'}
+                                                </button>
+                                            )}
+                                            {item.type === 'return' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold">Return</span>}
+                                            {item.type === 'debit' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] uppercase font-bold">Manual Entry</span>}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                        <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)}
+                                            className="w-4 h-4 rounded cursor-pointer" />
+                                        <button
+                                            onClick={() => handleDeleteTransaction(item)}
+                                            title="Delete transaction"
+                                            className="p-1 text-gray-400 hover:text-red-500 rounded transition text-xs"
+                                        >🗑️</button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-3 gap-2 text-right text-xs">
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Debit (+)</p>
+                                        <p className="font-bold text-orange-600">{(item.type === 'purchase' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toLocaleString()}` : '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Credit (-)</p>
+                                        <p className="font-bold text-green-600">{(item.type !== 'purchase' && item.type !== 'debit') ? `- Rs. ${Math.abs(Number(item.amount)).toLocaleString()}` : '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Balance</p>
+                                        <p className={`font-black ${item.balance > 0 ? 'text-red-600' : 'text-green-700'}`}>Rs. {Number(item.balance).toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                {item.type === 'purchase' && expandedBill === item.id && (
+                                    <div className="mt-3 bg-orange-50/50 p-3 rounded-lg border border-orange-100/50">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
+                                            <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {item.payment_type}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {(item.items || []).map((it, iidx) => (
+                                                <div key={iidx} className="flex justify-between text-xs bg-white/60 p-2 rounded border border-orange-100/30">
+                                                    <span className="text-gray-700 font-medium">{it.product_name}</span>
+                                                    <span className="text-gray-500 font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
                     <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b">
                             <tr>

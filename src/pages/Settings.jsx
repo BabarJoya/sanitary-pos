@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx'
 import { buildSalesReportHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { printHTML } from '../utils/printUtils'
+import { syncOfflineData } from '../services/syncService'
 
 function Settings() {
   const { user } = useAuth()
@@ -643,7 +644,6 @@ function Settings() {
             </button>
             {hasFeature('offline_sync') && <button
               onClick={async () => {
-                const { syncOfflineData } = await import('../services/syncService')
                 await syncOfflineData()
                 alert('Sync process triggered! Check status in header.')
                 fetchShop()

@@ -465,7 +465,46 @@ function PurchaseHistory() {
                     <div className="text-center py-12"><p className="text-gray-400 text-lg">No purchases found.</p></div>
                 ) : (
                     <div className="bg-white rounded-xl shadow overflow-hidden">
-                        <div className="overflow-x-auto">
+                        <div className="divide-y divide-gray-100 md:hidden">
+                            {filtered.map(p => (
+                                <div key={p.id} className={`p-4 ${selected.includes(p.id) ? 'bg-blue-50' : ''}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="font-mono text-xs font-bold text-gray-500 font-black">
+                                                PR-{String(p.id).slice(-6)}
+                                            </p>
+                                            <p className="mt-1 truncate font-bold text-gray-900">
+                                                {p.suppliers?.name || 'Unknown'}
+                                            </p>
+                                            <p className="mt-1 text-xs text-gray-400">{new Date(p.created_at).toLocaleDateString('en-PK')}</p>
+                                        </div>
+                                        <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggleSelect(p.id)} className="mt-1 h-4 w-4 rounded" />
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-lg font-black text-gray-900">
+                                                Rs. {Number(p.total_amount).toLocaleString()}
+                                            </p>
+                                            <div className="mt-1 flex flex-wrap gap-1.5">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                    {p.payment_type === 'cash' ? '💵 Cash' : '📒 Credit/Udhaar'}
+                                                </span>
+                                                {p.paid_amount != null && Number(p.paid_amount) < Number(p.total_amount) && (
+                                                    <span className="bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                        Paid: {Number(p.paid_amount).toLocaleString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => openPurchase(p)} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">View</button>
+                                            <button onClick={() => requestDelete([p.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="hidden overflow-x-auto md:block">
                             <table className="w-full">
                                 <thead className="bg-gray-50 border-b">
                                     <tr>
@@ -517,7 +556,7 @@ function PurchaseHistory() {
                 {/* Detail Modal */}
                 {selectedPurchase && (
                     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 w-[640px]">
+                        <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h2 className="text-lg font-bold text-gray-800">

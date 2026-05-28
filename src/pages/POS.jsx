@@ -829,13 +829,13 @@ function POS() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 overflow-hidden" style={{ height: 'calc(100vh - 112px)' }}>
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden md:flex-row">
 
       {/* LEFT: Products */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0">
+      <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-0">
 
         {/* Sale / Quotation toggle */}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <button onClick={() => setSaleType('sale')}
             className={`flex-1 py-2 rounded-lg font-semibold text-sm transition ${saleType === 'sale' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border'}`}>
             🧾 Sale
@@ -896,7 +896,7 @@ function POS() {
         </div>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto flex-1 content-start">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto flex-1 min-h-0 content-start pb-24 md:pb-0">
           {filtered.length === 0 && <p className="text-gray-400 col-span-3 text-center py-10">No products found</p>}
           {filtered.map(p => (
             <button key={p.id}
@@ -942,7 +942,7 @@ function POS() {
       {showMobileCart && (
         <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileCart(false)} />
       )}
-      <div className={`${showMobileCart ? 'fixed inset-0 z-50 w-full flex' : 'hidden md:flex'} md:static md:w-80 flex-col gap-2 bg-white rounded-xl shadow p-4 h-full overflow-hidden`}>
+      <div className={`${showMobileCart ? 'fixed inset-x-2 top-4 bottom-4 z-50 flex max-h-[calc(100dvh-2rem)]' : 'hidden md:flex'} md:static md:w-80 flex-col gap-2 bg-white rounded-xl shadow p-4 h-full min-h-0 overflow-hidden`}>
 
         {/* Mobile close button */}
         <button onClick={() => setShowMobileCart(false)} className="md:hidden self-end text-gray-400 hover:text-gray-700 text-2xl font-bold mb-1">✕</button>

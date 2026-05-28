@@ -1,9 +1,29 @@
 // pdfShare.js — Generate PDFs and share via WhatsApp
-// Uses jsPDF + html2canvas for bill rendering, jspdf-autotable for data tables
+// Uses action-time dynamic imports so PDF libraries do not bloat route chunks.
 
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-import html2canvas from 'html2canvas'
+async function loadJsPDF() {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable')
+  ])
+  return { jsPDF, autoTable }
+}
+
+function sanitizeBillHTML(htmlString) {
+  const template = document.createElement('template')
+  template.innerHTML = htmlString
+  template.content.querySelectorAll('script').forEach(node => node.remove())
+  template.content.querySelectorAll('*').forEach(node => {
+    for (const attr of [...node.attributes]) {
+      const name = attr.name.toLowerCase()
+      const value = attr.value.trim().toLowerCase()
+      if (name.startsWith('on') || value.startsWith('javascript:')) {
+        node.removeAttribute(attr.name)
+      }
+    }
+  })
+  return template.innerHTML
+}
 
 // ─── Bill / Quotation PDF (renders existing bill HTML) ────────────────────────
 
@@ -12,10 +32,15 @@ import html2canvas from 'html2canvas'
  * Returns a Blob (PDF).
  */
 export async function generateBillPDF(htmlString) {
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import('jspdf'),
+    import('html2canvas')
+  ])
+
   // Mount the HTML in a hidden offscreen div
   const container = document.createElement('div')
   container.style.cssText = 'position:fixed;left:-9999px;top:0;width:320px;background:#fff;z-index:-1;font-size:12px;'
-  container.innerHTML = htmlString
+  container.innerHTML = sanitizeBillHTML(htmlString)
   document.body.appendChild(container)
 
   try {
@@ -55,7 +80,8 @@ export async function generateBillPDF(htmlString) {
  * @param {string} shopName
  * Returns a Blob (PDF).
  */
-export function generateOutstandingPDF(customer, ledger, shopName) {
+export async function generateOutstandingPDF(customer, ledger, shopName) {
+  const { jsPDF, autoTable } = await loadJsPDF()
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const today = new Date().toLocaleDateString('en-PK')
 
@@ -136,7 +162,8 @@ export function generateOutstandingPDF(customer, ledger, shopName) {
  * @param {string} shopName
  * Returns a Blob (PDF).
  */
-export function generatePurchaseOrderPDF(bySupplier, shopName) {
+export async function generatePurchaseOrderPDF(bySupplier, shopName) {
+  const { jsPDF, autoTable } = await loadJsPDF()
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const today = new Date().toLocaleDateString('en-PK')
   const supplierNames = Object.keys(bySupplier)

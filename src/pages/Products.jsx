@@ -670,7 +670,55 @@ function Products() {
 
       {/* Products Table */}
       {!loading && filteredProducts.length > 0 && (
-        <div className="bg-white rounded-xl shadow overflow-hidden relative overflow-x-auto">
+        <div className="bg-white rounded-xl shadow overflow-hidden relative">
+          <div className="divide-y divide-gray-100 md:hidden">
+            {filteredProducts.map(product => {
+              const unit = units.find(u => u.id === product.unit_id)
+              const isLow = product.stock_quantity <= getEffectiveThreshold(product)
+              const cost = Number(product.cost_price || 0)
+              const sale = Number(product.sale_price || 0)
+              const margin = sale > 0 ? ((sale - cost) / sale * 100) : 0
+              return (
+                <div key={product.id} className={`p-4 ${selected.includes(product.id) ? 'bg-blue-50' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-black text-gray-900">{product.name}</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-black uppercase text-gray-600">{product.brand || 'No Brand'}</span>
+                        <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{product.categories?.name || 'No category'}</span>
+                        {unit && <span className="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700">{unit.name}</span>}
+                      </div>
+                    </div>
+                    <input type="checkbox" checked={selected.includes(product.id)} onChange={() => toggleSelect(product.id)} className="mt-1 h-4 w-4 rounded" />
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-gray-400">Stock</p>
+                      <p className={`font-black ${isLow ? 'text-red-600' : 'text-green-600'}`}>{product.stock_quantity}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-gray-400">Sale</p>
+                      <p className="font-black text-gray-900">Rs. {product.sale_price}</p>
+                    </div>
+                    {(user.role === 'admin' || user.role === 'manager') && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Margin</p>
+                        <p className={`font-black ${margin >= 30 ? 'text-green-600' : margin >= 15 ? 'text-yellow-600' : 'text-red-600'}`}>{margin.toFixed(0)}%</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <p className="font-mono text-xs text-gray-400">{product.sku || 'No SKU'}</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setInlineEditId(product.id); setInlineForm({ ...product }) }} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">Edit</button>
+                      <button onClick={() => requestDelete([product.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
@@ -837,6 +885,7 @@ function Products() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

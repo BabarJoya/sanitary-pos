@@ -454,7 +454,44 @@ function Sales() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="divide-y divide-gray-100 md:hidden">
+              {filtered.map(sale => (
+                <div key={sale.id} className={`p-4 ${selected.includes(sale.id) ? 'bg-blue-50' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-bold text-gray-500">
+                        {sale.sale_type === 'quotation' ? 'QT-' : '#'}{String(sale.id).slice(-8)}
+                      </p>
+                      <p className="mt-1 truncate font-bold text-gray-900">
+                        {sale.customers?.name || sale.customer_name || 'Walk-in'}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-400">{new Date(sale.created_at).toLocaleDateString('en-PK')}</p>
+                    </div>
+                    <input type="checkbox" checked={selected.includes(sale.id)} onChange={() => toggleSelect(sale.id)} className="mt-1 h-4 w-4 rounded" />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-black text-gray-900">
+                        Rs. {(Number(sale.total_amount) - Number(sale.discount || 0)).toFixed(0)}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                          {sale.sale_type === 'quotation' ? 'Quotation' : 'Sale'}
+                        </span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${sale.payment_type === 'cash' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}>
+                          {sale.payment_type === 'cash' ? 'Cash' : 'Udhaar'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => openSale(sale)} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">View</button>
+                      <button onClick={() => requestDelete([sale.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -511,7 +548,7 @@ function Sales() {
         {
           selectedSale && (
             <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-              <div className="bg-white rounded-2xl shadow-2xl p-6 w-[600px]">
+              <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h2 className="text-lg font-bold text-gray-800">
@@ -586,14 +623,14 @@ function Sales() {
                       </table>
                     </div>
 
-                    <div className="flex justify-between items-center border-t pt-3">
+                    <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:justify-between sm:items-center">
                       <div className="text-sm text-gray-600">
                         <p>Total: <b>Rs. {(Number(selectedSale.total_amount) - Number(selectedSale.discount || 0)).toFixed(0)}</b></p>
                         {selectedSale.discount > 0 && <p className="text-xs text-gray-400">Discount: Rs. {selectedSale.discount}</p>}
                       </div>
-                      <div className="flex flex-wrap gap-2 items-center">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                         {selectedSale.sale_type !== 'quotation' && (
-                          <div className="flex items-center gap-3 bg-gray-50 border px-3 py-1.5 rounded-lg mr-2">
+                          <div className="flex flex-wrap items-center gap-3 bg-gray-50 border px-3 py-1.5 rounded-lg sm:mr-2">
                             <span className="text-[10px] font-bold text-gray-400 uppercase">Refund Type:</span>
                             <label className="flex items-center gap-1 text-sm cursor-pointer">
                               <input type="radio" checked={refundType === 'cash'} onChange={() => setRefundType('cash')} className="w-4 h-4 text-blue-600" />

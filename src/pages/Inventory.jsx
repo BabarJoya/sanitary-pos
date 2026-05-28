@@ -134,7 +134,7 @@ function Inventory() {
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating PDF...' }
 
     try {
-      const pdfBlob = generatePurchaseOrderPDF(bySupplier, shopName)
+      const pdfBlob = await generatePurchaseOrderPDF(bySupplier, shopName)
 
       if (supplierNames.length === 1) {
         const sup = bySupplier[supplierNames[0]]
@@ -751,7 +751,61 @@ function Inventory() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <p className="px-6 py-10 text-center text-gray-400 italic text-lg">Loading inventory data...</p>
+          ) : filtered.length === 0 ? (
+            <p className="px-6 py-10 text-center text-gray-400 italic text-lg">No products found matching criteria.</p>
+          ) : filtered.map(p => {
+            const isLow = p.stock_quantity <= (p.low_stock_threshold || 10)
+            const isCritical = p.stock_quantity <= 5
+            const isZero = p.stock_quantity <= 0
+            return (
+              <div key={p.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-black text-gray-900">{p.name}</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{p.categories?.name || 'No category'}</span>
+                      <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">{p.brand || 'No brand'}</span>
+                    </div>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-black ${isZero ? 'bg-black text-white' : isCritical ? 'bg-red-100 text-red-700' : isLow ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                    {p.stock_quantity}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-gray-400">C. Rate</p>
+                    <p className="font-black text-blue-600">{p.c_rate || 0}</p>
+                  </div>
+                  {(user.role === 'admin' || user.role === 'manager') && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-gray-400">Cost</p>
+                      <p className="font-black text-gray-700">Rs. {p.cost_price}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-gray-400">Sale</p>
+                    <p className="font-black text-gray-900">Rs. {p.sale_price}</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <p className={`text-xs font-bold ${isZero ? 'text-black' : isCritical ? 'text-red-600' : isLow ? 'text-orange-600' : 'text-green-600'}`}>
+                    {isZero ? 'Out of Stock' : isCritical ? 'Critical' : isLow ? 'Low Stock' : 'In Stock'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => fetchProductHistory(p)} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">History</button>
+                    {(user.role === 'admin' || user.role === 'manager') && (
+                      <button onClick={() => openAdjustModal(p)} className="rounded-lg bg-gray-700 px-3 py-2 text-sm font-bold text-white">Adjust</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b">
               <tr>
