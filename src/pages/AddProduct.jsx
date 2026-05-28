@@ -332,6 +332,7 @@ function AddProduct() {
                   name="sku"
                   value={form.sku}
                   onChange={handleChange}
+                  onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   placeholder="e.g. TAP-001"
                 />
