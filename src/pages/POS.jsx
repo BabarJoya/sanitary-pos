@@ -901,7 +901,7 @@ function POS() {
           {filtered.map(p => (
             <button key={p.id}
               onClick={() => { addToCart(p, Number(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}
-              className="bg-white rounded-xl shadow p-3 text-left hover:shadow-md hover:bg-blue-50 transition border border-transparent hover:border-blue-300 h-fit">
+              className="pos-product-card bg-white rounded-xl shadow p-3 text-left hover:shadow-md hover:bg-blue-50 transition border border-transparent hover:border-blue-300 h-fit">
               <p className="font-semibold text-gray-800 text-sm leading-tight">{p.name}</p>
               {p.brand && <p className="text-xs text-gray-400">{p.brand}</p>}
               {p.categories?.name && <p className="text-xs text-gray-400">{p.categories.name}</p>}
@@ -1002,7 +1002,7 @@ function POS() {
         <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pr-1 custom-scrollbar">
           {cart.length === 0 && <p className="text-gray-400 text-xs text-center py-8">Left side sy products add karo</p>}
           {cart.map(item => (
-            <div key={item.id} className="bg-gray-50 rounded-lg p-2">
+            <div key={item.id} className="pos-cart-item bg-gray-50 rounded-lg p-2">
               <div className="flex items-center gap-1">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>

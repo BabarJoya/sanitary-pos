@@ -23,10 +23,29 @@ function Layout({ children }) {
   const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebar_collapsed') === 'true'
+  })
+  const [compactMode, setCompactMode] = useState(() => {
+    const saved = localStorage.getItem('compact_mode')
+    return saved === null ? true : saved === 'true'
+  })
   const [planInfo, setPlanInfo] = useState(null)
   const [productCount, setProductCount] = useState(0)
   const dropdownRef = useRef(null)
   const userDropdownRef = useRef(null)
+
+  const toggleSidebar = () => {
+    const newVal = !sidebarCollapsed
+    setSidebarCollapsed(newVal)
+    localStorage.setItem('sidebar_collapsed', String(newVal))
+  }
+
+  const toggleCompactMode = () => {
+    const newVal = !compactMode
+    setCompactMode(newVal)
+    localStorage.setItem('compact_mode', String(newVal))
+  }
 
   useEffect(() => {
     fetchLowStock()
@@ -160,7 +179,7 @@ function Layout({ children }) {
   const pageTitle = location.pathname.split('/').pop().replace('-', ' ').toUpperCase() || 'DASHBOARD'
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden text-gray-800">
+    <div className={`flex h-screen bg-gray-100 overflow-hidden text-gray-800 ${compactMode ? 'compact-mode' : ''}`}>
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -168,108 +187,123 @@ function Layout({ children }) {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed md:static inset-y-0 left-0 w-64 bg-gray-900 text-white flex flex-col shrink-0 z-50 shadow-2xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <div className={`fixed md:static inset-y-0 left-0 bg-gray-900 text-white flex flex-col shrink-0 z-50 shadow-2xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} w-64`}>
         {/* Logo */}
-        <div className="p-6 border-b border-gray-800 flex items-center gap-3">
-          {shopLogo ? (
-            <div className="w-10 h-10 rounded-lg bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5">
-              <img src={shopLogo} alt="Logo" className="max-w-full max-h-full object-contain" />
-            </div>
-          ) : (
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-900 flex-shrink-0">
-              {shopName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0">
-            <h1 className="text-sm font-black tracking-tighter leading-none uppercase truncate w-32">{shopName}</h1>
-            <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mt-0.5">Control Panel</p>
+        <div className={`p-4 border-b border-gray-800 flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'items-center justify-between gap-2'} transition-all`}>
+          <div className="flex items-center gap-3 min-w-0">
+            {shopLogo ? (
+              <div className="w-8 h-8 rounded-lg bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5">
+                <img src={shopLogo} alt="Logo" className="max-w-full max-h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-900 flex-shrink-0">
+                {shopName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                <h1 className="text-sm font-black tracking-tighter leading-none uppercase truncate w-28">{shopName}</h1>
+                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mt-0.5">Control Panel</p>
+              </div>
+            )}
           </div>
+          
+          {/* Collapse Toggle Button (Desktop Only) */}
+          <button 
+            onClick={toggleSidebar} 
+            className="hidden md:flex items-center justify-center w-6 h-6 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition cursor-pointer flex-shrink-0"
+            title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {sidebarCollapsed ? "▶" : "◀"}
+          </button>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto custom-scrollbar">
           <ul className="space-y-1">
-            <NavHeader label="Main" />
-            <NavItem to="/dashboard" icon="📊" label="Dashboard" active={location.pathname === '/dashboard'} onClick={() => setSidebarOpen(false)} />
+            <NavHeader label="Main" collapsed={sidebarCollapsed} />
+            <NavItem to="/dashboard" icon="📊" label="Dashboard" active={location.pathname === '/dashboard'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             {hasAccess('pos', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/pos" icon="🛒" label="POS Billing" active={location.pathname === '/pos'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/pos" icon="🛒" label="POS Billing" active={location.pathname === '/pos'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
-            <NavHeader label="Inventory & Products" />
+            <NavHeader label="Inventory & Products" collapsed={sidebarCollapsed} />
             {hasAccess('products', ['admin', 'manager']) && (
-              <NavItem to="/products" icon="📦" label="Products" active={location.pathname === '/products'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/products" icon="📦" label="Products" active={location.pathname === '/products'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('categories', ['admin', 'manager']) && (
               <NavItem to="/master-data" icon="📐" label="Master Data"
                 active={location.pathname.startsWith('/master-data') || location.pathname === '/categories' || location.pathname === '/brands'}
-                onClick={() => setSidebarOpen(false)} />
+                onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('inventory', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/inventory" icon="📋" label="Stock Inventory" active={location.pathname === '/inventory'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/inventory" icon="📋" label="Stock Inventory" active={location.pathname === '/inventory'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
-            <NavHeader label="Sales & Customers" />
+            <NavHeader label="Sales & Customers" collapsed={sidebarCollapsed} />
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/customers" icon="👥" label="Customers" active={location.pathname === '/customers'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/customers" icon="👥" label="Customers" active={location.pathname === '/customers'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/customer-ledger" icon="📒" label="Customer Ledger" active={location.pathname === '/customer-ledger'} locked={!hasFeature('customer_ledger')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/customer-ledger" icon="📒" label="Customer Ledger" active={location.pathname === '/customer-ledger'} locked={!hasFeature('customer_ledger')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/whatsapp" icon="📲" label="WhatsApp Reminders" active={location.pathname === '/whatsapp'} locked={!hasFeature('whatsapp')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/whatsapp" icon="📲" label="WhatsApp Reminders" active={location.pathname === '/whatsapp'} locked={!hasFeature('whatsapp')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('sales', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/sales" icon="💰" label="Sales History" active={location.pathname === '/sales'} locked={!hasFeature('sales_history')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/sales" icon="💰" label="Sales History" active={location.pathname === '/sales'} locked={!hasFeature('sales_history')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
-            <NavHeader label="Procurement" />
+            <NavHeader label="Procurement" collapsed={sidebarCollapsed} />
             {hasAccess('suppliers', ['admin', 'manager']) && (
-              <NavItem to="/suppliers" icon="🚚" label="Suppliers" active={location.pathname === '/suppliers'} locked={!hasFeature('suppliers')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/suppliers" icon="🚚" label="Suppliers" active={location.pathname === '/suppliers'} locked={!hasFeature('suppliers')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('purchases', ['admin', 'manager']) && (
-              <NavItem to="/purchases" icon="🛍️" label="Purchases" active={location.pathname === '/purchases'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/purchases" icon="🛍️" label="Purchases" active={location.pathname === '/purchases'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('purchase-history', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/purchase-history" icon="📜" label="Purchase History" active={location.pathname === '/purchase-history'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/purchase-history" icon="📜" label="Purchase History" active={location.pathname === '/purchase-history'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
-            <NavHeader label="Accounts & Admin" />
+            <NavHeader label="Accounts & Admin" collapsed={sidebarCollapsed} />
             {hasAccess('expenses', ['admin']) && (
-              <NavItem to="/expenses" icon="💸" label="Expenses" active={location.pathname === '/expenses'} locked={!hasFeature('expenses')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/expenses" icon="💸" label="Expenses" active={location.pathname === '/expenses'} locked={!hasFeature('expenses')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('reports', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/reports" icon="📈" label="Reports" active={location.pathname === '/reports'} locked={!hasFeature('reports')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/reports" icon="📈" label="Reports" active={location.pathname === '/reports'} locked={!hasFeature('reports')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('users', ['admin']) && (
-              <NavItem to="/users" icon="👨‍💼" label="Manage Users" active={location.pathname === '/users'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/users" icon="👨‍💼" label="Manage Users" active={location.pathname === '/users'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
-            <NavHeader label="Settings & System" />
+            <NavHeader label="Settings & System" collapsed={sidebarCollapsed} />
             {hasAccess('settings', ['admin']) && (
-              <NavItem to="/settings" icon="⚙️" label="Settings" active={location.pathname === '/settings'} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/settings" icon="⚙️" label="Settings" active={location.pathname === '/settings'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('trash', ['admin']) && (
-              <NavItem to="/trash" icon="🗑️" label="Trash Bin" active={location.pathname === '/trash'} locked={!hasFeature('trash_bin')} onClick={() => setSidebarOpen(false)} />
+              <NavItem to="/trash" icon="🗑️" label="Trash Bin" active={location.pathname === '/trash'} locked={!hasFeature('trash_bin')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
-            <NavItem to="/support" icon="🆘" label="Help & Support" active={location.pathname === '/support'} onClick={() => setSidebarOpen(false)} />
+            <NavItem to="/support" icon="🆘" label="Help & Support" active={location.pathname === '/support'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
           </ul>
         </nav>
 
         {/* Credits */}
-        <div className="p-4 border-t border-gray-800 bg-gray-900/50 flex flex-col gap-3">
-          <div className="text-center px-1">
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Developed with <span className="text-red-500">❤︎</span> by</p>
-            <p className="text-xs text-gray-300 font-semibold leading-tight">EdgeX Digital<br />& Babar Joya</p>
-            <p className="text-[10px] font-mono text-gray-400 mt-1">📞 0301-2616367</p>
+        {!sidebarCollapsed && (
+          <div className="p-4 border-t border-gray-800 bg-gray-900/50 flex flex-col gap-3">
+            <div className="text-center px-1">
+              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Developed with <span className="text-red-500">❤︎</span> by</p>
+              <p className="text-xs text-gray-300 font-semibold leading-tight">EdgeX Digital<br />& Babar Joya</p>
+              <p className="text-[10px] font-mono text-gray-400 mt-1">📞 0301-2616367</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
         {/* Top Header */}
-        <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shrink-0 shadow-sm z-20">
+        <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shrink-0 shadow-sm z-20 transition-all">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden w-8 h-8 flex items-center justify-center text-xl cursor-pointer hover:bg-gray-100 rounded-lg transition flex-shrink-0">☰</button>
             <div className="flex flex-col min-w-0">
@@ -279,6 +313,20 @@ function Layout({ children }) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Compact Mode Toggle */}
+            <button
+              onClick={toggleCompactMode}
+              className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border text-[10px] sm:text-xs font-bold transition flex items-center gap-1.5 cursor-pointer select-none ${
+                compactMode
+                  ? 'bg-blue-50 text-blue-600 border-blue-100 shadow-sm shadow-blue-50'
+                  : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+              }`}
+              title={compactMode ? "Switch to Normal View" : "Switch to Compact View"}
+            >
+              <span>{compactMode ? "🔎" : "🔍"}</span>
+              <span className="hidden sm:inline">{compactMode ? "Compact UI" : "Normal UI"}</span>
+            </button>
+
             {/* Status Indicator — dot only on mobile, full pill on sm+ */}
             <div className={`flex items-center gap-1.5 rounded-full font-black uppercase tracking-widest ${isOnline ? 'text-green-600' : 'text-orange-600 animate-pulse'}`}>
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-orange-500'}`}></span>
@@ -454,12 +502,97 @@ function Layout({ children }) {
           50% { transform: translateY(-3px); }
         }
         .animate-bounce-slow { animation: bounce-slow 2s infinite; }
+
+        /* Compact Mode Overrides */
+        .compact-mode main > div {
+          padding: 0.5rem !important;
+          max-width: 100% !important;
+        }
+        .compact-mode header {
+          height: 3rem !important;
+        }
+        .compact-mode h1 {
+          font-size: 1.25rem !important;
+          line-height: 1.75rem !important;
+        }
+        .compact-mode h2 {
+          font-size: 1rem !important;
+          line-height: 1.5rem !important;
+        }
+        .compact-mode h3 {
+          font-size: 0.875rem !important;
+          line-height: 1.25rem !important;
+        }
+        /* Tables general density */
+        .compact-mode table th {
+          padding: 0.375rem 0.5rem !important;
+          font-size: 0.75rem !important;
+        }
+        .compact-mode table td {
+          padding: 0.375rem 0.5rem !important;
+          font-size: 0.75rem !important;
+        }
+        .compact-mode table td input,
+        .compact-mode table td select {
+          padding: 0.125rem 0.25rem !important;
+          font-size: 0.75rem !important;
+        }
+        /* Forms, inputs and generic buttons */
+        .compact-mode input:not([type="checkbox"]):not([type="radio"]),
+        .compact-mode select,
+        .compact-mode button:not(.md\\:hidden):not(.pos-floating-btn):not(.fixed):not(.flex-shrink-0) {
+          padding-top: 0.375rem !important;
+          padding-bottom: 0.375rem !important;
+          font-size: 0.75rem !important;
+          border-radius: 0.5rem !important;
+        }
+        .compact-mode select {
+          padding-right: 2rem !important;
+        }
+        /* Grid gap density */
+        .compact-mode .grid {
+          gap: 0.5rem !important;
+        }
+        .compact-mode .space-y-6 > * + * {
+          margin-top: 0.75rem !important;
+        }
+        .compact-mode .space-y-4 > * + * {
+          margin-top: 0.5rem !important;
+        }
+        .compact-mode .p-6 {
+          padding: 0.75rem !important;
+        }
+        .compact-mode .p-4 {
+          padding: 0.5rem !important;
+        }
+        .compact-mode .p-3 {
+          padding: 0.375rem !important;
+        }
+        .compact-mode .rounded-2xl {
+          border-radius: 0.75rem !important;
+        }
+        .compact-mode .rounded-xl {
+          border-radius: 0.5rem !important;
+        }
+        /* POS Specific overrides */
+        .compact-mode .pos-product-card {
+          padding: 0.375rem !important;
+          border-radius: 0.5rem !important;
+        }
+        .compact-mode .pos-product-card p {
+          font-size: 0.75rem !important;
+        }
+        .compact-mode .pos-cart-item {
+          padding: 0.375rem !important;
+          border-radius: 0.5rem !important;
+        }
       `}</style>
     </div>
   )
 }
 
-function NavHeader({ label }) {
+function NavHeader({ label, collapsed }) {
+  if (collapsed) return <li className="my-2 border-b border-gray-800" />
   return (
     <li className="pt-4 pb-1 px-4">
       <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{label}</span>
@@ -467,23 +600,26 @@ function NavHeader({ label }) {
   )
 }
 
-function NavItem({ to, icon, label, active, onClick, locked }) {
+function NavItem({ to, icon, label, active, onClick, locked, collapsed }) {
   return (
     <li>
       <Link
         to={to}
         onClick={onClick}
-        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition font-bold text-sm ${
+        title={collapsed ? label + (locked ? " (Locked)" : "") : undefined}
+        className={`flex items-center rounded-xl transition font-bold text-sm ${
+          collapsed ? 'justify-center p-3 mx-1' : 'gap-3 px-4 py-3'
+        } ${
           active
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40 translate-x-1'
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' + (collapsed ? '' : ' translate-x-1')
             : locked
               ? 'text-gray-600 opacity-50 hover:bg-gray-800 hover:opacity-70'
               : 'text-gray-400 hover:bg-gray-800 hover:text-white active:scale-95'
         }`}
       >
-        <span className="text-xl">{icon}</span>
-        <span className="flex-1">{label}</span>
-        {locked && <span className="text-xs ml-auto">🔒</span>}
+        <span className="text-xl flex-shrink-0">{icon}</span>
+        {!collapsed && <span className="flex-1 truncate">{label}</span>}
+        {!collapsed && locked && <span className="text-xs ml-auto">🔒</span>}
       </Link>
     </li>
   )
