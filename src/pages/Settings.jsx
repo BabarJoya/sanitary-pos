@@ -23,7 +23,7 @@ function Settings() {
       } catch (e) { /* fallback */ }
     }
     return {
-      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Sanitary POS',
+      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'EdgeX POS',
       phone: '',
       address: '',
       logo_url: (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || '',
@@ -90,8 +90,8 @@ function Settings() {
 
   const getPreviewHTML = (templateId, size) => {
     const tempSettings = {
-      name: form.name || 'Sanitary POS Demo',
-      address: form.address || '123 Main Bazaar, Sanitary Market',
+      name: form.name || 'EdgeX POS Demo',
+      address: form.address || '123 Main Bazaar, EdgeX Market',
       phone: form.phone || '0301-2616367',
       logo_url: form.logo_url || '',
       invoice_footer: form.invoice_footer || 'شکریہ! دوبارہ تشریف لائیں',
@@ -154,7 +154,7 @@ function Settings() {
     try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) {}
 
     setForm(prev => ({
-      name:                 saved.name                 || data.name    || prev.name    || 'Sanitary POS',
+      name:                 saved.name                 || data.name    || prev.name    || 'EdgeX POS',
       phone:                saved.phone                || data.phone   || prev.phone   || '',
       address:              saved.address              || data.address || prev.address || '',
       logo_url:             prev.logo_url, // managed by logoUrl state, never overwrite
@@ -213,7 +213,7 @@ function Settings() {
     // Save everything to localStorage immediately — this is the source of truth
     // for print preferences, WA templates, footers, print size etc.
     localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(fullSettings))
-    localStorage.setItem(`shop_name_${sid}`, form.name || 'Sanitary POS')
+    localStorage.setItem(`shop_name_${sid}`, form.name || 'EdgeX POS')
 
     // Only send columns that are guaranteed to exist in the shops table to Supabase.
     // Extra fields (invoice_footer, print_size, wa_templates etc.) may not be DB columns
@@ -733,7 +733,7 @@ function Settings() {
                   const url = URL.createObjectURL(blob)
                   const a = document.createElement('a')
                   a.href = url
-                  a.download = `SanitaryPOS_FullBackup_${new Date().toISOString().slice(0, 10)}.json`
+                  a.download = `EdgeXPOS_FullBackup_${new Date().toISOString().slice(0, 10)}.json`
                   document.body.appendChild(a)
                   a.click()
                   document.body.removeChild(a)
@@ -776,7 +776,7 @@ function Settings() {
                     }
                   }
 
-                  const fileName = `SanitaryPOS_ExcelReports_${new Date().toISOString().slice(0, 10)}.xlsx`
+                  const fileName = `EdgeXPOS_ExcelReports_${new Date().toISOString().slice(0, 10)}.xlsx`
                   XLSX.writeFile(workbook, fileName)
                   alert('Excel reports generated and downloaded successfully! 📊')
                 } catch (err) {

@@ -47,7 +47,7 @@ function POS() {
       } catch (e) { /* fallback */ }
     }
     return {
-      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Sanitary POS',
+      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'EdgeX POS',
       phone: '',
       address: '',
       invoice_footer: 'شکریہ! دوبارہ تشریف لائیں',

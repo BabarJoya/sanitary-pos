@@ -267,7 +267,7 @@ function PurchaseHistory() {
         })()
         const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || savedSettings.logo_url || shopSettings.logo_url || ''
         const mergedSettings = { ...shopSettings, ...savedSettings, logo_url: freshLogo }
-        mergedSettings.name = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || mergedSettings.name || 'Sanitary POS'
+        mergedSettings.name = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || mergedSettings.name || 'EdgeX POS'
 
         // Format items matching billTemplates expectations
         const formattedItems = items.map(i => {

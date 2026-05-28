@@ -1,4 +1,4 @@
-# Sanitary POS Agent Context
+# EdgeX POS Agent Context
 
 This file is the compact source of truth for AI agents working in this repo. Prefer reading this first, then inspect only the files needed for the task.
 

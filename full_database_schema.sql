@@ -1,4 +1,4 @@
--- FULL DATABASE SCHEMA FOR SANITARY POS PORTING
+-- FULL DATABASE SCHEMA FOR EDGEX POS PORTING
 
 -- Note: Run this entire script in the Supabase SQL Editor of your new project.
 
@@ -185,7 +185,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 -- Insert Default Baseline Data (Optional but recommended)
-INSERT INTO shops (name) VALUES ('Sanitary Default Store') ON CONFLICT DO NOTHING;
+INSERT INTO shops (name) VALUES ('EdgeX POS Store') ON CONFLICT DO NOTHING;
 -- Note: Replace shop_id = 1 below if multiple shops exist
 INSERT INTO users (username, password, role, shop_id, permissions) 
 VALUES ('admin', '1234', 'admin', 1, '[]'::jsonb) 

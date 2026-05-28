@@ -1,4 +1,4 @@
-# Sanitary POS Project Audit
+# EdgeX POS Project Audit
 
 Audit date: 2026-05-28
 
