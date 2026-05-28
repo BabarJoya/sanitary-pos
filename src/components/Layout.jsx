@@ -12,11 +12,11 @@ function Layout({ children }) {
   const [lowStock, setLowStock] = useState([])
   const [shopName, setShopName] = useState(() => {
     const sid = user?.shop_id
-    return (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'EDGEX POS'
+    return (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'EDGEX POS'
   })
   const [shopLogo, setShopLogo] = useState(() => {
     const sid = user?.shop_id
-    return (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || ''
+    return (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || ''
   })
   const [announcements, setAnnouncements] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
@@ -61,9 +61,9 @@ function Layout({ children }) {
         localStorage.setItem(`shop_logo_${sid}`, data.logo_url)
       }
     } catch (e) {
-      const cachedName = localStorage.getItem(`shop_name_${sid}`) || localStorage.getItem('shop_name')
+      const cachedName = localStorage.getItem(`shop_name_${sid}`)
       if (cachedName) setShopName(cachedName)
-      const cachedLogo = localStorage.getItem(`shop_logo_${sid}`) || localStorage.getItem('shop_logo') || ''
+      const cachedLogo = localStorage.getItem(`shop_logo_${sid}`) || ''
       if (cachedLogo) setShopLogo(cachedLogo)
     }
   }
@@ -72,8 +72,8 @@ function Layout({ children }) {
     // Re-read logo + shop name whenever Settings saves them to localStorage
     const handleStorage = () => {
       const sid = user?.shop_id
-      const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || ''
-      const freshName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || ''
+      const freshLogo = sid ? localStorage.getItem(`shop_logo_${sid}`) || '' : ''
+      const freshName = sid ? localStorage.getItem(`shop_name_${sid}`) || '' : ''
       if (freshLogo) setShopLogo(freshLogo)
       if (freshName) setShopName(freshName)
     }

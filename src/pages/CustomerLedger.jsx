@@ -191,10 +191,7 @@ function CustomerLedger() {
 
     const printPaymentVoucher = (amount, note, date) => {
         const sid = user?.shop_id
-        const cachedShopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null)
-          || localStorage.getItem('shop_name')
-          || JSON.parse(localStorage.getItem('plan_limits') || '{}').shop_name
-          || 'Our Shop'
+        const cachedShopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Our Shop'
         printHTML(`<html><head><title>Payment Receipt</title>
         <style>
           @page{size:80mm auto;margin:2mm}

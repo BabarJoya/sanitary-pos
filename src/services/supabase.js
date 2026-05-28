@@ -14,7 +14,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     },
     global: {
         headers: {
-            'x-application-name': 'edgex-pos'
+            'x-application-name': 'edgex-pos',
+            get 'x-session-token'() {
+                return localStorage.getItem('session_token') || ''
+            }
         }
     }
 })

@@ -60,15 +60,15 @@ function customerLine(r) {
 }
 
 // ── TEMPLATE 1 — SIMPLE / MINIMAL ────────────────────────────
-function template1(r, isQuotation, s) {
+function template1(r, isQuotation, s, isPurchase = false) {
   const isThermal = s.print_size !== 'a4'
-  const footer = isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں')
-  const invoiceNo = `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const footer = isPurchase ? '' : (isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں'))
+  const invoiceNo = isPurchase ? `PR-${String(r.sale?.id ?? Date.now()).slice(-8)}` : `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
   const dateStr = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK')
   const remaining = r.sale ? safeNum(r.total) - safeNum(r.sale.paid_amount) : 0
 
   if (isThermal) {
-    return `<html><head><title>${isQuotation ? 'Quotation' : 'Receipt'}</title>
+    return `<html><head><title>${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Receipt')}</title>
     <style>
       @page{size:80mm auto;margin:2mm}
       *{box-sizing:border-box}
@@ -83,9 +83,9 @@ function template1(r, isQuotation, s) {
     ${s.address ? `<p class="c" style="font-size:0.9em">${s.address}</p>` : ''}
     ${s.phone ? `<p class="c" style="font-size:0.9em">Ph: ${s.phone}</p>` : ''}
     <div class="dot"></div>
-    <p>${isQuotation ? 'QUOTATION' : 'RECEIPT'}: ${invoiceNo}</p>
+    <p>${isPurchase ? 'PURCHASE RECORD' : (isQuotation ? 'QUOTATION' : 'RECEIPT')}: ${invoiceNo}</p>
     <p>${dateStr}</p>
-    <p>Customer: ${customerLine(r)}</p>
+    <p>${isPurchase ? 'Supplier' : 'Customer'}: ${customerLine(r)}</p>
     ${r.sale?.created_by ? `<p>Cashier: ${r.sale.created_by}</p>` : ''}
     <div class="dot"></div>
     <table>${itemRows(r.items, true)}</table>
@@ -100,7 +100,7 @@ function template1(r, isQuotation, s) {
   }
 
   // A4 Simple
-  return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
+  return `<html><head><title>${isPurchase ? 'Purchase Invoice' : (isQuotation ? 'Quotation' : 'Invoice')}</title>
   <style>
     @page{size:A4 portrait;margin:15mm}
     *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
@@ -126,10 +126,10 @@ function template1(r, isQuotation, s) {
       ${s.phone ? `<div style="font-size:13px;color:#666">Ph: ${s.phone}</div>` : ''}
     </div>
     <div class="inv-box">
-      <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1px">${isQuotation ? 'Quotation' : 'Invoice'}</div>
+      <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1px">${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Invoice')}</div>
       <div class="inv-no"># ${invoiceNo}</div>
       <div style="font-size:13px;color:#666;margin-top:6px">${dateStr}</div>
-      <div style="font-size:13px;margin-top:4px"><b>Customer:</b> ${customerLine(r)}</div>
+      <div style="font-size:13px;margin-top:4px"><b>${isPurchase ? 'Supplier' : 'Customer'}:</b> ${customerLine(r)}</div>
     </div>
   </div>
   <table>
@@ -147,15 +147,15 @@ function template1(r, isQuotation, s) {
 }
 
 // ── TEMPLATE 2 — CLASSIC (enhanced current style) ────────────
-function template2(r, isQuotation, s) {
+function template2(r, isQuotation, s, isPurchase = false) {
   const isThermal = s.print_size !== 'a4'
-  const footer = isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں')
-  const invoiceNo = `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const footer = isPurchase ? '' : (isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں'))
+  const invoiceNo = isPurchase ? `PR-${String(r.sale?.id ?? Date.now()).slice(-8)}` : `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
   const dateStr = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK')
   const remaining = r.sale ? safeNum(r.total) - safeNum(r.sale.paid_amount) : 0
 
   if (isThermal) {
-    return `<html><head><title>${isQuotation ? 'Quotation' : 'Receipt'}</title>
+    return `<html><head><title>${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Receipt')}</title>
     <style>
       @page{size:80mm auto;margin:2mm}
       *{box-sizing:border-box}
@@ -172,11 +172,11 @@ function template2(r, isQuotation, s) {
     ${s.address ? `<p class="c">${s.address}</p>` : ''}
     ${s.phone ? `<p class="c">Ph: ${s.phone}</p>` : ''}
     <hr/>
-    <p class="c b">${isQuotation ? '— QUOTATION —' : '— RECEIPT —'}</p>
+    <p class="c b">${isPurchase ? '— PURCHASE RECORD —' : (isQuotation ? '— QUOTATION —' : '— RECEIPT —')}</p>
     <p>#: ${invoiceNo}</p>
     <p>Date: ${dateStr}</p>
     ${r.sale?.created_by ? `<p>Cashier: ${r.sale.created_by}</p>` : ''}
-    <p>Customer: ${customerLine(r)}</p>
+    <p>${isPurchase ? 'Supplier' : 'Customer'}: ${customerLine(r)}</p>
     ${paymentLine(r)}
     <hr/>
     <table>
@@ -198,7 +198,7 @@ function template2(r, isQuotation, s) {
   }
 
   // A4 Classic
-  return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
+  return `<html><head><title>${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Invoice')}</title>
   <style>
     @page{size:A4 portrait;margin:12mm}
     *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
@@ -227,14 +227,14 @@ function template2(r, isQuotation, s) {
       <div style="font-size:13px;opacity:0.85;margin-top:4px">${[s.address, s.phone].filter(Boolean).join(' · ')}</div>
     </div>
     <div class="inv-badge">
-      <div style="font-size:11px;opacity:0.8;letter-spacing:1px">${isQuotation ? 'QUOTATION' : 'INVOICE'}</div>
+      <div style="font-size:11px;opacity:0.8;letter-spacing:1px">${isPurchase ? 'PURCHASE RECORD' : (isQuotation ? 'QUOTATION' : 'INVOICE')}</div>
       <div style="font-size:22px;font-weight:800">#${invoiceNo}</div>
       <div style="font-size:12px;opacity:0.8;margin-top:4px">${dateStr}</div>
     </div>
   </div>
   <div class="meta">
     <div>
-      <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Bill To</div>
+      <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${isPurchase ? 'Supplier' : 'Bill To'}</div>
       <div style="font-weight:600;font-size:15px">${customerLine(r)}</div>
     </div>
     ${r.sale?.created_by ? `<div style="text-align:right"><div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Cashier</div><div style="font-weight:600">${r.sale.created_by}</div></div>` : ''}
@@ -258,15 +258,15 @@ function template2(r, isQuotation, s) {
 }
 
 // ── TEMPLATE 3 — PROFESSIONAL ────────────────────────────────
-function template3(r, isQuotation, s) {
+function template3(r, isQuotation, s, isPurchase = false) {
   const isThermal = s.print_size !== 'a4'
-  const footer = isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں')
-  const invoiceNo = `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const footer = isPurchase ? '' : (isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں'))
+  const invoiceNo = isPurchase ? `PR-${String(r.sale?.id ?? Date.now()).slice(-8)}` : `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
   const dateStr = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleString('en-PK') : new Date().toLocaleString('en-PK')
   const remaining = r.sale ? safeNum(r.total) - safeNum(r.sale.paid_amount) : 0
 
   if (isThermal) {
-    return `<html><head><title>${isQuotation ? 'Quotation' : 'Receipt'}</title>
+    return `<html><head><title>${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Receipt')}</title>
     <style>
       @page{size:80mm auto;margin:2mm}
       *{box-sizing:border-box}
@@ -285,13 +285,13 @@ function template3(r, isQuotation, s) {
     ${s.address ? `<p class="c" style="font-size:0.9em">${s.address}</p>` : ''}
     ${s.phone ? `<p class="c" style="font-size:0.9em">☎ ${s.phone}</p>` : ''}
     <hr class="double" style="margin:8px 0"/>
-    <p class="c b">${isQuotation ? '✦ QUOTATION ✦' : '✦ SALES RECEIPT ✦'}</p>
+    <p class="c b">${isPurchase ? '✦ PURCHASE RECORD ✦' : (isQuotation ? '✦ QUOTATION ✦' : '✦ SALES RECEIPT ✦')}</p>
     <hr/>
     <table style="width:100%;font-size:0.9em"><tbody>
-      <tr><td>Invoice #</td><td class="r"><span class="box">${invoiceNo}</span></td></tr>
+      <tr><td>${isPurchase ? 'Purchase #' : 'Invoice #'}</td><td class="r"><span class="box">${invoiceNo}</span></td></tr>
       <tr><td>Date</td><td class="r">${dateStr}</td></tr>
       ${r.sale?.created_by ? `<tr><td>Cashier</td><td class="r">${r.sale.created_by}</td></tr>` : ''}
-      <tr><td>Customer</td><td class="r" style="max-width:140px;word-break:break-word">${customerLine(r)}</td></tr>
+      <tr><td>${isPurchase ? 'Supplier' : 'Customer'}</td><td class="r" style="max-width:140px;word-break:break-word">${customerLine(r)}</td></tr>
     </tbody></table>
     <hr/>
     <p class="b" style="font-size:0.85em;text-decoration:underline">ITEMS (${r.items.length} total):</p>
@@ -316,7 +316,7 @@ function template3(r, isQuotation, s) {
   }
 
   // A4 Professional
-  return `<html><head><title>${isQuotation ? 'Quotation' : 'Invoice'}</title>
+  return `<html><head><title>${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Invoice')}</title>
   <style>
     @page{size:A4 portrait;margin:0}
     *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
@@ -356,7 +356,7 @@ function template3(r, isQuotation, s) {
         ${s.phone ? `<div style="font-size:12px;opacity:0.8">☎ ${s.phone}</div>` : ''}
       </div>
       <div class="inv-number-box">
-        <div style="font-size:10px;opacity:0.8;letter-spacing:1px;margin-bottom:5px">${isQuotation ? 'QUOTATION' : 'TAX INVOICE'}</div>
+        <div style="font-size:10px;opacity:0.8;letter-spacing:1px;margin-bottom:5px">${isPurchase ? 'PURCHASE RECORD' : (isQuotation ? 'QUOTATION' : 'TAX INVOICE')}</div>
         <div style="font-size:20px;font-weight:900"># ${invoiceNo}</div>
         <div style="font-size:11px;opacity:0.75;margin-top:5px">${dateStr}</div>
       </div>
@@ -365,7 +365,7 @@ function template3(r, isQuotation, s) {
   <div class="body-section">
     <div class="info-row">
       <div class="info-cell">
-        <div class="info-label">Bill To</div>
+        <div class="info-label">${isPurchase ? 'Supplier' : 'Bill To'}</div>
         <div class="info-value">${customerLine(r)}</div>
       </div>
       <div class="info-cell">
@@ -423,11 +423,11 @@ function template3(r, isQuotation, s) {
 }
 
 // ── PUBLIC API ───────────────────────────────────────────────
-export function buildBillHTML(r, isQuotation = false, shopSettings = {}) {
-  const template = shopSettings.print_template || localStorage.getItem('print_template') || '2'
-  if (template === '1') return template1(r, isQuotation, shopSettings)
-  if (template === '3') return template3(r, isQuotation, shopSettings)
-  return template2(r, isQuotation, shopSettings)
+export function buildBillHTML(r, isQuotation = false, shopSettings = {}, isPurchase = false) {
+  const template = shopSettings.print_template || localStorage.getItem(`print_template_${shopSettings.shop_id || ''}`) || localStorage.getItem('print_template') || '2'
+  if (template === '1') return template1(r, isQuotation, shopSettings, isPurchase)
+  if (template === '3') return template3(r, isQuotation, shopSettings, isPurchase)
+  return template2(r, isQuotation, shopSettings, isPurchase)
 }
 
 // ── SALES REPORT (daily / weekly / monthly) ──────────────────

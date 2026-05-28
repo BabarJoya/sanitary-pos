@@ -257,8 +257,12 @@ function Purchases() {
         unit_price: i.purchase_price,
         total_price: i.purchase_price * i.qty
       }))
-      const { error: itemsError } = await supabase.from('purchase_items').insert(items)
+      const { data: resItems, error: itemsError } = await supabase.from('purchase_items').insert(items).select()
       if (itemsError) throw itemsError
+
+      // Mirror to local DB so Purchase History shows up immediately without reload
+      await db.purchases.put(purchase)
+      await db.purchase_items.bulkPut(resItems)
 
       // 3. Update Product Stock and Cost Price (online + local cache)
       for (const item of cart) {

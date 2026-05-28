@@ -40,21 +40,21 @@ function POS() {
   const [quotationIdInput, setQuotationIdInput] = useState('')
   const [form, setForm] = useState(() => {
     const sid = user?.shop_id
-    const saved = sid ? localStorage.getItem(`shop_settings_${sid}`) : localStorage.getItem('shop_settings_full')
+    const saved = sid ? localStorage.getItem(`shop_settings_${sid}`) : null
     if (saved) {
       try {
         return JSON.parse(saved)
       } catch (e) { /* fallback */ }
     }
     return {
-      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Sanitary POS',
+      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Sanitary POS',
       phone: '',
       address: '',
       invoice_footer: 'شکریہ! دوبارہ تشریف لائیں',
       quotation_footer: 'یہ صرف قیمت نامہ ہے',
       print_size: 'thermal',
       print_mode: 'manual',
-      logo_url: (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || '',
+      logo_url: (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || '',
       wa_reminder_template: 'Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!',
       wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
     }
@@ -212,7 +212,7 @@ function POS() {
       if (s.data) {
         setForm(prev => {
           // Always prefer locally saved logo — Supabase may have a stale value
-          const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+          const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || ''
           const updated = {
             ...prev,
             name: s.data.name || prev.name,
@@ -292,7 +292,7 @@ function POS() {
         const localShop = await db.shops.get(sidNumber)
         if (localShop) {
           setForm(prev => {
-            const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || localStorage.getItem('shop_logo') || ''
+            const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || ''
             return {
               ...prev,
               name: localShop.name || prev.name,
@@ -587,8 +587,12 @@ function POS() {
         line_total: i.custom_price * i.qty,
         returned_qty: 0,
       }))
-      const { error: itemsError } = await supabase.from('sale_items').insert(items)
+      const { data: resItems, error: itemsError } = await supabase.from('sale_items').insert(items).select()
       if (itemsError) throw itemsError
+
+      // Mirror to local DB so Sales history / ledger shows up immediately without reload
+      await db.sales.put(sale)
+      await db.sale_items.bulkPut(resItems)
 
       if (saleType === 'sale') {
         for (const item of cart) {
@@ -616,9 +620,11 @@ function POS() {
         const offlineSaleData = { ...saleData, id: offlineId };
         finalSale = offlineSaleData;
 
+        await db.sales.add(offlineSaleData)
         await addToSyncQueue('sales', 'INSERT', offlineSaleData)
 
         const items = cart.map(i => ({
+          id: crypto.randomUUID(),
           sale_id: offlineId,
           product_id: i.id,
           product_name: i.name,
@@ -628,6 +634,7 @@ function POS() {
           line_total: i.custom_price * i.qty,
           returned_qty: 0,
         }))
+        await db.sale_items.bulkPut(items)
         await addToSyncQueue('sale_items', 'INSERT', items)
 
         if (saleType === 'sale') {
@@ -760,7 +767,7 @@ function POS() {
     // Uses shop_id-scoped keys for full multitenancy.
     const sid = user?.shop_id
     let saved = {}
-    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
+    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) {}
 
     const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null)
       || saved.logo_url || form.logo_url || ''

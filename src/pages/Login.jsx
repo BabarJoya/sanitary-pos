@@ -96,6 +96,11 @@ function Login() {
 
       const userData = loginResult.user
       const shopConfig = loginResult.shop_config
+      const sessionToken = loginResult.session_token
+
+      if (sessionToken) {
+        localStorage.setItem('session_token', sessionToken)
+      }
 
       // Validate response data
       if (!userData.id || !userData.shop_id || !userData.role) {
@@ -112,7 +117,7 @@ function Login() {
         status: shopConfig?.status || 'active'
       }))
       // Store feature flags for feature gating
-      localStorage.setItem(`plan_features_${userData.userData?.shop_id || userData.shop_id}`, JSON.stringify(shopConfig?.features || {}))
+      localStorage.setItem(`plan_features_${userData.shop_id}`, JSON.stringify(shopConfig?.features || {}))
 
       // Save user to IndexedDB for offline access
       try {

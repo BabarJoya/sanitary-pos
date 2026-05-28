@@ -8,6 +8,7 @@ import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
 import { printHTML } from '../utils/printUtils'
+import { buildBillHTML } from '../utils/billTemplates'
 
 function PurchaseHistory() {
     const { user } = useAuth()
@@ -40,7 +41,7 @@ function PurchaseHistory() {
     const fetchShopSettings = async () => {
         // Load from shop-scoped localStorage first, then refresh from Supabase
         const sid = user?.shop_id
-        const cached = (sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full')
+        const cached = sid ? localStorage.getItem(`shop_settings_${sid}`) : null
         if (cached) { try { setShopSettings(JSON.parse(cached)) } catch (_) {} }
         try {
             if (!navigator.onLine) throw new Error('Offline')
@@ -261,63 +262,58 @@ function PurchaseHistory() {
 
     const printPurchase = (p, items) => {
         const sid = user?.shop_id
-        const savedSettings = (() => { try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) { return {} } })()
+        const savedSettings = (() => {
+            try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) { return {} }
+        })()
         const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || savedSettings.logo_url || shopSettings.logo_url || ''
-        const merged = { ...shopSettings, ...savedSettings, logo_url: freshLogo }
-        const isThermal = merged.print_size !== 'a4'
+        const mergedSettings = { ...shopSettings, ...savedSettings, logo_url: freshLogo }
+        mergedSettings.name = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || mergedSettings.name || 'Sanitary POS'
 
-        printHTML(`
-      <html><head><title>Purchase Invoice</title>
-      <style>
-        @page{size:${isThermal ? '80mm auto' : 'A4 portrait'};margin:${isThermal ? '2mm' : '12mm'}}
-        *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-        body { font-family: ${isThermal ? 'monospace' : "'Segoe UI', sans-serif"}; width: ${isThermal ? '302px' : '100%'}; margin: ${isThermal ? '0 auto' : '0'}; padding: ${isThermal ? '10px 8px' : '0'}; font-size: 13px; }
-        h2, p.center { text-align: center; margin: 2px 0; }
-        hr { border-top: 1px dashed #000; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; }
-        td, th { padding: ${isThermal ? '5px 0' : '10px'}; vertical-align: top; }
-        .right { text-align: right; } .bold { font-weight: bold; }
-        .logo { display: block; margin: 0 auto 10px; max-width: 100px; }
-        ${!isThermal ? `table { border: 1px solid #ddd; } th, td { border: 1px solid #ddd; }` : ''}
-      </style></head><body>
-      ${merged.logo_url ? `<img src="${merged.logo_url}" class="logo" />` : ''}
-      <h2>${merged.name || 'Sanitary POS'}</h2>
-      <p class="center">${merged.address || ''}</p>
-      <p class="center">Phone: ${merged.phone || ''}</p>
-      <hr/>
-      <p>Purchase Invoice #: PR-${String(p.id).slice(-8)}</p>
-      <p>Supplier: ${p.suppliers?.name || 'Unknown'}</p>
-      <p>Date: ${new Date(p.created_at).toLocaleString('en-PK')}</p>
-      <p>Payment: ${p.payment_type?.toUpperCase()}</p>
-      <hr/>
-      <table>
-        <thead>
-          <tr><th align="left">Item</th><th align="right">Qty</th><th align="right">Rate</th><th align="right">Amt</th></tr>
-        </thead>
-        <tbody>
-          ${items.map(i => {
-            const netQty = i.quantity - (i.returned_qty || 0)
-            if (netQty <= 0) return ''
-            return `<tr>
-              <td>${i.product_name}</td>
-              <td class="right">${netQty}</td>
-              <td class="right">${Number(i.unit_price).toFixed(0)}</td>
-              <td class="right">${(netQty * i.unit_price).toFixed(0)}</td>
-            </tr>`
-        }).join('')}
-        </tbody>
-      </table>
-      <hr/>
-      <div style="width: 200px; margin-left: auto;">
-        <table style="border: none;">
-          <tr style="border: none;"><td style="border: none;" class="bold">TOTAL</td><td class="right bold" style="border: none;">Rs. ${Number(p.total_amount).toFixed(0)}</td></tr>
-          ${p.paid_amount != null ? `<tr style="border: none;"><td style="border: none;">Paid</td><td class="right" style="border: none;">Rs. ${Number(p.paid_amount).toFixed(0)}</td></tr>` : ''}
-        </table>
-      </div>
-      <hr/>
-      <p class="center" style="font-size: 14px; margin-top: 10px; color: #888;">Computer Generated Purchase Record</p>
-      </body></html>
-    `)
+        // Format items matching billTemplates expectations
+        const formattedItems = items.map(i => {
+            const returnedQty = i.returned_qty || 0
+            const netQty = i.quantity - returnedQty
+            
+            const returnNote = returnedQty > 0 ? ` (Returned: ${returnedQty})` : ''
+            return {
+                name: (i.product_name || i.products?.name || '') + returnNote,
+                qty: netQty,
+                price: Number(i.unit_price || i.price || 0),
+                sku: i.products?.sku || '',
+                brand: i.products?.brand || ''
+            }
+        }).filter(i => i.qty > 0)
+
+        const subtotal = items.reduce((sum, item) => sum + (Number(item.unit_price || item.price || 0) * (item.quantity - (item.returned_qty || 0))), 0)
+        const discount = Number(p.discount || 0)
+        const total = Math.max(0, subtotal - discount)
+
+        // Construct supplier object matching billTemplates customer expectations
+        const supplier = p.suppliers ? {
+            name: p.suppliers.name,
+            phone: p.suppliers.phone || '',
+            address: p.suppliers.address || ''
+        } : null
+
+        const payload = {
+            sale: {
+                id: p.id,
+                created_at: p.created_at,
+                paid_amount: p.paid_amount,
+                created_by: p.users?.username || 'Staff',
+                payment_type: p.payment_type || p.payment_method
+            },
+            customer: supplier,
+            walkInName: !supplier ? 'Unknown Supplier' : null,
+            items: formattedItems,
+            subtotal,
+            totalDiscount: discount,
+            total,
+            change: 0
+        }
+
+        const html = buildBillHTML(payload, false, mergedSettings, true)
+        printHTML(html)
     }
 
     const requestDelete = (ids) => {

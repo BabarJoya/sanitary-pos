@@ -78,6 +78,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user')
     localStorage.removeItem('originalUser')
     localStorage.removeItem('user_pw_hash')
+    localStorage.removeItem('session_token')
   }
 
   return (

@@ -64,9 +64,63 @@ export const syncOfflineData = async () => {
                 error = err;
                 returnedData = resData;
 
-                // Build ID mapping if we inserted a single object that had a UUID originally
-                if (!error && !isArray && typeof item.data.id === 'string' && item.data.id.includes('-') && returnedData?.[0]) {
-                    idMapping[item.data.id] = returnedData[0].id;
+                if (!error && returnedData) {
+                    if (isArray) {
+                        const originalIds = processedData.map(d => d.id).filter(id => typeof id === 'string' && id.includes('-'));
+                        if (originalIds.length > 0) {
+                            await db[item.table].bulkDelete(originalIds);
+                        }
+                        await db[item.table].bulkPut(returnedData);
+                    } else {
+                        const oldId = item.data.id;
+                        if (typeof oldId === 'string' && oldId.includes('-')) {
+                            await db[item.table].delete(oldId);
+                            const newId = returnedData[0].id;
+                            
+                            // Cascade ID update to other items in local IndexedDB
+                            await db[item.table].put(returnedData[0]);
+
+                            // Cascade ID update in remaining sync queue entries
+                            const remainingQueue = await db.sync_queue.toArray();
+                            for (const qItem of remainingQueue) {
+                                if (qItem.id === item.id) continue;
+                                let updated = false;
+                                const updateRefs = (obj) => {
+                                    if (!obj || typeof obj !== 'object') return obj;
+                                    if (Array.isArray(obj)) {
+                                        return obj.map(o => {
+                                            const res = updateRefs(o);
+                                            if (res !== o) updated = true;
+                                            return res;
+                                        });
+                                    }
+                                    const copy = { ...obj };
+                                    for (const k in copy) {
+                                        if (copy[k] === oldId) {
+                                            copy[k] = newId;
+                                            updated = true;
+                                        } else if (typeof copy[k] === 'object') {
+                                            const res = updateRefs(copy[k]);
+                                            if (res !== copy[k]) {
+                                                copy[k] = res;
+                                                updated = true;
+                                            }
+                                        }
+                                    }
+                                    return copy;
+                                };
+                                const newPayload = updateRefs(qItem.data);
+                                if (updated) {
+                                    await db.sync_queue.update(qItem.id, { data: newPayload });
+                                }
+                            }
+                            
+                            // Keep in-memory mapping as backup for current sync run
+                            idMapping[oldId] = newId;
+                        } else {
+                            await db[item.table].put(returnedData[0]);
+                        }
+                    }
                 }
             } else if (item.action === 'UPDATE') {
                 const dataObj = Array.isArray(processedData) ? processedData[0] : processedData;

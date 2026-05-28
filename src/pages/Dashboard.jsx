@@ -187,7 +187,7 @@ function Dashboard() {
     if (!d) return
     const dateStr = new Date().toLocaleDateString('en-PK')
     const sid = user?.shop_id
-    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'My Shop'
+    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'My Shop'
     const msg =
       `🌙 *End of Day — ${dateStr}*\n*${shopName}*\n\n` +
       `💵 Cash Sales: Rs. ${d.cashSales.toLocaleString()}\n` +

@@ -55,7 +55,7 @@ function Inventory() {
 
   const handlePrint = () => {
     const sid = user?.shop_id
-    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Our Shop'
+    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Our Shop'
     printHTML(`
       <html><head><title>Stock Report - ${new Date().toLocaleDateString()}</title>
       <style>
@@ -119,8 +119,8 @@ function Inventory() {
     })
 
     const sid = user?.shop_id
-    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Our Shop'
-    const shopSettings = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}')
+    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Our Shop'
+    const shopSettings = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}')
     const reorderTemplate = shopSettings.wa_reorder_template ||
       'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!'
     const supplierNames = Object.keys(bySupplier)

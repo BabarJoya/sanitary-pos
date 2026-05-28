@@ -6,6 +6,7 @@ import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
+import { buildBillHTML } from '../utils/billTemplates'
 
 function Sales() {
   const { user } = useAuth()
@@ -40,7 +41,7 @@ function Sales() {
   const fetchShopSettings = async () => {
     // Read from shop-scoped localStorage first for instant load
     const sid = user?.shop_id
-    const cached = (sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full')
+    const cached = sid ? localStorage.getItem(`shop_settings_${sid}`) : null
     if (cached) {
       try { setShopSettings(JSON.parse(cached)) } catch (_) {}
     }
@@ -269,84 +270,58 @@ function Sales() {
   const printInvoice = (sale, items) => {
     const sid = user?.shop_id
     const savedSettings = (() => {
-      try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) { return {} }
+      try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) { return {} }
     })()
     const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || savedSettings.logo_url || shopSettings.logo_url || ''
     const mergedSettings = { ...shopSettings, ...savedSettings, logo_url: freshLogo }
+    mergedSettings.name = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || mergedSettings.name || 'Sanitary POS'
 
-    const isThermal = mergedSettings.print_size !== 'a4'
-    const footer = sale.sale_type === 'quotation' ? mergedSettings.quotation_footer : mergedSettings.invoice_footer
-
-    printHTML(`
-      <html><head><title>Invoice</title>
-      <style>
-        @page{size:${isThermal ? '80mm auto' : 'A4 portrait'};margin:${isThermal ? '2mm' : '12mm'}}
-        *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-        body { font-family: ${isThermal ? 'monospace' : "'Segoe UI',Arial,sans-serif"}; width: ${isThermal ? '302px' : '100%'}; margin: ${isThermal ? '0 auto' : '0'}; padding: ${isThermal ? '10px 8px' : '0'}; font-size: 13px; }
-        h2, p.center { text-align: center; margin: 2px 0; }
-        hr { border-top: 1px dashed #000; margin: 6px 0; }
-        table { width: 100%; border-collapse: collapse; } 
-        td { padding: 5px 0; vertical-align: top; }
-        .right { text-align: right; } .bold { font-weight: bold; }
-        .logo { display: block; margin: 0 auto 10px; max-width: 100px; }
-        ${!isThermal ? `
-          body { font-family: 'Segoe UI', sans-serif; padding: 24px; }
-          table { border: 1px solid #ddd; }
-          th, td { border: 1px solid #ddd; padding: 10px; }
-        ` : ''}
-      </style></head><body>
-      ${mergedSettings.logo_url ? `<img src="${mergedSettings.logo_url}" class="logo" />` : ''}
-      <h2>${mergedSettings.name || 'Sanitary POS'}</h2>
-      <p class="center">${mergedSettings.address || ''}</p>
-      <p class="center">Phone: ${mergedSettings.phone || ''}</p>
-      <hr/>
-      <p>${sale.sale_type === 'quotation' ? 'Quotation' : 'Invoice'} #: ${sale.sale_type === 'quotation' ? 'QT-' : ''}${String(sale.id).slice(-8)}</p>
-      <p>Date: ${new Date(sale.created_at).toLocaleString('en-PK')}</p>
-      <p>Customer: ${sale.customers?.name || sale.customer_name || 'Walk-in'}</p>
-      <p>Payment: ${sale.payment_type?.toUpperCase()}</p>
-      <hr/>
-      <table>
-        <thead>
-          <tr><th align="left">Item</th><th align="right">Qty</th><th align="right">Rate</th><th align="right">Amt</th></tr>
-        </thead>
-        <tbody>
-          ${items.map(i => {
+    // Format items matching billTemplates expectations
+    const formattedItems = items.map(i => {
       const returnedQty = i.returned_qty || 0
       const netQty = i.quantity - returnedQty
-      if (netQty <= 0 && returnedQty === 0) return ''
-      const netAmount = netQty * Number(i.unit_price)
-      const returnNote = returnedQty > 0
-        ? `<span style="font-size:0.75em;color:#e53e3e;"> (Orig: ${i.quantity}, Returned: ${returnedQty})</span>`
-        : ''
-      if (netQty <= 0) {
-        return `<tr style="color:#aaa;text-decoration:line-through;">
-              <td>${i.product_name} ${returnNote}</td>
-              <td class="right">0</td>
-              <td class="right">${Number(i.unit_price).toFixed(0)}</td>
-              <td class="right">0</td>
-            </tr>`
+      
+      const returnNote = returnedQty > 0 ? ` (Returned: ${returnedQty})` : ''
+      return {
+        name: (i.product_name || i.products?.name || '') + returnNote,
+        qty: netQty,
+        price: Number(i.unit_price || i.price || 0),
+        sku: i.products?.sku || '',
+        brand: i.products?.brand || ''
       }
-      return `<tr>
-              <td>${i.product_name}${returnNote}</td>
-              <td class="right">${netQty}</td>
-              <td class="right">${Number(i.unit_price).toFixed(0)}</td>
-              <td class="right">${netAmount.toFixed(0)}</td>
-            </tr>`
-    }).join('')}
-        </tbody>
-      </table>
-      <hr/>
-      <div style="width: 200px; margin-left: auto;">
-        <table style="border: none;">
-          <tr style="border: none;"><td style="border: none;">Subtotal</td><td class="right" style="border: none;">Rs. ${Number(sale.total_amount).toFixed(0)}</td></tr>
-          ${Number(sale.discount) > 0 ? `<tr style="border: none;"><td style="border: none;">Discount</td><td class="right" style="border: none;">- Rs. ${Number(sale.discount).toFixed(0)}</td></tr>` : ''}
-          <tr style="border: none;"><td class="bold" style="border: none;">TOTAL</td><td class="right bold" style="border: none;">Rs. ${Math.max(0, Number(sale.total_amount) - Number(sale.discount || 0)).toFixed(0)}</td></tr>
-        </table>
-      </div>
-      <hr/>
-      <p class="center" style="font-size: 16px; font-weight: bold; margin-top: 10px;">${footer || 'شکریہ! دوبارہ تشریف لائیں'}</p>
-      </body></html>
-    `)
+    })
+
+    const subtotal = items.reduce((sum, item) => sum + (Number(item.unit_price || item.price || 0) * (item.quantity - (item.returned_qty || 0))), 0)
+    const discount = Number(sale.discount || 0)
+    const total = Math.max(0, subtotal - discount)
+    const change = sale.payment_details?.change || 0
+
+    // Construct customer object matching billTemplates expectations
+    const customer = sale.customers ? {
+      name: sale.customers.name,
+      phone: sale.customers.phone || '',
+      address: sale.customers.address || ''
+    } : null
+
+    const payload = {
+      sale: {
+        id: sale.id,
+        created_at: sale.created_at,
+        paid_amount: sale.amount_paid,
+        created_by: sale.users?.username || 'Staff',
+        payment_type: sale.payment_type || sale.payment_method
+      },
+      customer,
+      walkInName: !customer ? (sale.customer_name || 'Walk-in') : null,
+      items: formattedItems,
+      subtotal,
+      totalDiscount: discount,
+      total,
+      change
+    }
+
+    const html = buildBillHTML(payload, sale.sale_type === 'quotation', mergedSettings)
+    printHTML(html)
   }
 
   const filtered = sales.filter(s => {

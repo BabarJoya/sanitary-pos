@@ -15,17 +15,17 @@ function Settings() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(() => {
     const sid = user?.shop_id
-    const saved = sid ? localStorage.getItem(`shop_settings_${sid}`) : localStorage.getItem('shop_settings_full')
+    const saved = sid ? localStorage.getItem(`shop_settings_${sid}`) : null
     if (saved) {
       try {
         return JSON.parse(saved)
       } catch (e) { /* fallback */ }
     }
     return {
-      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || localStorage.getItem('shop_name') || 'Sanitary POS',
+      name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Sanitary POS',
       phone: '',
       address: '',
-      logo_url: (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || localStorage.getItem('shop_logo') || '',
+      logo_url: (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || '',
       invoice_footer: 'شکریہ! دوبارہ تشریف لائیں',
       quotation_footer: 'یہ صرف قیمت نامہ ہے',
       print_size: 'thermal',
@@ -41,16 +41,14 @@ function Settings() {
   const LOGO_KEY = `shop_logo_${user?.shop_id}`
   const [logoUrl, setLogoUrl] = useState(() => {
     const sid = user?.shop_id
-    return (sid ? localStorage.getItem(`shop_logo_${sid}`) : null)
-      || localStorage.getItem('shop_logo')
-      || ''
+    return (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || ''
   })
 
   // Re-read logo from localStorage whenever user.shop_id becomes available
   // (handles any edge case where it wasn't ready on first render)
   useEffect(() => {
     if (!user?.shop_id) return
-    const saved = localStorage.getItem(`shop_logo_${user.shop_id}`) || localStorage.getItem('shop_logo')
+    const saved = localStorage.getItem(`shop_logo_${user.shop_id}`)
     if (saved) setLogoUrl(saved)
   }, [user?.shop_id])
 
@@ -105,7 +103,7 @@ function Settings() {
     // We only use Supabase data to fill in values that localStorage doesn't have yet.
     let saved = {}
     const sid = user?.shop_id
-    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || localStorage.getItem('shop_settings_full') || '{}') } catch (_) {}
+    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) {}
 
     setForm(prev => ({
       name:                 saved.name                 || data.name    || prev.name    || 'Sanitary POS',
@@ -124,8 +122,7 @@ function Settings() {
 
     // Only use Supabase logo if localStorage has absolutely nothing for this shop
     // Explicitly check localStorage — never rely on prev state (empty string is falsy)
-    const localLogo = (user?.shop_id ? localStorage.getItem(`shop_logo_${user.shop_id}`) : null)
-      || localStorage.getItem('shop_logo')
+    const localLogo = user?.shop_id ? localStorage.getItem(`shop_logo_${user.shop_id}`) : null
     if (!localLogo && data.logo_url) {
       setLogoUrl(data.logo_url)
     }
@@ -134,7 +131,7 @@ function Settings() {
   const fetchPlanInfo = async () => {
     const sid = user?.shop_id
     // Try localStorage first for instant info
-    const cached = sid ? localStorage.getItem(`plan_limits_${sid}`) : localStorage.getItem('plan_limits')
+    const cached = sid ? localStorage.getItem(`plan_limits_${sid}`) : null
     if (cached) {
       try {
         setPlanInfo(JSON.parse(cached))
