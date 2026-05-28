@@ -5,6 +5,21 @@ import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { printHTML } from '../utils/printUtils'
 
+const StatCard = ({ title, value, icon, color, subValue }) => (
+  <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
+    <div className="flex justify-between items-start mb-4">
+      <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-xl`}>
+        {icon}
+      </div>
+      {subValue && <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{subValue}</span>}
+    </div>
+    <h3 className="text-gray-500 text-sm font-medium">{title}</h3>
+    <p className="text-2xl font-bold text-gray-800 mt-1">
+      {typeof value === 'number' && title.includes('Rs') ? `Rs. ${value.toLocaleString()}` : value}
+    </p>
+  </div>
+)
+
 function Dashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -233,21 +248,6 @@ function Dashboard() {
       <p class="center" style="font-size:11px;color:#888;">Generated: ${new Date().toLocaleTimeString('en-PK')}</p>
       </body></html>`)
   }
-
-  const StatCard = ({ title, value, icon, color, subValue }) => (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-xl`}>
-          {icon}
-        </div>
-        {subValue && <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{subValue}</span>}
-      </div>
-      <h3 className="text-gray-500 text-sm font-medium">{title}</h3>
-      <p className="text-2xl font-bold text-gray-800 mt-1">
-        {typeof value === 'number' && title.includes('Rs') ? `Rs. ${value.toLocaleString()}` : value}
-      </p>
-    </div>
-  )
 
   return (
     <div className="max-w-6xl mx-auto">
