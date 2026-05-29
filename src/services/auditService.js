@@ -14,6 +14,7 @@ export const recordAuditLog = async (action, entity, entityId, details, userId, 
     const logEntry = {
         id: crypto.randomUUID(), // UUID so syncService strips it before Supabase INSERT (BIGSERIAL PK)
         action,
+        action_type: action, // satisfy DB NOT NULL constraint
         entity,
         entity_id: String(entityId),
         details,

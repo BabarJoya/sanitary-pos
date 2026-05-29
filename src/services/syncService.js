@@ -43,7 +43,22 @@ export const syncOfflineData = async () => {
                 return newObj;
             };
 
-            const processedData = replaceIds(item.data);
+            let processedData = replaceIds(item.data);
+
+            // Satisfy Supabase NOT NULL constraint for action_type in audit_logs
+            if (item.table === 'audit_logs') {
+                if (Array.isArray(processedData)) {
+                    processedData = processedData.map(d => ({
+                        ...d,
+                        action_type: d.action_type || d.action || 'UNKNOWN'
+                    }));
+                } else {
+                    processedData = {
+                        ...processedData,
+                        action_type: processedData.action_type || processedData.action || 'UNKNOWN'
+                    };
+                }
+            }
 
             let error;
             let returnedData = null;
