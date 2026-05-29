@@ -13,11 +13,32 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         autoRefreshToken: false
     },
     global: {
-        headers: {
-            'x-application-name': 'edgex-pos',
-            get 'x-session-token'() {
-                return localStorage.getItem('session_token') || ''
-            }
+        fetch: (url, options) => {
+            const token = localStorage.getItem('session_token') || ''
+            options = options || {}
+            options.headers = options.headers || {}
+
+            const injectHeader = (headers) => {
+                if (headers instanceof Headers) {
+                    if (token) headers.set('x-session-token', token);
+                    headers.set('x-application-name', 'edgex-pos');
+                } else if (Array.isArray(headers)) {
+                    if (token) {
+                        const sIdx = headers.findIndex(([k]) => k.toLowerCase() === 'x-session-token');
+                        if (sIdx !== -1) headers[sIdx][1] = token;
+                        else headers.push(['x-session-token', token]);
+                    }
+                    const aIdx = headers.findIndex(([k]) => k.toLowerCase() === 'x-application-name');
+                    if (aIdx !== -1) headers[aIdx][1] = 'edgex-pos';
+                    else headers.push(['x-application-name', 'edgex-pos']);
+                } else {
+                    if (token) headers['x-session-token'] = token;
+                    headers['x-application-name'] = 'edgex-pos';
+                }
+            };
+
+            injectHeader(options.headers);
+            return fetch(url, options);
         }
     }
 })
