@@ -291,7 +291,13 @@ function Sales() {
       try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) { return {} }
     })()
     const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || savedSettings.logo_url || shopSettings.logo_url || ''
-    const mergedSettings = { ...shopSettings, ...savedSettings, logo_url: freshLogo }
+    const mergedSettings = {
+      ...shopSettings,
+      ...savedSettings,
+      logo_url: freshLogo,
+      shop_id: sid,
+      print_template: (sid ? localStorage.getItem(`print_template_${sid}`) : null) || savedSettings.print_template || localStorage.getItem('print_template') || '2'
+    }
     mergedSettings.name = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || mergedSettings.name || 'EdgeX POS'
 
     // Format items matching billTemplates expectations

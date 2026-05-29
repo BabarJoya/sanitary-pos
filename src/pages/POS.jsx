@@ -823,8 +823,9 @@ function POS() {
       quotation_footer: saved.quotation_footer || form.quotation_footer,
       print_size:       saved.print_size       || form.print_size       || 'thermal',
       print_mode:       saved.print_mode       || form.print_mode       || 'manual',
-      print_template:   (sid ? localStorage.getItem(`print_template_${sid}`) : null) || localStorage.getItem('print_template') || '2',
+      print_template:   (sid ? localStorage.getItem(`print_template_${sid}`) : null) || saved.print_template || localStorage.getItem('print_template') || '2',
       logo_url:         freshLogo,
+      shop_id:          sid,
     }
     return buildBillHTML(r, isQuotation, shopSettings)
   }

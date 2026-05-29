@@ -168,6 +168,10 @@ function Settings() {
       invoice_prefix:       saved.invoice_prefix       || prev.invoice_prefix       || '',
     }))
 
+    if (saved.print_template) {
+      setPrintTemplate(saved.print_template)
+    }
+
     // Only use Supabase logo if localStorage has absolutely nothing for this shop
     // Explicitly check localStorage — never rely on prev state (empty string is falsy)
     const localLogo = user?.shop_id ? localStorage.getItem(`shop_logo_${user.shop_id}`) : null
@@ -207,8 +211,8 @@ function Settings() {
 
     const sid = Number(user.shop_id)
 
-    // Merge latest logo into full settings for localStorage / bill printing
-    const fullSettings = { ...form, logo_url: logoUrl }
+    // Merge latest logo and print template into full settings for localStorage / bill printing
+    const fullSettings = { ...form, logo_url: logoUrl, print_template: printTemplate }
 
     // Save everything to localStorage immediately — this is the source of truth
     // for print preferences, WA templates, footers, print size etc.
@@ -909,6 +913,12 @@ function Settings() {
                     const sid = user?.shop_id
                     setPrintTemplate(t.id)
                     localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', t.id)
+                    if (sid) {
+                      let saved = {}
+                      try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch (_) {}
+                      saved.print_template = t.id
+                      localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(saved))
+                    }
                   }}
                   className={`flex-1 text-center py-1.5 px-3 rounded-lg text-xs font-bold transition ${printTemplate === t.id ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
                 >
@@ -1165,6 +1175,12 @@ function Settings() {
                       const sid = user?.shop_id
                       setPrintTemplate(previewTemplateId)
                       localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', previewTemplateId)
+                      if (sid) {
+                        let saved = {}
+                        try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch (_) {}
+                        saved.print_template = previewTemplateId
+                        localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(saved))
+                      }
                       setPreviewTemplateId(null)
                       alert('Template applied successfully!')
                     }}

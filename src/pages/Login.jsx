@@ -14,8 +14,14 @@ function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const logoUrl = '/edgex_pos_logo_platform.png'
-  const platformName = 'EdgeX Digital'
+  const [logoUrl, setLogoUrl] = useState(() => {
+    const lastShopId = localStorage.getItem('last_shop_id')
+    return lastShopId ? localStorage.getItem(`shop_logo_${lastShopId}`) || '/edgex_pos_logo_platform.png' : '/edgex_pos_logo_platform.png'
+  })
+  const [platformName, setPlatformName] = useState(() => {
+    const lastShopId = localStorage.getItem('last_shop_id')
+    return lastShopId ? localStorage.getItem(`shop_name_${lastShopId}`) || 'EdgeX Digital' : 'EdgeX Digital'
+  })
 
   const { login, impersonate } = useAuth()
   const navigate = useNavigate()
@@ -101,6 +107,9 @@ function Login() {
       if (sessionToken) {
         localStorage.setItem('session_token', sessionToken)
       }
+      if (userData.shop_id) {
+        localStorage.setItem('last_shop_id', userData.shop_id)
+      }
 
       // Validate response data
       if (!userData.id || !userData.shop_id || !userData.role) {
@@ -175,6 +184,10 @@ function Login() {
         if (localUser && localUser.password === hashedPassword && localUser.is_active !== false) {
           // Offline login successful
           console.log('✅ Offline login successful')
+
+          if (localUser.shop_id) {
+            localStorage.setItem('last_shop_id', localUser.shop_id)
+          }
 
           login({
             id: localUser.id,
