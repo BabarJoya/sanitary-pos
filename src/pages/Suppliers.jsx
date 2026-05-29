@@ -306,16 +306,41 @@ function Suppliers() {
   }
 
   const fetchSuppliers = async () => {
+    if (!user?.shop_id) {
+      setLoading(false)
+      console.error('Suppliers: Missing user.shop_id!')
+      return
+    }
+
+    const sid = String(user.shop_id)
+
+    // ── Step 1: Show local IndexedDB data IMMEDIATELY (instant UI) ────────────
     try {
-      if (!navigator.onLine) throw new Error('Offline');
+      const localData = await db.suppliers.toArray()
+      const filtered = localData.filter(x => String(x.shop_id) === sid)
+      const sorted = filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      setSuppliers(sorted)
+      if (sorted.length > 0) {
+        setLoading(false)
+      }
+    } catch (localErr) {
+      console.warn('Suppliers: Local DB read failed:', localErr)
+    }
+
+    // ── Step 2: Background refresh from Supabase (updates UI silently) ────────
+    if (!navigator.onLine) {
+      setLoading(false)
+      return
+    }
+
+    try {
       const fetchPromise = supabase
         .from('suppliers')
         .select('*')
         .eq('shop_id', user.shop_id)
         .order('created_at', { ascending: false })
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise])
 
       if (error) throw error
@@ -325,17 +350,11 @@ function Suppliers() {
       }
 
       const localData = await db.suppliers.toArray()
-      const sid = String(user.shop_id)
       const filtered = localData.filter(x => String(x.shop_id) === sid)
       const sorted = filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
       setSuppliers(sorted)
     } catch (e) {
-      console.log('Suppliers: Fetching from local DB (Offline Fallback)')
-      try {
-        const localData = await db.suppliers.toArray()
-        const sorted = localData.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-        setSuppliers(sorted.filter(x => String(x.shop_id) === String(user.shop_id)))
-      } catch (err) { console.error('Local DB Suppliers Error', err) }
+      console.warn('Suppliers: Supabase background refresh failed:', e)
     } finally {
       setLoading(false)
     }

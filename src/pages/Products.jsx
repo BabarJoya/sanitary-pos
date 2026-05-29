@@ -44,13 +44,45 @@ function Products() {
   }, [user?.shop_id])
 
   const fetchProducts = async () => {
+    if (!user?.shop_id) {
+      setLoading(false)
+      console.error('Products: Missing user.shop_id!')
+      return
+    }
+
+    const sid = String(user.shop_id)
+
+    // ── Step 1: Show local IndexedDB data IMMEDIATELY (instant UI) ────────────
     try {
-      if (!user?.shop_id) {
+      const [lProds, lCats, lBrands, lUnits] = await Promise.all([
+        db.products.toArray(),
+        db.categories.toArray(),
+        db.brands.toArray(),
+        db.units.toArray()
+      ])
+      const myProds = lProds.filter(x => String(x.shop_id) === sid)
+      const myCats = lCats.filter(x => String(x.shop_id) === sid)
+      const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
+      const myUnits = lUnits.filter(x => String(x.shop_id) === sid)
+
+      setProducts(myProds)
+      setCategories(myCats)
+      setBrands(myBrands)
+      setUnits(myUnits)
+      if (myProds.length > 0) {
         setLoading(false)
-        console.error('Products: Missing user.shop_id!')
-        return
       }
-      if (!navigator.onLine) throw new Error('Offline')
+    } catch (localErr) {
+      console.warn('Products: Local DB read failed:', localErr)
+    }
+
+    // ── Step 2: Background refresh from Supabase (updates UI silently) ────────
+    if (!navigator.onLine) {
+      setLoading(false)
+      return
+    }
+
+    try {
       const fetchPromise = Promise.all([
         supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).order('created_at', { ascending: false }),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
@@ -58,7 +90,7 @@ function Products() {
         supabase.from('units').select('*').eq('shop_id', user.shop_id).order('name')
       ])
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
       const [pData, cData, bData, uData] = await Promise.race([fetchPromise, timeoutPromise])
 
       if (pData.error || cData.error || bData.error) throw new Error('Supabase fetch failed')
@@ -77,60 +109,25 @@ function Products() {
         await db.units.bulkPut(JSON.parse(JSON.stringify(uData.data))).catch(() => {})
       }
 
-      // Try rendering from local DB first to include any pending offline items
-      const sid = String(user.shop_id);
-      let finalProducts = []
-      let finalCategories = []
-      let finalBrands = []
-      let finalUnits = []
-      try {
-        const [lProds, lCats, lBrands, lUnits] = await Promise.all([
-          db.products.toArray(),
-          db.categories.toArray(),
-          db.brands.toArray(),
-          db.units.toArray()
-        ])
-        finalProducts = lProds.filter(x => String(x.shop_id) === sid)
-        finalCategories = lCats.filter(x => String(x.shop_id) === sid)
-        finalBrands = lBrands.filter(x => String(x.shop_id) === sid)
-        finalUnits = lUnits.filter(x => String(x.shop_id) === sid)
-      } catch (dbErr) {
-        console.warn('Products: Local DB read failed:', dbErr)
-      }
+      // Re-read and merge from local DB
+      const [lProds, lCats, lBrands, lUnits] = await Promise.all([
+        db.products.toArray(),
+        db.categories.toArray(),
+        db.brands.toArray(),
+        db.units.toArray()
+      ])
 
-      // Resilience: if local DB empty, use Supabase
-      if (finalProducts.length === 0 && pData.data && pData.data.length > 0) {
-        finalProducts = pData.data.filter(x => String(x.shop_id) === sid)
-      }
-      if (finalCategories.length === 0 && cData.data && cData.data.length > 0) {
-        finalCategories = cData.data.filter(x => String(x.shop_id) === sid)
-      }
-      if (finalBrands.length === 0 && bData.data && bData.data.length > 0) {
-        finalBrands = bData.data.filter(x => String(x.shop_id) === sid)
-      }
-      if (finalUnits.length === 0 && uData?.data && uData.data.length > 0) {
-        finalUnits = uData.data.filter(x => String(x.shop_id) === sid)
-      }
+      const myProds = lProds.filter(x => String(x.shop_id) === sid)
+      const myCats = lCats.filter(x => String(x.shop_id) === sid)
+      const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
+      const myUnits = lUnits.filter(x => String(x.shop_id) === sid)
 
-      setProducts(finalProducts)
-      setCategories(finalCategories)
-      setBrands(finalBrands)
-      setUnits(finalUnits)
+      setProducts(myProds)
+      setCategories(myCats)
+      setBrands(myBrands)
+      setUnits(myUnits)
     } catch (e) {
-      console.log('Fetching products from local DB (Offline)')
-      try {
-        const [localProds, localCats, localBrands, localUnits] = await Promise.all([
-          db.products.toArray(),
-          db.categories.toArray(),
-          db.brands.toArray(),
-          db.units.toArray()
-        ])
-        const sid = String(user.shop_id)
-        setProducts(localProds.filter(x => String(x.shop_id) === sid))
-        setCategories(localCats.filter(x => String(x.shop_id) === sid))
-        setBrands(localBrands.filter(x => String(x.shop_id) === sid))
-        setUnits(localUnits.filter(x => String(x.shop_id) === sid))
-      } catch (err) { console.error('Local DB Products Error', err) }
+      console.warn('Products: Supabase background refresh failed:', e)
     } finally {
       setLoading(false)
     }

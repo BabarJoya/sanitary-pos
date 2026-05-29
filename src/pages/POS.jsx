@@ -61,7 +61,7 @@ function POS() {
   })
 
   // Barcode scanner mode
-  const [barcodeMode, setBarcodeMode] = useState(true) // Enabled by default for automatic scanning
+  const [barcodeMode, setBarcodeMode] = useState(false) // Off by default — user must click to enable
   const [barcodeInput, setBarcodeInput] = useState('')
   const barcodeRef = useRef(null)
 
@@ -69,10 +69,14 @@ function POS() {
     if (barcodeMode && barcodeRef.current) barcodeRef.current.focus()
   }, [barcodeMode])
 
-  // Global keydown listener to redirect barcode scans automatically
+  // When barcode mode is active, route physical scanner keystrokes to the hidden input.
+  // Only active after the user explicitly enables barcode mode via the toggle button.
   useEffect(() => {
+    if (!barcodeMode) return; // Do nothing when barcode mode is off
+
     const handleGlobalKeyDown = (e) => {
       const activeEl = document.activeElement;
+      // If any real input/select already has focus, let it handle the keystroke normally
       if (
         activeEl &&
         (activeEl.tagName === 'INPUT' ||
@@ -82,17 +86,10 @@ function POS() {
       ) {
         return;
       }
-
-      // Ignore modifier keys
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-
-      // Capture single printable characters to activate/focus barcode input
       if (e.key.length === 1) {
-        setBarcodeMode(true);
         setBarcodeInput(prev => prev + e.key);
-        setTimeout(() => {
-          barcodeRef.current?.focus();
-        }, 20);
+        setTimeout(() => barcodeRef.current?.focus(), 20);
       }
     };
 
@@ -201,13 +198,45 @@ function POS() {
   }
 
   const fetchAll = async () => {
+    if (!user?.shop_id) {
+      console.error('POS: Missing user.shop_id!')
+      return
+    }
+
+    const sid = String(user.shop_id)
+
+    // ── Step 1: Show local IndexedDB data IMMEDIATELY (instant UI) ────────────
     try {
-      if (!user?.shop_id) {
-        console.error('POS: Missing user.shop_id!')
-        return
-      }
-      if (!navigator.onLine) throw new Error('Offline');
-      const fetchPromise = Promise.all([
+      const [lProds, lCats, lCustomers, lBrands, lBrandCats] = await Promise.all([
+        db.products.toArray(),
+        db.categories.toArray(),
+        db.customers.toArray(),
+        db.brands.toArray(),
+        db.brand_categories.toArray().catch(() => [])
+      ])
+      const myProds = lProds.filter(x => String(x.shop_id) === sid)
+      const myCats = lCats.filter(x => String(x.shop_id) === sid)
+      const myCustomers = lCustomers.filter(x => String(x.shop_id) === sid)
+      const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
+      const myBrandCats = lBrandCats.filter(x => String(x.shop_id) === sid)
+      const bcMap = {}
+      myBrandCats.forEach(bc => {
+        if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+        bcMap[bc.brand_id].push(bc.category_id)
+      })
+      setProducts(myProds)
+      setCategories(myCats)
+      setCustomers(myCustomers)
+      setBrands(myBrands)
+      setBrandCategoryMap(bcMap)
+    } catch (localErr) {
+      console.warn('POS: Local DB read failed:', localErr)
+    }
+
+    // ── Step 2: Background refresh from Supabase (updates UI silently) ────────
+    if (!navigator.onLine) return;
+    try {
+      const [p, c, cu, b, s] = await Promise.all([
         supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).eq('status', 'active'),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
         supabase.from('customers').select('*').eq('shop_id', user.shop_id).order('name'),
@@ -215,36 +244,20 @@ function POS() {
         supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
       ])
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-
-      const [p, c, cu, b, s] = await Promise.race([fetchPromise, timeoutPromise])
-
-      // Explicitly check for errors because supabase calls might resolve with {error} instead of throwing
-      if (p.error || c.error || cu.error || b.error || s.error) {
-        throw new Error('Supabase fetch failed');
+      if (p.error || c.error || cu.error || b.error) {
+        console.warn('POS: Supabase background refresh failed:', p.error || c.error || cu.error || b.error)
+        return
       }
 
-      if (p.data) {
-        const cleanP = JSON.parse(JSON.stringify(p.data))
-        await db.products.bulkPut(cleanP)
-      }
-      if (c.data) {
-        const cleanC = JSON.parse(JSON.stringify(c.data))
-        await db.categories.bulkPut(cleanC)
-      }
-      if (cu.data) {
-        const cleanCu = JSON.parse(JSON.stringify(cu.data))
-        await db.customers.bulkPut(cleanCu)
-      }
-      if (b.data) {
-        const cleanB = JSON.parse(JSON.stringify(b.data))
-        await db.brands.bulkPut(cleanB)
-      }
+      if (p.data) await db.products.bulkPut(JSON.parse(JSON.stringify(p.data)))
+      if (c.data) await db.categories.bulkPut(JSON.parse(JSON.stringify(c.data)))
+      if (cu.data) await db.customers.bulkPut(JSON.parse(JSON.stringify(cu.data)))
+      if (b.data) await db.brands.bulkPut(JSON.parse(JSON.stringify(b.data)))
+
       if (s.data) {
         setForm(prev => {
-          // Always prefer locally saved logo — Supabase may have a stale value
           const localLogo = localStorage.getItem(`shop_logo_${user?.shop_id}`) || ''
-          const updated = {
+          return {
             ...prev,
             name: s.data.name || prev.name,
             phone: s.data.phone || prev.phone,
@@ -257,12 +270,10 @@ function POS() {
             wa_reminder_template: s.data.wa_reminder_template || prev.wa_reminder_template,
             wa_bill_template: s.data.wa_bill_template || prev.wa_bill_template
           }
-          // Don't overwrite shop_settings_full here — Settings page owns that key
-          return updated
         })
       }
 
-      // Always render from local DB to merge cloud data with any pending local offline records
+      // Re-render from merged local DB (cloud data + any pending offline records)
       const [lProds, lCats, lCustomers, lBrands, lBrandCats] = await Promise.all([
         db.products.toArray(),
         db.categories.toArray(),

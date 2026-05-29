@@ -199,95 +199,91 @@ function Inventory() {
   }, [user?.shop_id])
 
   const fetchInventory = async () => {
-    setLoading(true)
+    if (!user?.shop_id) {
+      setLoading(false)
+      console.error('Inventory: Missing user.shop_id!')
+      return
+    }
+
+    const sid = String(user.shop_id)
+
+    // ── Step 1: Show local IndexedDB data IMMEDIATELY (instant UI) ────────────
     try {
-      if (!user?.shop_id) {
+      const [lProds, lCats, lBrands, lBrandCats] = await Promise.all([
+        db.products.toArray(),
+        db.categories.toArray(),
+        db.brands.toArray(),
+        db.brand_categories.toArray().catch(() => [])
+      ])
+      const myProds = lProds.filter(x => String(x.shop_id) === sid)
+      const myCats = lCats.filter(x => String(x.shop_id) === sid)
+      const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
+
+      setProducts(myProds)
+      setCategories(myCats)
+      setBrands(myBrands)
+
+      const bcMap = {}
+      lBrandCats.filter(x => String(x.shop_id) === sid).forEach(bc => {
+        if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+        bcMap[bc.brand_id].push(bc.category_id)
+      })
+      setBrandCategoryMap(bcMap)
+
+      if (myProds.length > 0) {
         setLoading(false)
-        console.error('Inventory: Missing user.shop_id!')
-        return
       }
-      if (!navigator.onLine) throw new Error('Offline');
+    } catch (localErr) {
+      console.warn('Inventory: Local DB read failed:', localErr)
+    }
+
+    // ── Step 2: Background refresh from Supabase (updates UI silently) ────────
+    if (!navigator.onLine) {
+      setLoading(false)
+      return
+    }
+
+    try {
       const fetchPromise = Promise.all([
         supabase.from('products').select('*, categories(name), suppliers(name, phone)').eq('shop_id', user.shop_id).order('name'),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
       ])
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
       const [p, c, b] = await Promise.race([fetchPromise, timeoutPromise])
 
       if (p.error || c.error || b.error) throw new Error('Supabase fetch failed')
 
       // Cache to local DB
-      if (p.data) {
-        const cleanP = JSON.parse(JSON.stringify(p.data))
-        try { await db.products.bulkPut(cleanP) } catch (dbErr) { console.warn('Inventory: Local cache write failed:', dbErr) }
-      }
-      if (c.data) {
-        const cleanC = JSON.parse(JSON.stringify(c.data))
-        try { await db.categories.bulkPut(cleanC) } catch (dbErr) { console.warn('Inventory: Local cache write failed:', dbErr) }
-      }
-      if (b.data) {
-        const cleanB = JSON.parse(JSON.stringify(b.data))
-        try { await db.brands.bulkPut(cleanB) } catch (dbErr) { console.warn('Inventory: Local cache write failed:', dbErr) }
-      }
+      if (p.data) await db.products.bulkPut(JSON.parse(JSON.stringify(p.data)))
+      if (c.data) await db.categories.bulkPut(JSON.parse(JSON.stringify(c.data)))
+      if (b.data) await db.brands.bulkPut(JSON.parse(JSON.stringify(b.data)))
 
-      // Try rendering from local DB first to include any pending offline items
-      const sid = String(user.shop_id);
-      let finalProducts = []
-      let finalCategories = []
-      try {
-        const [lProds, lCats, lBrands, lBrandCats] = await Promise.all([
-          db.products.toArray(),
-          db.categories.toArray(),
-          db.brands.toArray(),
-          db.brand_categories.toArray().catch(() => [])
-        ])
-        finalProducts = lProds.filter(x => String(x.shop_id) === sid)
-        finalCategories = lCats.filter(x => String(x.shop_id) === sid)
-        const finalBrands = lBrands.filter(x => String(x.shop_id) === sid)
-        setBrands(finalBrands)
-        // Build brand → category[] map for Adjust Rates modal
-        const bcMap = {}
-        lBrandCats.filter(x => String(x.shop_id) === sid).forEach(bc => {
-          if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
-          bcMap[bc.brand_id].push(bc.category_id)
-        })
-        setBrandCategoryMap(bcMap)
-      } catch (dbErr) {
-        console.warn('Inventory: Local DB read failed, using Supabase data directly:', dbErr)
-      }
+      // Re-read and merge from local DB
+      const [lProds, lCats, lBrands, lBrandCats] = await Promise.all([
+        db.products.toArray(),
+        db.categories.toArray(),
+        db.brands.toArray(),
+        db.brand_categories.toArray().catch(() => [])
+      ])
 
-      // Resilience: if local DB returned empty but Supabase had data, use Supabase directly
-      if (finalProducts.length === 0 && p.data && p.data.length > 0) {
-        console.log('Inventory: Local DB returned empty, using Supabase data directly (' + p.data.length + ' products)')
-        finalProducts = p.data.filter(x => String(x.shop_id) === sid)
-      }
-      if (finalCategories.length === 0 && c.data && c.data.length > 0) {
-        finalCategories = c.data.filter(x => String(x.shop_id) === sid)
-      }
+      const myProds = lProds.filter(x => String(x.shop_id) === sid)
+      const myCats = lCats.filter(x => String(x.shop_id) === sid)
+      const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
 
-      console.log('Inventory: Loaded', finalProducts.length, 'products,', finalCategories.length, 'categories')
-      setProducts(finalProducts)
-      setCategories(finalCategories)
-      if (!brands.length && b?.data) setBrands(b.data)
+      setProducts(myProds)
+      setCategories(myCats)
+      setBrands(myBrands)
+
+      const bcMap = {}
+      lBrandCats.filter(x => String(x.shop_id) === sid).forEach(bc => {
+        if (!bcMap[bc.brand_id]) bcMap[bc.brand_id] = []
+        bcMap[bc.brand_id].push(bc.category_id)
+      })
+      setBrandCategoryMap(bcMap)
     } catch (e) {
-      console.log('Inventory: Fetching from local DB (Offline Fallback)', e.message)
-      try {
-        const [lProds, lCats, lBrands] = await Promise.all([
-          db.products.toArray(),
-          db.categories.toArray(),
-          db.brands.toArray()
-        ])
-        const sid = String(user.shop_id);
-        const myProds = lProds.filter(x => String(x.shop_id) === sid)
-        const myCats = lCats.filter(x => String(x.shop_id) === sid)
-        const myBrands = lBrands.filter(x => String(x.shop_id) === sid)
-        setProducts(myProds)
-        setCategories(myCats)
-        setBrands(myBrands)
-      } catch (err) { console.error('Local DB Inventory Error:', err) }
+      console.warn('Inventory: Supabase background refresh failed:', e)
     } finally {
       setLoading(false)
     }
