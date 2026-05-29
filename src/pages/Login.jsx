@@ -20,8 +20,12 @@ function Login() {
   })
   const [platformName, setPlatformName] = useState(() => {
     const lastShopId = localStorage.getItem('last_shop_id')
-    return lastShopId ? localStorage.getItem(`shop_name_${lastShopId}`) || 'EdgeX Digital' : 'EdgeX Digital'
+    return lastShopId ? localStorage.getItem(`shop_name_${lastShopId}`) || 'EdgeX POS' : 'EdgeX POS'
   })
+
+  useEffect(() => {
+    document.title = platformName ? `${platformName} - Login` : 'EdgeX POS'
+  }, [platformName])
 
   const { login, impersonate } = useAuth()
   const navigate = useNavigate()
@@ -109,6 +113,30 @@ function Login() {
       }
       if (userData.shop_id) {
         localStorage.setItem('last_shop_id', userData.shop_id)
+        // Fetch and cache shop name/logo immediately to avoid lag or missing branding
+        try {
+          const { data: shopData } = await supabase
+            .from('shops')
+            .select('name, logo_url')
+            .eq('id', userData.shop_id)
+            .maybeSingle()
+          if (shopData) {
+            if (shopData.name) {
+              localStorage.setItem(`shop_name_${userData.shop_id}`, shopData.name)
+            }
+            if (shopData.logo_url) {
+              localStorage.setItem(`shop_logo_${userData.shop_id}`, shopData.logo_url)
+            }
+            // Save to IndexedDB shops table as well so offline operations are fully supported
+            try {
+              await localDB.shops.put({ id: userData.shop_id, name: shopData.name, logo_url: shopData.logo_url })
+            } catch (dbErr) {
+              console.warn('Could not save shop details to localDB:', dbErr)
+            }
+          }
+        } catch (shopErr) {
+          console.warn('Could not fetch shop branding on login:', shopErr)
+        }
       }
 
       // Validate response data
@@ -187,6 +215,19 @@ function Login() {
 
           if (localUser.shop_id) {
             localStorage.setItem('last_shop_id', localUser.shop_id)
+            try {
+              const localShop = await localDB.shops.get(localUser.shop_id)
+              if (localShop) {
+                if (localShop.name) {
+                  localStorage.setItem(`shop_name_${localUser.shop_id}`, localShop.name)
+                }
+                if (localShop.logo_url) {
+                  localStorage.setItem(`shop_logo_${localUser.shop_id}`, localShop.logo_url)
+                }
+              }
+            } catch (dbErr) {
+              console.warn('Could not restore offline shop branding:', dbErr)
+            }
           }
 
           login({
@@ -232,9 +273,9 @@ function Login() {
             className="flex items-center gap-3 mb-16"
           >
             <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-2 shadow-xl flex items-center justify-center overflow-hidden">
-              <img src={logoUrl} alt="EdgeX Digital" className="max-w-full max-h-full object-contain drop-shadow-md" />
+              <img src={logoUrl} alt={platformName} className="max-w-full max-h-full object-contain drop-shadow-md" />
             </div>
-            <span className="text-2xl font-black text-white tracking-widest uppercase">EdgeX Digital</span>
+            <span className="text-2xl font-black text-white tracking-widest uppercase">{platformName}</span>
           </motion.div>
 
           <motion.div

@@ -148,35 +148,48 @@ function Settings() {
 
   const setSettingsForm = (data) => {
     // Read the full saved settings from localStorage — this is what the user last saved.
-    // We only use Supabase data to fill in values that localStorage doesn't have yet.
     let saved = {}
     const sid = user?.shop_id
     try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) {}
 
-    setForm(prev => ({
-      name:                 saved.name                 || data.name    || prev.name    || 'EdgeX POS',
-      phone:                saved.phone                || data.phone   || prev.phone   || '',
-      address:              saved.address              || data.address || prev.address || '',
-      logo_url:             prev.logo_url, // managed by logoUrl state, never overwrite
-      invoice_footer:       saved.invoice_footer       || prev.invoice_footer       || 'شکریہ! دوبارہ تشریف لائیں',
-      quotation_footer:     saved.quotation_footer     || prev.quotation_footer     || 'یہ صرف قیمت نامہ ہے',
-      print_size:           saved.print_size           || prev.print_size           || 'thermal',
-      print_mode:           saved.print_mode           || prev.print_mode           || 'manual',
-      wa_reminder_template: saved.wa_reminder_template || prev.wa_reminder_template || '',
-      wa_bill_template:     saved.wa_bill_template     || prev.wa_bill_template     || '',
-      wa_reorder_template:  saved.wa_reorder_template  || prev.wa_reorder_template  || '',
-      invoice_prefix:       saved.invoice_prefix       || prev.invoice_prefix       || '',
-    }))
+    setForm(prev => {
+      const updated = {
+        name:                 data.name                 || saved.name                 || prev.name                 || 'EdgeX POS',
+        phone:                data.phone                || saved.phone                || prev.phone                || '',
+        address:              data.address              || saved.address              || prev.address              || '',
+        logo_url:             data.logo_url             || saved.logo_url             || prev.logo_url             || '',
+        invoice_footer:       data.invoice_footer       || saved.invoice_footer       || prev.invoice_footer       || 'شکریہ! دوبارہ تشریف لائیں',
+        quotation_footer:     data.quotation_footer     || saved.quotation_footer     || prev.quotation_footer     || 'یہ صرف قیمت نامہ ہے',
+        print_size:           data.print_size           || saved.print_size           || prev.print_size           || 'thermal',
+        print_mode:           data.print_mode           || saved.print_mode           || prev.print_mode           || 'manual',
+        wa_reminder_template: data.wa_reminder_template || saved.wa_reminder_template || prev.wa_reminder_template || '',
+        wa_bill_template:     data.wa_bill_template     || saved.wa_bill_template     || prev.wa_bill_template     || '',
+        wa_reorder_template:  data.wa_reorder_template  || saved.wa_reorder_template  || prev.wa_reorder_template  || '',
+        invoice_prefix:       data.invoice_prefix       || saved.invoice_prefix       || prev.invoice_prefix       || '',
+      }
 
-    if (saved.print_template) {
-      setPrintTemplate(saved.print_template)
+      // Sync immediately to localStorage to ensure consistent branding/printing across pages
+      if (sid) {
+        const fullSettings = { ...updated, print_template: data.print_template || saved.print_template || localStorage.getItem(`print_template_${sid}`) || '2' }
+        localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(fullSettings))
+        localStorage.setItem(`shop_name_${sid}`, updated.name)
+        if (updated.logo_url) {
+          localStorage.setItem(`shop_logo_${sid}`, updated.logo_url)
+        }
+      }
+      return updated
+    })
+
+    const tmpl = data.print_template || saved.print_template || (sid ? localStorage.getItem(`print_template_${sid}`) : null) || '2'
+    setPrintTemplate(tmpl)
+    if (sid) {
+      localStorage.setItem(`print_template_${sid}`, tmpl)
     }
 
-    // Only use Supabase logo if localStorage has absolutely nothing for this shop
-    // Explicitly check localStorage — never rely on prev state (empty string is falsy)
-    const localLogo = user?.shop_id ? localStorage.getItem(`shop_logo_${user.shop_id}`) : null
-    if (!localLogo && data.logo_url) {
-      setLogoUrl(data.logo_url)
+    const logo = data.logo_url || saved.logo_url || (sid ? localStorage.getItem(`shop_logo_${sid}`) : null) || ''
+    setLogoUrl(logo)
+    if (sid && logo) {
+      localStorage.setItem(`shop_logo_${sid}`, logo)
     }
   }
 
@@ -219,13 +232,20 @@ function Settings() {
     localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(fullSettings))
     localStorage.setItem(`shop_name_${sid}`, form.name || 'EdgeX POS')
 
-    // Only send columns that are guaranteed to exist in the shops table to Supabase.
-    // Extra fields (invoice_footer, print_size, wa_templates etc.) may not be DB columns
-    // — storing them in localStorage is sufficient since all features read from there.
+    // Send all columns that exist in the shops table to Supabase.
     const supabasePayload = {
       name: form.name,
       phone: form.phone,
       address: form.address,
+      invoice_footer: form.invoice_footer,
+      quotation_footer: form.quotation_footer,
+      print_size: form.print_size,
+      print_mode: form.print_mode,
+      print_template: printTemplate,
+      wa_reminder_template: form.wa_reminder_template,
+      wa_bill_template: form.wa_bill_template,
+      wa_reorder_template: form.wa_reorder_template,
+      invoice_prefix: form.invoice_prefix,
     }
 
     try {
@@ -237,6 +257,15 @@ function Settings() {
         p_name: form.name,
         p_phone: form.phone,
         p_address: form.address,
+        p_invoice_footer: form.invoice_footer,
+        p_quotation_footer: form.quotation_footer,
+        p_print_size: form.print_size,
+        p_print_mode: form.print_mode,
+        p_print_template: printTemplate,
+        p_wa_reminder_template: form.wa_reminder_template,
+        p_wa_bill_template: form.wa_bill_template,
+        p_wa_reorder_template: form.wa_reorder_template,
+        p_invoice_prefix: form.invoice_prefix,
       })
       if (error) throw error
       if (rpcResult && !rpcResult.success) throw new Error(rpcResult.error || 'Update failed')
@@ -918,6 +947,12 @@ function Settings() {
                       try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch (_) {}
                       saved.print_template = t.id
                       localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(saved))
+                      if (navigator.onLine) {
+                        supabase.rpc('update_shop_settings', {
+                          p_shop_id: Number(sid),
+                          p_print_template: t.id
+                        }).catch(err => console.warn('Could not sync print template choice:', err))
+                      }
                     }
                   }}
                   className={`flex-1 text-center py-1.5 px-3 rounded-lg text-xs font-bold transition ${printTemplate === t.id ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
@@ -1180,6 +1215,12 @@ function Settings() {
                         try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch (_) {}
                         saved.print_template = previewTemplateId
                         localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(saved))
+                        if (navigator.onLine) {
+                          supabase.rpc('update_shop_settings', {
+                            p_shop_id: Number(sid),
+                            p_print_template: previewTemplateId
+                          }).catch(err => console.warn('Could not sync print template choice:', err))
+                        }
                       }
                       setPreviewTemplateId(null)
                       alert('Template applied successfully!')
