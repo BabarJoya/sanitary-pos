@@ -18,12 +18,17 @@ export default function Subscriptions() {
     const [ledgerModalOpen, setLedgerModalOpen] = useState(false)
     const [ledgerData, setLedgerData] = useState([])
     const [ledgerLoading, setLedgerLoading] = useState(false)
+    const [extendModalOpen, setExtendModalOpen] = useState(false)
+    const [extendDays, setExtendDays] = useState('7')
+    const [subFilter, setSubFilter] = useState('all')
 
     // Payment Form State
     const [paymentAmount, setPaymentAmount] = useState('')
     const [paymentType, setPaymentType] = useState('bank_transfer')
     const [remarks, setRemarks] = useState('')
     const [processing, setProcessing] = useState(false)
+    const [extensionPeriod, setExtensionPeriod] = useState('auto')
+    const [customExtensionDays, setCustomExtensionDays] = useState('')
 
     // Plan Edit State
     const [editingPlanShopId, setEditingPlanShopId] = useState(null)
@@ -88,23 +93,47 @@ export default function Subscriptions() {
 
             if (paymentError) throw paymentError
 
-            // 2. Extend Subscription Date (only if not a refund)
-            if (!isRefund) {
+            // 2. Extend Subscription Date & Update Status (only if not a refund)
+            const shopUpdates = {}
+            shopUpdates.status = 'active'
+            shopUpdates.suspension_reason = null
+
+            if (!isRefund && extensionPeriod !== 'none') {
                 let nextDate = new Date(selectedShop.next_billing_date || new Date())
-                if (selectedShop.subscription_plan === 'annually') {
-                    nextDate.setFullYear(nextDate.getFullYear() + 1)
-                } else if (selectedShop.subscription_plan === 'monthly') {
-                    nextDate.setMonth(nextDate.getMonth() + 1)
-                }
-                // Note: We don't auto-extend "trial" or "none" plans on random payments unless intended. 
-                // Defaulting to 1 month extension if they are paying.
-                else {
-                    nextDate.setMonth(nextDate.getMonth() + 1)
+                const today = new Date()
+                if (nextDate < today) {
+                    nextDate = today
                 }
 
+                if (extensionPeriod === 'auto') {
+                    if (selectedShop.subscription_plan === 'annually') {
+                        nextDate.setFullYear(nextDate.getFullYear() + 1)
+                    } else {
+                        nextDate.setMonth(nextDate.getMonth() + 1)
+                    }
+                } else if (extensionPeriod === '1_month') {
+                    nextDate.setDate(nextDate.getDate() + 30)
+                } else if (extensionPeriod === '3_months') {
+                    nextDate.setDate(nextDate.getDate() + 90)
+                } else if (extensionPeriod === '6_months') {
+                    nextDate.setDate(nextDate.getDate() + 180)
+                } else if (extensionPeriod === '1_year') {
+                    nextDate.setDate(nextDate.getDate() + 365)
+                } else if (extensionPeriod === 'custom') {
+                    const days = parseInt(customExtensionDays) || 0
+                    nextDate.setDate(nextDate.getDate() + days)
+                }
+
+                shopUpdates.next_billing_date = nextDate.toISOString().split('T')[0]
+            } else if (isRefund) {
+                delete shopUpdates.status
+                delete shopUpdates.suspension_reason
+            }
+
+            if (Object.keys(shopUpdates).length > 0) {
                 const { error: updateError } = await supabaseAdmin
                     .from('shops')
-                    .update({ next_billing_date: nextDate.toISOString().split('T')[0] })
+                    .update(shopUpdates)
                     .eq('id', selectedShop.id)
 
                 if (updateError) throw updateError
@@ -118,7 +147,7 @@ export default function Subscriptions() {
                 action_type: isRefund ? 'REFUND_PAYMENT' : 'RECORD_PAYMENT',
                 target_type: 'SHOP',
                 target_id: selectedShop.id,
-                details: { amount: finalAmount, type: paymentType, remarks }
+                details: { amount: finalAmount, type: paymentType, remarks, extensionPeriod }
             })
 
             setPaymentModalOpen(false)
@@ -131,11 +160,64 @@ export default function Subscriptions() {
         }
     }
 
+    const handleExtendBilling = async (e) => {
+        e.preventDefault()
+        if (!supabaseAdmin || !selectedShop || !extendDays) return
+
+        setProcessing(true)
+        try {
+            let nextDate = new Date(selectedShop.next_billing_date || new Date())
+            const today = new Date()
+            if (nextDate < today) {
+                nextDate = today
+            }
+            nextDate.setDate(nextDate.getDate() + parseInt(extendDays))
+
+            const { error: updateError } = await supabaseAdmin
+                .from('shops')
+                .update({ 
+                    next_billing_date: nextDate.toISOString().split('T')[0],
+                    status: 'active',
+                    suspension_reason: null
+                })
+                .eq('id', selectedShop.id)
+
+            if (updateError) throw updateError
+
+            alert(`Billing date extended by ${extendDays} days. Shop status updated to active.`)
+
+            await logAction({
+                actor_id: user?.id,
+                actor_email: user?.email || user?.username,
+                action_type: 'EXTEND_BILLING_CYCLE',
+                target_type: 'SHOP',
+                target_id: selectedShop.id,
+                details: { extendDays, nextBillingDate: nextDate.toISOString().split('T')[0] }
+            })
+
+            setExtendModalOpen(false)
+            fetchSubscriptions()
+        } catch (err) {
+            console.error(err)
+            alert('Error extending billing: ' + err.message)
+        } finally {
+            setProcessing(false)
+        }
+    }
+
+    const openExtendModal = (shop) => {
+        setSelectedShop(shop)
+        setExtendDays('7')
+        setExtendModalOpen(true)
+    }
+
     const openPaymentModal = (shop) => {
         setSelectedShop(shop)
         setPaymentAmount(shop.subscription_fee || '')
         setPaymentType('bank_transfer')
-        setRemarks(`Subscription Payment for ${shop.subscription_plan} plan`)
+        setRemarks(`Subscription Payment for ${shop.subscription_plans?.name || shop.subscription_plan || 'TRIAL'} plan`)
+        setExtensionPeriod('auto')
+        setCustomExtensionDays('')
         setPaymentModalOpen(true)
     }
 
@@ -224,12 +306,72 @@ export default function Subscriptions() {
         XLSX.writeFile(wb, `Ledger_${selectedShop.name}_${new Date().toISOString().split('T')[0]}.xlsx`)
     }
 
-    const filtered = shops.filter(s => s.name?.toLowerCase().includes(search.toLowerCase()) || String(s.id).includes(search))
+    const getStats = () => {
+        let activeCount = 0
+        let overdueCount = 0
+        let suspendedCount = 0
+        let projectedRevenue = 0
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        shops.forEach(s => {
+            const isActive = s.status === 'active' || !s.status
+            const nextBilling = s.next_billing_date ? new Date(s.next_billing_date) : null
+
+            if (isActive) {
+                activeCount++
+                projectedRevenue += Number(s.subscription_fee || 0)
+                
+                if (nextBilling && nextBilling < today) {
+                    overdueCount++
+                }
+            } else if (s.status === 'suspended') {
+                suspendedCount++
+            }
+        })
+
+        return { activeCount, overdueCount, suspendedCount, projectedRevenue }
+    }
+
+    const stats = getStats()
+
+    const filtered = shops.filter(s => {
+        const matchesSearch = s.name?.toLowerCase().includes(search.toLowerCase()) || String(s.id).includes(search)
+        if (!matchesSearch) return false
+
+        const isActive = s.status === 'active' || !s.status
+        const nextBilling = s.next_billing_date ? new Date(s.next_billing_date) : null
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const isOverdue = nextBilling && nextBilling < today && isActive
+
+        if (subFilter === 'active') return isActive && !isOverdue
+        if (subFilter === 'overdue') return isOverdue
+        if (subFilter === 'suspended') return s.status === 'suspended'
+        return true
+    })
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
                 <h1 className="text-2xl font-bold text-slate-800 flex-1">💳 Billing & Subscriptions</h1>
+                <div className="flex bg-slate-100 p-1 rounded-xl gap-1 shrink-0">
+                    {['all', 'active', 'overdue', 'suspended'].map(filter => (
+                        <button
+                            key={filter}
+                            type="button"
+                            onClick={() => setSubFilter(filter)}
+                            className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider transition ${
+                                subFilter === filter
+                                    ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
+                                    : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            {filter}
+                        </button>
+                    ))}
+                </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                     <button
                         onClick={handleExportSubscriptions}
@@ -247,6 +389,49 @@ export default function Subscriptions() {
                             onChange={e => setSearch(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                         />
+                    </div>
+                </div>
+            </div>
+
+            {/* KPI Metrics row */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 font-bold">
+                        <CheckCircle2 size={24} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Active plans</p>
+                        <h4 className="text-xl font-black text-slate-800">{stats.activeCount}</h4>
+                    </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500 font-bold">
+                        <Clock size={24} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Overdue (Grace)</p>
+                        <h4 className="text-xl font-black text-slate-800">{stats.overdueCount}</h4>
+                    </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-500 font-bold">
+                        <AlertTriangle size={24} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Suspended</p>
+                        <h4 className="text-xl font-black text-slate-800">{stats.suspendedCount}</h4>
+                    </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500 font-bold">
+                        <CreditCard size={24} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Monthly Revenue</p>
+                        <h4 className="text-xl font-black text-slate-800 font-mono">Rs. {stats.projectedRevenue.toLocaleString()}</h4>
                     </div>
                 </div>
             </div>
@@ -348,12 +533,12 @@ export default function Subscriptions() {
                                             )}
                                         </td>
                                         <td className="p-4">
-                                            {isOverdue && shop.status === 'active' ? (
-                                                <span className="bg-red-50 text-red-600 font-bold px-2.5 py-1 rounded-lg text-xs">Payment Overdue</span>
-                                            ) : shop.status === 'active' ? (
-                                                <span className="bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-lg text-xs">Account Active</span>
+                                            {shop.status === 'suspended' ? (
+                                                <span className="bg-red-50 text-red-600 font-bold px-2.5 py-1 rounded-lg text-xs">Suspended</span>
+                                            ) : isOverdue ? (
+                                                <span className="bg-amber-50 text-amber-600 font-bold px-2.5 py-1 rounded-lg text-xs">Overdue (Grace)</span>
                                             ) : (
-                                                <span className="bg-orange-50 text-orange-600 font-bold px-2.5 py-1 rounded-lg text-xs">Suspended</span>
+                                                <span className="bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-lg text-xs">Active</span>
                                             )}
                                         </td>
                                         <td className="p-4 pr-6 text-right">
@@ -364,6 +549,13 @@ export default function Subscriptions() {
                                                     title="View Payment Ledger"
                                                 >
                                                     <FileText size={14} /> Ledger
+                                                </button>
+                                                <button
+                                                    onClick={() => openExtendModal(shop)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                                                    title="Extend Billing Date"
+                                                >
+                                                    <Clock size={14} /> Extend
                                                 </button>
                                                 <button
                                                     onClick={() => openPaymentModal(shop)}
@@ -419,6 +611,37 @@ export default function Subscriptions() {
                                 </select>
                             </div>
                             <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Billing Extension Period</label>
+                                <select
+                                    required
+                                    value={extensionPeriod}
+                                    onChange={e => setExtensionPeriod(e.target.value)}
+                                    className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white"
+                                >
+                                    <option value="auto">Auto (Plan default)</option>
+                                    <option value="none">No Extension</option>
+                                    <option value="1_month">1 Month (30 days)</option>
+                                    <option value="3_months">3 Months (90 days)</option>
+                                    <option value="6_months">6 Months (180 days)</option>
+                                    <option value="1_year">1 Year (365 days)</option>
+                                    <option value="custom">Custom Days</option>
+                                </select>
+                            </div>
+                            {extensionPeriod === 'custom' && (
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Custom Extension Days</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="1"
+                                        placeholder="e.g. 15"
+                                        value={customExtensionDays}
+                                        onChange={e => setCustomExtensionDays(e.target.value)}
+                                        className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                            )}
+                            <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Remarks / Note</label>
                                 <input
                                     type="text"
@@ -437,7 +660,7 @@ export default function Subscriptions() {
                                 ) : (
                                     <>
                                         <CheckCircle2 size={24} className="shrink-0 text-blue-500" />
-                                        <p>Recording this payment will automatically extend their Next Billing Date by 1 {selectedShop.subscription_plan === 'annually' ? 'year' : 'month'}.</p>
+                                        <p>Recording this payment will automatically activate their account and extend their Next Billing Date.</p>
                                     </>
                                 )}
                             </div>
@@ -510,6 +733,55 @@ export default function Subscriptions() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* Extend Billing Modal */}
+            {extendModalOpen && selectedShop && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 bg-slate-50 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800">Extend Billing Cycle</h3>
+                                <p className="text-sm text-gray-500">For {selectedShop.name}</p>
+                            </div>
+                        </div>
+                        <form onSubmit={handleExtendBilling} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Days to Extend</label>
+                                <select
+                                    required
+                                    value={extendDays}
+                                    onChange={e => setExtendDays(e.target.value)}
+                                    className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white font-bold"
+                                >
+                                    <option value="3">3 Days (Quick grace)</option>
+                                    <option value="7">7 Days (Standard extension)</option>
+                                    <option value="15">15 Days (Half month)</option>
+                                    <option value="30">30 Days (Full month)</option>
+                                </select>
+                            </div>
+                            <div className="p-4 rounded-xl text-sm bg-blue-50 text-blue-800 flex items-start gap-2">
+                                <CheckCircle2 size={24} className="shrink-0 text-blue-500" />
+                                <p>This will extend the next billing date without recording a payment transaction, and automatically activate the shop if suspended.</p>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setExtendModalOpen(false)}
+                                    className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={processing}
+                                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition disabled:opacity-50"
+                                >
+                                    {processing ? 'Saving...' : 'Confirm Extension'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

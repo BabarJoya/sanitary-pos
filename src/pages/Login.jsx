@@ -93,7 +93,8 @@ function Login() {
 
         // User-friendly error messages
         if (errorMsg.includes('suspended')) {
-          setError('Your account has been suspended. Please contact support: 0301-2616367')
+          const reasonStr = loginResult?.suspension_reason ? ` (Reason: ${loginResult.suspension_reason})` : ''
+          setError(`Your account has been suspended${reasonStr}. Please contact support: 0301-2616367`)
         } else if (errorMsg.includes('Multiple accounts')) {
           setError('Multiple accounts found. Please use your email to login.')
         } else {
@@ -151,7 +152,9 @@ function Login() {
         product_limit: shopConfig?.product_limit || 100,
         user_limit: shopConfig?.user_limit || 3,
         plan_name: shopConfig?.plan_name || 'Trial',
-        status: shopConfig?.status || 'active'
+        status: shopConfig?.status || 'active',
+        next_billing_date: shopConfig?.next_billing_date || null,
+        subscription_fee: shopConfig?.subscription_fee || 0
       }))
       // Store feature flags for feature gating
       localStorage.setItem(`plan_features_${userData.shop_id}`, JSON.stringify(shopConfig?.features || {}))

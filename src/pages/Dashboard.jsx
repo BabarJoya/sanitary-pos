@@ -156,7 +156,9 @@ function Dashboard() {
           productCount: myProducts.length,
           planInfo: {
             plan_name: limits.plan_name || 'OFFLINE',
-            product_limit: limits.product_limit || 100
+            product_limit: limits.product_limit || 100,
+            next_billing_date: limits.next_billing_date || null,
+            subscription_fee: limits.subscription_fee || 0
           },
           topDebtors: myCustomers.filter(c => Number(c.outstanding_balance) > 0).sort((a, b) => b.outstanding_balance - a.outstanding_balance).slice(0, 5)
         })
@@ -248,9 +250,52 @@ function Dashboard() {
       <p class="center" style="font-size:11px;color:#888;">Generated: ${new Date().toLocaleTimeString('en-PK')}</p>
       </body></html>`)
   }
+  const getBillingWarning = () => {
+    if (!stats.planInfo || !stats.planInfo.next_billing_date) return null
+    const nextBilling = new Date(stats.planInfo.next_billing_date)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    if (nextBilling < today) {
+      const diffTime = Math.abs(today - nextBilling)
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      const daysRemaining = 7 - diffDays
+      
+      if (daysRemaining > 0) {
+        return {
+          overdue: true,
+          daysRemaining,
+          dueDate: nextBilling.toLocaleDateString('en-PK', { dateStyle: 'medium' }),
+          deadlineDate: new Date(nextBilling.getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-PK', { dateStyle: 'medium' })
+        }
+      }
+    }
+    return null
+  }
+
+  const billingWarning = getBillingWarning()
 
   return (
     <div className="max-w-6xl mx-auto">
+      {billingWarning && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between shadow-sm animate-pulse">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⚠️</span>
+            <div>
+              <h4 className="font-extrabold text-amber-800 text-sm">Subscription Overdue Notice</h4>
+              <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                Your subscription payment was due on {billingWarning.dueDate}.
+                Please pay by <strong className="underline text-red-600">{billingWarning.deadlineDate}</strong> to avoid service suspension.
+              </p>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="bg-amber-600 text-white font-black text-[10px] px-3 py-1.5 rounded-full uppercase tracking-wider">
+              {billingWarning.daysRemaining} {billingWarning.daysRemaining === 1 ? 'Day' : 'Days'} Left
+            </span>
+          </div>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Assalam-o-Alaikum, {user.username}! 👋</h1>

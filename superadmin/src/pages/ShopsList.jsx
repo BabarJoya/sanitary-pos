@@ -19,6 +19,7 @@ export default function ShopsList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingShop, setEditingShop] = useState(null)
   const [managingUsersShop, setManagingUsersShop] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('all')
 
   useEffect(() => {
     fetchShops()
@@ -72,11 +73,26 @@ export default function ShopsList() {
   const toggleStatus = async (id, currentStatus) => {
     if (!supabaseAdmin) return
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active'
+    
+    let suspensionReason = null
+    if (newStatus === 'suspended') {
+      const reason = prompt('Enter suspension reason (e.g., Non-payment, Terms violation, Client request):', 'Subscription overdue')
+      if (reason === null) return // cancelled
+      suspensionReason = reason.trim() || 'No reason specified'
+    }
+
     if (!confirm(`Are you sure you want to ${newStatus} this shop?`)) return
+
+    const updates = { status: newStatus }
+    if (newStatus === 'suspended') {
+      updates.suspension_reason = suspensionReason
+    } else {
+      updates.suspension_reason = null
+    }
 
     const { error } = await supabaseAdmin
       .from('shops')
-      .update({ status: newStatus })
+      .update(updates)
       .eq('id', id)
 
     if (error) {
@@ -89,7 +105,7 @@ export default function ShopsList() {
         action_type: newStatus === 'active' ? 'ACTIVATE_SHOP' : 'SUSPEND_SHOP',
         target_type: 'SHOP',
         target_id: id,
-        details: { previousStatus: currentStatus, newStatus }
+        details: { previousStatus: currentStatus, newStatus, suspensionReason }
       })
 
       fetchShops()
@@ -179,23 +195,50 @@ export default function ShopsList() {
     XLSX.writeFile(wb, `EdgeX_Shops_Export_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
-  const filtered = shops.filter(s => s.name?.toLowerCase().includes(search.toLowerCase()) || s.phone?.includes(search))
+  const filtered = shops.filter(s => {
+    const matchesSearch = s.name?.toLowerCase().includes(search.toLowerCase()) || s.phone?.includes(search)
+    if (!matchesSearch) return false
+    
+    const isActive = s.status === 'active' || !s.status
+    if (statusFilter === 'active') return isActive
+    if (statusFilter === 'suspended') return s.status === 'suspended'
+    return true
+  })
 
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search shops by name or phone..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-          />
+      <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center flex-1">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search shops by name or phone..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            />
+          </div>
+          {/* Quick Filter Tabs */}
+          <div className="flex bg-slate-100 p-1 rounded-xl gap-1 shrink-0">
+            {['all', 'active', 'suspended'].map(filter => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setStatusFilter(filter)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition ${
+                  statusFilter === filter
+                    ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-all active:scale-95 text-sm"
@@ -272,9 +315,16 @@ export default function ShopsList() {
                           <CheckCircle2 size={12} /> Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 font-bold px-2.5 py-1 rounded-full text-xs">
-                          <XCircle size={12} /> Suspended
-                        </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 font-bold px-2.5 py-1 rounded-full text-xs" title={shop.suspension_reason}>
+                            <XCircle size={12} /> Suspended
+                          </span>
+                          {shop.suspension_reason && (
+                            <span className="text-[9px] text-red-400 font-medium italic max-w-[120px] truncate" title={shop.suspension_reason}>
+                              {shop.suspension_reason}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="p-4 text-center text-slate-500 text-xs hidden lg:table-cell">
@@ -349,9 +399,16 @@ export default function ShopsList() {
                         <CheckCircle2 size={11} /> Active
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full text-xs">
-                        <XCircle size={11} /> Suspended
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full text-xs" title={shop.suspension_reason}>
+                          <XCircle size={11} /> Suspended
+                        </span>
+                        {shop.suspension_reason && (
+                          <span className="text-[8px] text-red-400 font-medium italic max-w-[100px] truncate" title={shop.suspension_reason}>
+                            {shop.suspension_reason}
+                          </span>
+                        )}
+                      </div>
                     )}
                     {planName ? (
                       <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-black uppercase border border-amber-200">
