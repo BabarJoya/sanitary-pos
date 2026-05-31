@@ -83,10 +83,10 @@ BEGIN
     UPDATE users SET last_sign_in_at = NOW() WHERE id = v_user.id;
     UPDATE shops SET last_sign_in_at = NOW() WHERE id = v_user.shop_id;
 
-    -- Insert new secure session token
-    INSERT INTO sessions (user_id, shop_id)
-    VALUES (v_user.id, v_user.shop_id)
-    RETURNING token INTO v_session_token;
+    -- Generate and insert new secure session token
+    v_session_token := gen_random_uuid();
+    INSERT INTO sessions (token, user_id, shop_id)
+    VALUES (v_session_token, v_user.id, v_user.shop_id);
 
     -- Build return response
     RETURN jsonb_build_object(
