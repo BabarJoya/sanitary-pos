@@ -1525,7 +1525,7 @@ function POS() {
               <button onClick={() => setShowQuickView(false)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto mb-4 border rounded-xl overflow-hidden">
+            <div className="flex-1 overflow-y-auto mb-4 border rounded-xl">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-gray-50 sticky top-0 border-b">
                   <tr>

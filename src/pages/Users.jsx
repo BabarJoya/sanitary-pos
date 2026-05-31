@@ -100,7 +100,13 @@ function Users() {
       const updateData = { username: form.username, email: form.email, role: form.role, is_active: form.is_active, permissions: form.permissions }
       if (form.password) updateData.password = await hashPassword(form.password)
       const { error } = await supabase.from('users').update(updateData).eq('id', editingId)
-      if (error) { alert('Error: ' + error.message) }
+      if (error) {
+        if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('rls')) {
+          alert('⚠️ Session Expired: Meharbani karke app se Log Out karke dobara Log In karein taake server connection refresh ho sake.')
+        } else {
+          alert('Error: ' + error.message)
+        }
+      }
       else { setEditingId(null); setForm({ username: '', email: '', password: '', role: 'cashier', is_active: true, permissions: [] }); setShowForm(false); fetchUsers() }
     } else {
       // Dynamic Limit Enforcement
@@ -112,7 +118,13 @@ function Users() {
       if (!form.password) { alert('Password zaroori hai!'); setSaving(false); return }
       const hashedPassword = await hashPassword(form.password)
       const { error } = await supabase.from('users').insert([{ ...form, password: hashedPassword, shop_id: user.shop_id }])
-      if (error) { alert('Error: ' + error.message) }
+      if (error) {
+        if (error.message?.toLowerCase().includes('row-level security') || error.message?.toLowerCase().includes('rls')) {
+          alert('⚠️ Session Expired: Meharbani karke app se Log Out karke dobara Log In karein taake server connection refresh ho sake.')
+        } else {
+          alert('Error: ' + error.message)
+        }
+      }
       else { setForm({ username: '', email: '', password: '', role: 'cashier', is_active: true, permissions: [] }); setShowForm(false); fetchUsers() }
     }
     setSaving(false)
