@@ -154,6 +154,70 @@ export default function ShopsList() {
 
   const handleImpersonate = async (shop) => {
     if (confirm(`Login as ${shop.name}? You will be temporarily signed out of the Superadmin portal.`)) {
+      // Retrieve first active admin user of the shop to associate with the database session
+      let targetUserId = null;
+      try {
+        const { data: usersData } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('shop_id', shop.id)
+          .eq('is_active', true)
+          .limit(1);
+        if (usersData && usersData.length > 0) {
+          targetUserId = usersData[0].id;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch target user for impersonation:', err);
+      }
+
+      if (!targetUserId) {
+        try {
+          const { data: anyUserData } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .eq('shop_id', shop.id)
+            .limit(1);
+          if (anyUserData && anyUserData.length > 0) {
+            targetUserId = anyUserData[0].id;
+          }
+        } catch (err) {
+          console.warn('Failed to fetch fallback user for impersonation:', err);
+        }
+      }
+
+      if (!targetUserId) {
+        alert('Cannot impersonate: This shop has no registered users in the database.');
+        return;
+      }
+
+      // Generate secure session token UUID
+      const generateUUID = () => {
+        if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+          return window.crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      const token = generateUUID();
+
+      try {
+        const { error: sessionErr } = await supabaseAdmin
+          .from('sessions')
+          .insert([{
+            token: token,
+            user_id: targetUserId,
+            shop_id: shop.id,
+            expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() // 12 hours
+          }]);
+        if (sessionErr) throw sessionErr;
+      } catch (err) {
+        alert('Failed to establish secure database session: ' + err.message);
+        return;
+      }
+
       // Log the impersonation action
       await logAction({
         actor_id: user?.id,
@@ -162,16 +226,17 @@ export default function ShopsList() {
         target_type: 'SHOP',
         target_id: shop.id,
         details: { shopName: shop.name }
-      })
+      });
 
-      impersonate(shop.id, shop)
+      impersonate(shop.id, shop);
       const params = new URLSearchParams({
         impersonateId: shop.id,
         shopName: shop.name || '',
-        logoUrl: shop.logo_url || ''
-      }).toString()
-      const posUrl = import.meta.env.VITE_POS_URL || 'https://pos.edgexsuite.com'
-      window.location.href = `${posUrl}/?${params}`
+        logoUrl: shop.logo_url || '',
+        sessionToken: token
+      }).toString();
+      const posUrl = import.meta.env.VITE_POS_URL || 'https://pos.edgexsuite.com';
+      window.location.href = `${posUrl}/?${params}`;
     }
   }
 

@@ -37,6 +37,12 @@ function Login() {
     if (impId) {
       const shopName = searchParams.get('shopName') || 'Impersonated Shop'
       const logoUrl = searchParams.get('logoUrl') || ''
+      const sessionToken = searchParams.get('sessionToken') || ''
+
+      if (sessionToken) {
+        localStorage.setItem('session_token', sessionToken)
+      }
+
       impersonate(impId, { name: shopName, logo_url: logoUrl })
       setSearchParams({})
       navigate('/dashboard', { replace: true })
