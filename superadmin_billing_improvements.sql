@@ -29,15 +29,18 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_user         RECORD;
-    v_shop         RECORD;
-    v_match_count  INTEGER;
-    v_session_token UUID;
+    v_user           RECORD;
+    v_shop           RECORD;
+    v_match_count    INTEGER;
+    v_session_token  UUID;
+    v_clean_username TEXT;
 BEGIN
+    v_clean_username := TRIM(p_username);
+
     -- Check for multiple accounts with same username (case-insensitive)
     SELECT COUNT(*) INTO v_match_count
     FROM users
-    WHERE LOWER(username) = LOWER(p_username) OR LOWER(email) = LOWER(p_username);
+    WHERE LOWER(username) = LOWER(v_clean_username) OR LOWER(email) = LOWER(v_clean_username);
 
     IF v_match_count > 1 THEN
         RETURN jsonb_build_object('success', false, 'error', 'Multiple accounts found. Please use your email to login.');
@@ -46,7 +49,7 @@ BEGIN
     -- Find active user
     SELECT u.* INTO v_user
     FROM users u
-    WHERE (LOWER(u.username) = LOWER(p_username) OR LOWER(u.email) = LOWER(p_username))
+    WHERE (LOWER(u.username) = LOWER(v_clean_username) OR LOWER(u.email) = LOWER(v_clean_username))
       AND u.is_active = true
     LIMIT 1;
 

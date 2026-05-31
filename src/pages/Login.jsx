@@ -54,7 +54,7 @@ function Login() {
       // Use secure_login RPC (handles auth + shop status check + RLS setup)
       // Wrap in a 5s timeout so offline users don't wait forever
       const rpcPromise = supabase.rpc('secure_login', {
-        p_username: username,
+        p_username: username.trim(),
         p_password_hash: hashedPassword
       })
       const timeoutPromise = new Promise((_, reject) =>
