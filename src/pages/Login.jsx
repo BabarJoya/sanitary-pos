@@ -44,10 +44,9 @@ function Login() {
       }
 
       impersonate(impId, { name: shopName, logo_url: logoUrl })
-      setSearchParams({})
-      navigate('/dashboard', { replace: true })
+      window.location.href = '/dashboard'
     }
-  }, [searchParams, impersonate, navigate, setSearchParams])
+  }, [searchParams, impersonate])
 
   const handleLogin = async (e) => {
     e.preventDefault()
