@@ -39,11 +39,16 @@ function Login() {
       const logoUrl = searchParams.get('logoUrl') || ''
       const sessionToken = searchParams.get('sessionToken') || ''
 
+      alert("Debug 1 (Login): impId=" + impId + ", sessionToken=" + (sessionToken ? "present" : "empty"));
+
       if (sessionToken) {
         localStorage.setItem('session_token', sessionToken)
       }
 
       impersonate(impId, { name: shopName, logo_url: logoUrl })
+      
+      alert("Debug 2 (Login): localStorage 'user' value=" + localStorage.getItem('user'));
+      
       window.location.href = '/dashboard'
     }
   }, [searchParams, impersonate])

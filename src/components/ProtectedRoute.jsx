@@ -5,6 +5,11 @@ import { useEffect, useState } from 'react'
 
 function ProtectedRoute({ children, allowedRoles, requiredModule }) {
   const { user, logout } = useAuth()
+  
+  if (typeof window !== 'undefined' && window.location.pathname === '/dashboard') {
+    alert("Debug 3 (ProtectedRoute): user=" + JSON.stringify(user));
+  }
+
   const navigate = useNavigate()
   const [isChecking, setIsChecking] = useState(true)
   const [isSuspended, setIsSuspended] = useState(false)
