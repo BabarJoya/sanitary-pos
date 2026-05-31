@@ -32,6 +32,7 @@ DECLARE
     v_user         RECORD;
     v_shop         RECORD;
     v_match_count  INTEGER;
+    v_session_token UUID;
 BEGIN
     -- Check for multiple accounts with same username (case-insensitive)
     SELECT COUNT(*) INTO v_match_count
@@ -82,9 +83,15 @@ BEGIN
     UPDATE users SET last_sign_in_at = NOW() WHERE id = v_user.id;
     UPDATE shops SET last_sign_in_at = NOW() WHERE id = v_user.shop_id;
 
+    -- Insert new secure session token
+    INSERT INTO sessions (user_id, shop_id)
+    VALUES (v_user.id, v_user.shop_id)
+    RETURNING token INTO v_session_token;
+
     -- Build return response
     RETURN jsonb_build_object(
         'success', true,
+        'session_token', v_session_token,
         'user', jsonb_build_object(
             'id',          v_user.id,
             'username',    v_user.username,
