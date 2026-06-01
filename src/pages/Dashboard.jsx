@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
-import { printHTML } from '../utils/printUtils'
+import { printHTML, getShopBranding } from '../utils/printUtils'
 
 const StatCard = ({ title, value, icon, color, subValue }) => (
   <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
@@ -220,6 +220,7 @@ function Dashboard() {
   const printEOD = () => {
     const d = eodData
     if (!d) return
+    const branding = getShopBranding(user?.shop_id)
     const dateStr = new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     printHTML(`<html><head><title>End of Day Report</title>
       <style>
@@ -231,7 +232,10 @@ function Dashboard() {
         .row{display:flex;justify-content:space-between;padding:4px 0;}
         .bold{font-weight:bold;} .green{color:green;} .red{color:red;} .blue{color:blue;}
       </style></head><body>
-      <h2>🌙 End of Day Report</h2>
+      <h2>${branding.name}</h2>
+      ${branding.phone ? `<p class="center" style="font-size:11px;">${branding.phone}</p>` : ''}
+      ${branding.address ? `<p class="center" style="font-size:10px;color:#555;">${branding.address}</p>` : ''}
+      <p class="center bold" style="font-size:13px;margin-top:4px;">🌙 END OF DAY REPORT</p>
       <p class="center">${dateStr}</p>
       <hr/>
       <p class="center bold">SALES SUMMARY</p>

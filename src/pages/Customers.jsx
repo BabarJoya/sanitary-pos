@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
-import { printHTML } from '../utils/printUtils'
+import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 
@@ -309,21 +309,22 @@ function Customers() {
       return
     }
 
+    const branding = getShopBranding(user?.shop_id)
+    const totalOutstanding = outstanding.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0)
+    const header = brandedA4Header(branding, 'Outstanding Balance Report', `${outstanding.length} customers  |  Total: Rs. ${totalOutstanding.toLocaleString()}`)
+
     printHTML(`
       <html><head><title>Outstanding Balances</title>
       <style>
         @page{size:A4 portrait;margin:12mm}
         *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-        body { font-family: sans-serif; padding: 0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background: #f4f4f4; }
-        h1 { text-align: center; margin-bottom: 5px; }
-        p.center { text-align: center; color: #666; margin-top: 0; }
+        th { background: #f4f4f4; font-size: 12px; }
         .total-row { font-weight: bold; background: #f9f9f9; }
       </style></head><body>
-      <h1>Outstanding Balance Report</h1>
-      <p class="center">Date: ${new Date().toLocaleDateString()}</p>
+      ${header}
       <table>
         <thead>
           <tr>
@@ -346,7 +347,7 @@ function Customers() {
         <tfoot>
           <tr class="total-row">
             <td colspan="3" style="text-align: right">Total Outstanding</td>
-            <td>${outstanding.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0).toLocaleString()}</td>
+            <td>${totalOutstanding.toLocaleString()}</td>
           </tr>
         </tfoot>
       </table>

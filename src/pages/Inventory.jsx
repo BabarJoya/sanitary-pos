@@ -5,7 +5,7 @@ import { recordAuditLog } from '../services/auditService'
 import { db, addToSyncQueue } from '../services/db'
 import * as XLSX from 'xlsx'
 import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
-import { printHTML } from '../utils/printUtils'
+import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 
 function Inventory() {
   const { user } = useAuth()
@@ -54,25 +54,21 @@ function Inventory() {
   }
 
   const handlePrint = () => {
-    const sid = user?.shop_id
-    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Our Shop'
+    const branding = getShopBranding(user?.shop_id)
+    const header = brandedA4Header(branding, 'Inventory Stock Report')
     printHTML(`
       <html><head><title>Stock Report - ${new Date().toLocaleDateString()}</title>
       <style>
         @page{size:A4 portrait;margin:12mm}
         *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; line-height: 1.6; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
         th, td { border: 1px solid #eee; padding: 10px; text-align: left; }
         th { background: #f9f9f9; font-size: 12px; text-transform: uppercase; color: #666; }
         .low-stock { color: red; font-weight: bold; }
         .footer { margin-top: 30px; text-align: center; color: #888; font-size: 10px; }
       </style></head><body>
-      <div class="header">
-        <h1>${shopName} — Inventory Stock Report</h1>
-        <p>Date: ${new Date().toLocaleString()}</p>
-      </div>
+      ${header}
       <table>
         <thead>
           <tr>
@@ -119,22 +115,22 @@ function Inventory() {
     })
 
     const sid = user?.shop_id
-    const shopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Our Shop'
-    const shopSettings = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}')
-    const reorderTemplate = shopSettings.wa_reorder_template ||
+    const shopInfo = getShopBranding(sid)
+    const rawSettings = (() => { try { return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) { return {} } })()
+    const reorderTemplate = rawSettings.wa_reorder_template ||
       'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!'
     const supplierNames = Object.keys(bySupplier)
 
     const applyTemplate = (supplierName, itemsText) =>
       reorderTemplate
         .replace(/\[Supplier Name\]/g, supplierName)
-        .replace(/\[Shop Name\]/g, shopName)
+        .replace(/\[Shop Name\]/g, shopInfo.name)
         .replace(/\[Items\]/g, itemsText)
 
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating PDF...' }
 
     try {
-      const pdfBlob = await generatePurchaseOrderPDF(bySupplier, shopName)
+      const pdfBlob = await generatePurchaseOrderPDF(bySupplier, shopInfo)
 
       if (supplierNames.length === 1) {
         const sup = bySupplier[supplierNames[0]]

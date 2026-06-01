@@ -676,8 +676,10 @@ export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
   <div class="header">
     <div>
       <div class="shop-name">${safeStr(s?.name, 'Shop')}</div>
+      ${s?.phone   ? `<div style="font-size:12px;opacity:0.85;margin-top:2px;">${s.phone}</div>` : ''}
+      ${s?.address ? `<div style="font-size:11px;opacity:0.7;margin-top:1px;">${s.address}</div>` : ''}
       <div class="period">${periodLabel}</div>
-      <div style="font-size:12px;opacity:0.7;margin-top:2px">Generated: ${new Date().toLocaleString('en-PK')}</div>
+      <div style="font-size:12px;opacity:0.7;margin-top:2px;">Generated: ${new Date().toLocaleString('en-PK')}</div>
     </div>
     <div style="text-align:right">
       <div style="font-size:32px;font-weight:900">${sales.length}</div>

@@ -77,41 +77,56 @@ export async function generateBillPDF(htmlString) {
  * Generate an outstanding statement PDF.
  * @param {object} customer  — { name, phone, address, outstanding_balance }
  * @param {Array}  ledger    — [{ date, type, amount, paid_amount, note, balance }]
- * @param {string} shopName
+ * @param {string|object} shopInfo — shop name string OR { name, phone, address }
  * Returns a Blob (PDF).
  */
-export async function generateOutstandingPDF(customer, ledger, shopName) {
+export async function generateOutstandingPDF(customer, ledger, shopInfo) {
   const { jsPDF, autoTable } = await loadJsPDF()
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const today = new Date().toLocaleDateString('en-PK')
 
+  // Support both legacy string and new shopInfo object
+  const shopName    = (typeof shopInfo === 'string' ? shopInfo : shopInfo?.name)   || 'Shop'
+  const shopPhone   = typeof shopInfo === 'object' ? (shopInfo?.phone   || '') : ''
+  const shopAddress = typeof shopInfo === 'object' ? (shopInfo?.address || '') : ''
+
   // Header
   pdf.setFontSize(16)
   pdf.setFont('helvetica', 'bold')
-  pdf.text(shopName || 'Shop Statement', 105, 18, { align: 'center' })
+  pdf.text(shopName, 105, 18, { align: 'center' })
+
+  let headerY = 26
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'normal')
+  if (shopPhone || shopAddress) {
+    const contactLine = [shopPhone, shopAddress].filter(Boolean).join('  |  ')
+    pdf.text(contactLine, 105, headerY, { align: 'center' })
+    headerY += 7
+  }
 
   pdf.setFontSize(11)
   pdf.setFont('helvetica', 'normal')
-  pdf.text('Customer Outstanding Statement', 105, 26, { align: 'center' })
+  pdf.text('Customer Outstanding Statement', 105, headerY, { align: 'center' })
 
   pdf.setFontSize(9)
   pdf.text(`Date: ${today}`, 195, 18, { align: 'right' })
 
+  const customerInfoY = headerY + 10
   // Customer info
   pdf.setFontSize(10)
   pdf.setFont('helvetica', 'bold')
-  pdf.text('Customer:', 14, 36)
+  pdf.text('Customer:', 14, customerInfoY)
   pdf.setFont('helvetica', 'normal')
-  pdf.text(`${customer.name}  |  ${customer.phone || ''}  |  ${customer.address || ''}`, 38, 36)
+  pdf.text(`${customer.name}  |  ${customer.phone || ''}  |  ${customer.address || ''}`, 38, customerInfoY)
 
   // Outstanding box
   const bal = customer.outstanding_balance || 0
   pdf.setFillColor(bal > 0 ? 255 : 230, bal > 0 ? 230 : 255, 230)
-  pdf.roundedRect(14, 40, 182, 10, 2, 2, 'F')
+  pdf.roundedRect(14, customerInfoY + 4, 182, 10, 2, 2, 'F')
   pdf.setFontSize(10)
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor(bal > 0 ? 180 : 0, 0, bal > 0 ? 0 : 0)
-  pdf.text(`Total Outstanding: Rs. ${(bal || 0).toLocaleString()}`, 105, 47, { align: 'center' })
+  pdf.text(`Total Outstanding: Rs. ${(bal || 0).toLocaleString()}`, 105, customerInfoY + 11, { align: 'center' })
   pdf.setTextColor(0, 0, 0)
 
   // Ledger table
@@ -130,7 +145,7 @@ export async function generateOutstandingPDF(customer, ledger, shopName) {
   })
 
   autoTable(pdf, {
-    startY: 54,
+    startY: customerInfoY + 18,
     head: [['Date', 'Description', 'Debit (Sale)', 'Credit (Payment)', 'Balance']],
     body: rows,
     styles: { fontSize: 8, cellPadding: 2 },
@@ -159,28 +174,42 @@ export async function generateOutstandingPDF(customer, ledger, shopName) {
 /**
  * Generate a purchase order PDF.
  * @param {object} bySupplier — { supplierName: { phone, items: [product...] } }
- * @param {string} shopName
+ * @param {string|object} shopInfo — shop name string OR { name, phone, address }
  * Returns a Blob (PDF).
  */
-export async function generatePurchaseOrderPDF(bySupplier, shopName) {
+export async function generatePurchaseOrderPDF(bySupplier, shopInfo) {
   const { jsPDF, autoTable } = await loadJsPDF()
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const today = new Date().toLocaleDateString('en-PK')
   const supplierNames = Object.keys(bySupplier)
 
+  // Support both legacy string and new shopInfo object
+  const shopName    = (typeof shopInfo === 'string' ? shopInfo : shopInfo?.name)   || 'Purchase Order'
+  const shopPhone   = typeof shopInfo === 'object' ? (shopInfo?.phone   || '') : ''
+  const shopAddress = typeof shopInfo === 'object' ? (shopInfo?.address || '') : ''
+
   // Header
   pdf.setFontSize(16)
   pdf.setFont('helvetica', 'bold')
-  pdf.text(shopName || 'Purchase Order', 105, 18, { align: 'center' })
+  pdf.text(shopName, 105, 18, { align: 'center' })
+
+  let headerY = 26
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'normal')
+  if (shopPhone || shopAddress) {
+    const contactLine = [shopPhone, shopAddress].filter(Boolean).join('  |  ')
+    pdf.text(contactLine, 105, headerY, { align: 'center' })
+    headerY += 7
+  }
 
   pdf.setFontSize(11)
   pdf.setFont('helvetica', 'normal')
-  pdf.text('Reorder / Purchase Order', 105, 26, { align: 'center' })
+  pdf.text('Reorder / Purchase Order', 105, headerY, { align: 'center' })
 
   pdf.setFontSize(9)
   pdf.text(`Date: ${today}`, 195, 18, { align: 'right' })
 
-  let currentY = 34
+  let currentY = headerY + 8
 
   supplierNames.forEach((supName, idx) => {
     const sup = bySupplier[supName]

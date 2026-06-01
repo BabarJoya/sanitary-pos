@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { db } from '../services/db'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
-import { printHTML } from '../utils/printUtils'
+import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 
 function Reports() {
   const { user } = useAuth()
@@ -216,13 +216,14 @@ function Reports() {
   }
 
   const handlePrintSummary = () => {
+    const branding = getShopBranding(user?.shop_id)
+    const header = brandedA4Header(branding, 'Business Performance Report', `Period: ${range.toUpperCase()}`)
     printHTML(`
       <html><head><title>Business Report - ${range.toUpperCase()}</title>
       <style>
         @page{size:A4 portrait;margin:12mm}
         *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-        body { font-family: sans-serif; padding: 0; line-height: 1.6; }
-        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 0; line-height: 1.6; }
         .stat-grid { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
         .stat-item { border: 1px solid #ddd; padding: 12px; border-radius: 8px; flex: 1; min-width: 45%; }
         .stat-label { color: #666; font-size: 11px; font-weight: bold; text-transform: uppercase; }
@@ -234,10 +235,7 @@ function Reports() {
         .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
         .final-profit { border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; font-size: 20px; font-weight: bold; display: flex; justify-content: space-between; }
       </style></head><body>
-      <div class="header">
-        <h1>Business Performance Report</h1>
-        <p>Period: ${range.toUpperCase()} | Date: ${new Date().toLocaleDateString()}</p>
-      </div>
+      ${header}
 
       <div class="stat-grid">
         <div class="stat-item">

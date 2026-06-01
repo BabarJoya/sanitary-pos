@@ -40,8 +40,6 @@ function Login() {
       const sessionToken = searchParams.get('sessionToken') || ''
 
       try {
-        alert("Debug 1 (Login): impId=" + impId + ", sessionToken=" + (sessionToken ? "present" : "empty"));
-
         if (sessionToken) {
           localStorage.setItem('session_token', sessionToken)
         }
@@ -52,11 +50,9 @@ function Login() {
 
         impersonate(impId, { name: shopName, logo_url: logoUrl })
         
-        alert("Debug 2 (Login): localStorage 'user' value=" + localStorage.getItem('user'));
-        
         window.location.href = '/dashboard'
       } catch (err) {
-        alert("CRASH in Login.jsx:\n" + err.message + "\n\nStack:\n" + err.stack);
+        console.error("Impersonation login failed:", err);
       }
     }
   }, [searchParams, impersonate])

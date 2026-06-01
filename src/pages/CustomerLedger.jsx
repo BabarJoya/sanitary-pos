@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { printHTML } from '../utils/printUtils'
+import { printHTML, getShopBranding } from '../utils/printUtils'
 import { db } from '../services/db'
 import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 
@@ -190,8 +190,7 @@ function CustomerLedger() {
     }
 
     const printPaymentVoucher = (amount, note, date) => {
-        const sid = user?.shop_id
-        const cachedShopName = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'Our Shop'
+        const branding = getShopBranding(user?.shop_id)
         printHTML(`<html><head><title>Payment Receipt</title>
         <style>
           @page{size:80mm auto;margin:2mm}
@@ -202,7 +201,9 @@ function CustomerLedger() {
           .row{display:flex;justify-content:space-between;padding:3px 0;}
           .bold{font-weight:bold;}
         </style></head><body>
-        <h2>${cachedShopName}</h2>
+        <h2>${branding.name}</h2>
+        ${branding.phone ? `<p class="c" style="font-size:11px;">${branding.phone}</p>` : ''}
+        ${branding.address ? `<p class="c" style="font-size:10px;color:#555;">${branding.address}</p>` : ''}
         <p class="c bold" style="font-size:15px;">PAYMENT RECEIPT</p>
         <hr/>
         <div class="row"><span>Customer:</span><span class="bold">${customer.name}</span></div>
@@ -548,7 +549,8 @@ function CustomerLedger() {
                                             .replace(/\[Amount\]/g, (customer.outstanding_balance || 0).toLocaleString())
                                             .replace(/\[Shop Name\]/g, shop?.name || 'our shop')
 
-                                        const pdfBlob = generateOutstandingPDF(customer, ledger, shop?.name || 'Shop')
+                                        const shopInfo = { name: shop?.name || 'Shop', phone: shop?.phone || '', address: shop?.address || '' }
+                                        const pdfBlob = generateOutstandingPDF(customer, ledger, shopInfo)
                                         await shareOrDownloadPDF(pdfBlob, `outstanding-${customer.name.replace(/\s+/g, '-')}.pdf`, formattedPhone, msg)
                                     } catch (err) {
                                         console.error('Outstanding PDF failed:', err)
