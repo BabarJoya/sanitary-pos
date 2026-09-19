@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
+import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { hasFeature } from '../utils/featureGate'
 
 function Products() {
@@ -32,6 +33,10 @@ function Products() {
   const [inlineEditId, setInlineEditId] = useState(null)
   const [inlineForm, setInlineForm] = useState({})
   const [inlineSaving, setInlineSaving] = useState(false)
+
+  // Barcode label printing state
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false)
+  const [barcodeModalProduct, setBarcodeModalProduct] = useState(null)
 
   // Import preview state
   const [showImportPreview, setShowImportPreview] = useState(false)
@@ -567,9 +572,18 @@ function Products() {
           )}
           <button
             onClick={handleExport}
-            className="px-4 py-2 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm shadow-blue-50"
+            className="px-4 py-2 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm shadow-blue-50 cursor-pointer"
           >
             <span>📤</span> Export{selected.length > 0 ? ` (${selected.length})` : ''}
+          </button>
+          <button
+            onClick={() => {
+              setBarcodeModalProduct(selected.length === 1 ? products.find(p => p.id === selected[0]) : null)
+              setShowBarcodeModal(true)
+            }}
+            className="px-4 py-2 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition font-bold text-sm flex items-center gap-2 shadow-sm shadow-emerald-50 cursor-pointer"
+          >
+            <span>🏷️</span> Barcodes
           </button>
           {selected.length > 0 && (
             <>
@@ -707,6 +721,7 @@ function Products() {
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <p className="font-mono text-xs text-gray-400">{product.sku || 'No SKU'}</p>
                     <div className="flex gap-2">
+                      <button onClick={() => { setBarcodeModalProduct(product); setShowBarcodeModal(true) }} title="Print Barcode Label" className="rounded-lg bg-indigo-50 px-2.5 py-2 text-sm font-bold text-indigo-600">🏷️</button>
                       <button onClick={() => { setInlineEditId(product.id); setInlineForm({ ...product }) }} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">Edit</button>
                       <button onClick={() => requestDelete([product.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
                     </div>
@@ -863,6 +878,13 @@ function Products() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex justify-center gap-2">
+                      <button
+                        onClick={() => { setBarcodeModalProduct(product); setShowBarcodeModal(true) }}
+                        title="Print Barcode Label"
+                        className="text-indigo-600 hover:text-indigo-800 font-bold text-sm bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition"
+                      >
+                        🏷️
+                      </button>
                       <button
                         onClick={() => { setInlineEditId(product.id); setInlineForm({ ...product }) }}
                         className="text-blue-600 hover:text-blue-800 font-bold text-sm bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
@@ -1051,6 +1073,17 @@ function Products() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Barcode Label Printing Modal */}
+      {showBarcodeModal && (
+        <BarcodeLabelModal
+          isOpen={showBarcodeModal}
+          onClose={() => setShowBarcodeModal(false)}
+          products={selected.length > 0 ? products.filter(p => selected.includes(p.id)) : products}
+          defaultProduct={barcodeModalProduct}
+          shopName={localStorage.getItem(`shop_name_${user?.shop_id}`) || 'EdgeX POS'}
+        />
       )}
     </div>
   )

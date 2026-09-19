@@ -3,6 +3,14 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../services/supabase'
 import { hasFeature } from '../utils/featureGate'
+import {
+  LayoutDashboard, ShoppingCart, Package, Layers, Boxes,
+  Users, BookOpen, MessageSquare, Receipt, Truck,
+  ShoppingBag, History, Wallet, BarChart3, UserCog,
+  Settings as SettingsIcon, Trash2, LifeBuoy, Lock, Store
+} from 'lucide-react'
+
+let lastLayoutFetchTime = 0
 
 function Layout({ children }) {
   const { user, logout, stopImpersonating } = useAuth()
@@ -48,18 +56,26 @@ function Layout({ children }) {
   }
 
   useEffect(() => {
-    fetchLowStock()
-    fetchShopName()
-    fetchAnnouncements()
-    fetchPlanInfo()
+    const now = Date.now()
+    const shouldFetch = (now - lastLayoutFetchTime) > 60 * 1000
+
+    if (shouldFetch) {
+      lastLayoutFetchTime = now
+      fetchLowStock()
+      fetchShopName()
+      fetchAnnouncements()
+      fetchPlanInfo()
+    }
+
     const interval = setInterval(() => {
+      lastLayoutFetchTime = Date.now()
       fetchLowStock()
       fetchShopName()
       fetchAnnouncements()
       fetchPlanInfo()
     }, 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [user.shop_id])
+  }, [user?.shop_id])
 
   const fetchShopName = async () => {
     if (!user?.shop_id) return
@@ -222,68 +238,68 @@ function Layout({ children }) {
         <nav className="flex-1 p-4 overflow-y-auto custom-scrollbar">
           <ul className="space-y-1">
             <NavHeader label="Main" collapsed={sidebarCollapsed} />
-            <NavItem to="/dashboard" icon="📊" label="Dashboard" active={location.pathname === '/dashboard'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+            <NavItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" active={location.pathname === '/dashboard'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             {hasAccess('pos', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/pos" icon="🛒" label="POS Billing" active={location.pathname === '/pos'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/pos" icon={<ShoppingCart size={18} />} label="POS Billing" active={location.pathname === '/pos'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
             <NavHeader label="Inventory & Products" collapsed={sidebarCollapsed} />
             {hasAccess('products', ['admin', 'manager']) && (
-              <NavItem to="/products" icon="📦" label="Products" active={location.pathname === '/products'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/products" icon={<Package size={18} />} label="Products" active={location.pathname === '/products'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('categories', ['admin', 'manager']) && (
-              <NavItem to="/master-data" icon="📐" label="Master Data"
+              <NavItem to="/master-data" icon={<Layers size={18} />} label="Master Data"
                 active={location.pathname.startsWith('/master-data') || location.pathname === '/categories' || location.pathname === '/brands'}
                 onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('inventory', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/inventory" icon="📋" label="Stock Inventory" active={location.pathname === '/inventory'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/inventory" icon={<Boxes size={18} />} label="Stock Inventory" active={location.pathname === '/inventory'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
             <NavHeader label="Sales & Customers" collapsed={sidebarCollapsed} />
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/customers" icon="👥" label="Customers" active={location.pathname === '/customers'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/customers" icon={<Users size={18} />} label="Customers" active={location.pathname === '/customers'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/customer-ledger" icon="📒" label="Customer Ledger" active={location.pathname === '/customer-ledger'} locked={!hasFeature('customer_ledger')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/customer-ledger" icon={<BookOpen size={18} />} label="Customer Ledger" active={location.pathname === '/customer-ledger'} locked={!hasFeature('customer_ledger')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/whatsapp" icon="📲" label="WhatsApp Reminders" active={location.pathname === '/whatsapp'} locked={!hasFeature('whatsapp')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/whatsapp" icon={<MessageSquare size={18} />} label="WhatsApp Reminders" active={location.pathname === '/whatsapp'} locked={!hasFeature('whatsapp')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('sales', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/sales" icon="💰" label="Sales History" active={location.pathname === '/sales'} locked={!hasFeature('sales_history')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/sales" icon={<Receipt size={18} />} label="Sales History" active={location.pathname === '/sales'} locked={!hasFeature('sales_history')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
             <NavHeader label="Procurement" collapsed={sidebarCollapsed} />
             {hasAccess('suppliers', ['admin', 'manager']) && (
-              <NavItem to="/suppliers" icon="🚚" label="Suppliers" active={location.pathname === '/suppliers'} locked={!hasFeature('suppliers')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/suppliers" icon={<Truck size={18} />} label="Suppliers" active={location.pathname === '/suppliers'} locked={!hasFeature('suppliers')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('purchases', ['admin', 'manager']) && (
-              <NavItem to="/purchases" icon="🛍️" label="Purchases" active={location.pathname === '/purchases'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/purchases" icon={<ShoppingBag size={18} />} label="Purchases" active={location.pathname === '/purchases'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('purchase-history', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/purchase-history" icon="📜" label="Purchase History" active={location.pathname === '/purchase-history'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/purchase-history" icon={<History size={18} />} label="Purchase History" active={location.pathname === '/purchase-history'} locked={!hasFeature('purchases')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
             <NavHeader label="Accounts & Admin" collapsed={sidebarCollapsed} />
             {hasAccess('expenses', ['admin']) && (
-              <NavItem to="/expenses" icon="💸" label="Expenses" active={location.pathname === '/expenses'} locked={!hasFeature('expenses')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/expenses" icon={<Wallet size={18} />} label="Expenses" active={location.pathname === '/expenses'} locked={!hasFeature('expenses')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('reports', ['admin', 'manager', 'accountant']) && (
-              <NavItem to="/reports" icon="📈" label="Reports" active={location.pathname === '/reports'} locked={!hasFeature('reports')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/reports" icon={<BarChart3 size={18} />} label="Reports" active={location.pathname === '/reports'} locked={!hasFeature('reports')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('users', ['admin']) && (
-              <NavItem to="/users" icon="👨‍💼" label="Manage Users" active={location.pathname === '/users'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/users" icon={<UserCog size={18} />} label="Manage Users" active={location.pathname === '/users'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
 
             <NavHeader label="Settings & System" collapsed={sidebarCollapsed} />
             {hasAccess('settings', ['admin']) && (
-              <NavItem to="/settings" icon="⚙️" label="Settings" active={location.pathname === '/settings'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/settings" icon={<SettingsIcon size={18} />} label="Settings" active={location.pathname === '/settings'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('trash', ['admin']) && (
-              <NavItem to="/trash" icon="🗑️" label="Trash Bin" active={location.pathname === '/trash'} locked={!hasFeature('trash_bin')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/trash" icon={<Trash2 size={18} />} label="Trash Bin" active={location.pathname === '/trash'} locked={!hasFeature('trash_bin')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
-            <NavItem to="/support" icon="🆘" label="Help & Support" active={location.pathname === '/support'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+            <NavItem to="/support" icon={<LifeBuoy size={18} />} label="Help & Support" active={location.pathname === '/support'} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
           </ul>
         </nav>
 
@@ -416,10 +432,9 @@ function Layout({ children }) {
                       <button
                         onClick={() => {
                           stopImpersonating()
-                          const superadminUrl = import.meta.env.VITE_SUPERADMIN_URL || 'http://localhost:5173'
-                          window.location.href = `${superadminUrl}/shops` // Redirect to superadmin
+                          navigate('/admin/shops')
                         }}
-                        className="w-full text-left px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg font-bold flex items-center gap-2 transition mb-1"
+                        className="w-full text-left px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg font-bold flex items-center gap-2 transition mb-1 cursor-pointer"
                       >
                         <span>🔙</span> Exit Shop
                       </button>
@@ -446,10 +461,10 @@ function Layout({ children }) {
             </div>
             <button
               onClick={() => {
-                const superadminUrl = import.meta.env.VITE_SUPERADMIN_URL || 'http://localhost:5173'
-                window.location.href = `${superadminUrl}/shops`
+                stopImpersonating()
+                navigate('/admin/shops')
               }}
-              className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-black uppercase tracking-wider transition"
+              className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-black uppercase tracking-wider transition cursor-pointer"
             >
               Exit to Superadmin
             </button>
@@ -617,9 +632,9 @@ function NavItem({ to, icon, label, active, onClick, locked, collapsed }) {
               : 'text-gray-400 hover:bg-gray-800 hover:text-white active:scale-95'
         }`}
       >
-        <span className="text-xl flex-shrink-0">{icon}</span>
+        <span className="flex-shrink-0 flex items-center justify-center">{icon}</span>
         {!collapsed && <span className="flex-1 truncate">{label}</span>}
-        {!collapsed && locked && <span className="text-xs ml-auto">🔒</span>}
+        {!collapsed && locked && <Lock size={13} className="ml-auto text-gray-500" />}
       </Link>
     </li>
   )

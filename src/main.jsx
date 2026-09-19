@@ -4,7 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import './services/syncService'
 
-// Intercept database RLS policy errors globally to show a friendly instruction
+// ── RLS error interceptor ─────────────────────────────────────────────────
 if (typeof window !== 'undefined') {
   const originalAlert = window.alert;
   window.alert = (message) => {
@@ -22,6 +22,64 @@ if (typeof window !== 'undefined') {
     }
   };
 }
+
+// ── Force-update polling (checks Supabase every 5 minutes) ───────────────
+// When superadmin clicks "Push Update", force_refresh_version is incremented.
+// This app detects the mismatch, activates the waiting SW, and reloads.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const VERSION_KEY = 'edgex_app_version'
+
+async function checkForForceUpdate() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !navigator.onLine) return
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/system_configs?key=eq.force_refresh_version&select=value`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        signal: AbortSignal.timeout(5000),
+      }
+    )
+    if (!res.ok) return
+    const rows = await res.json()
+    const remoteVersion = rows?.[0]?.value
+    if (!remoteVersion) return
+
+    const localVersion = localStorage.getItem(VERSION_KEY) || '0'
+
+    if (remoteVersion !== localVersion) {
+      console.log(`[EdgeX] New version detected (${localVersion} → ${remoteVersion}). Reloading…`)
+      localStorage.setItem(VERSION_KEY, remoteVersion)
+
+      // Ask the waiting SW to take control immediately, then reload
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration()
+        if (reg?.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+          // Wait for the new SW to take control before reloading
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.location.reload()
+          }, { once: true })
+        } else {
+          // No waiting SW — just reload to pick up cached assets
+          window.location.reload()
+        }
+      } else {
+        window.location.reload()
+      }
+    }
+  } catch (_) {
+    // Silently ignore — network error or table not yet created
+  }
+}
+
+// Run on load (after a short delay so app initialises first)
+setTimeout(checkForForceUpdate, 3000)
+// Then every 5 minutes
+setInterval(checkForForceUpdate, 5 * 60 * 1000)
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

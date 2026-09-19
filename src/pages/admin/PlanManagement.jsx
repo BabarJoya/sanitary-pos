@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../services/supabase'
+import { supabaseAdmin } from '../../services/supabaseAdmin'
 import { Plus, Zap, Check, AlertTriangle, Edit2, Trash2, ShieldCheck } from 'lucide-react'
-import { logAction } from '../services/auditService'
-import { useAuth } from '../context/AuthContext'
+import { logAction } from '../../services/auditService'
+import { useAuth } from '../../context/AuthContext'
 
 export default function PlanManagement() {
     const { user: adminUser } = useAuth()

@@ -4,10 +4,20 @@ import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
+import { getShopPreset, getPricingConfig } from '../utils/businessPresets'
 
 function AddProduct() {
   const { user } = useAuth()
   const navigate = useNavigate()
+
+  const shopSettings = (() => {
+    try {
+      const sid = user?.shop_id
+      return JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}')
+    } catch (_) { return {} }
+  })()
+  const preset = getShopPreset(shopSettings)
+  const pricingConfig = getPricingConfig(shopSettings)
 
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -276,7 +286,7 @@ function AddProduct() {
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. Basin Tap"
+                placeholder={preset.placeholders.productName}
               />
             </div>
             <div>
@@ -334,7 +344,7 @@ function AddProduct() {
                   onChange={handleChange}
                   onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                  placeholder="e.g. TAP-001"
+                  placeholder={preset.placeholders.sku}
                 />
                 <button type="button" onClick={autoGenerateSKU}
                   className="px-3 py-2 bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700 rounded-lg text-xs font-bold transition whitespace-nowrap border border-gray-200">
@@ -387,20 +397,22 @@ function AddProduct() {
           {/* Pricing */}
           <h2 className="font-semibold text-gray-700 border-b pb-2 pt-2">Pricing</h2>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className={`grid ${pricingConfig.enabled ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'} gap-4`}>
+            {pricingConfig.enabled && (
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">{pricingConfig.label}</label>
+                <input
+                  type="number"
+                  name="c_rate"
+                  value={form.c_rate}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-gray-700 font-medium mb-1">C.Rate (Company Rate)</label>
-              <input
-                type="number"
-                name="c_rate"
-                value={form.c_rate}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-gray-700 font-medium mb-1">Purchase Price *</label>
+              <label className="block text-gray-700 font-medium mb-1">Purchase / Cost Price *</label>
               <input
                 type="number"
                 name="cost_price"
@@ -412,7 +424,7 @@ function AddProduct() {
               />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Sale Price *</label>
+              <label className="block text-gray-700 font-medium mb-1">Sale / Selling Price *</label>
               <input
                 type="number"
                 name="sale_price"

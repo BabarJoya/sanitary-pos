@@ -11,6 +11,7 @@ import EmailBroadcast from './pages/EmailBroadcast'
 import PlanManagement from './pages/PlanManagement'
 import SupportTickets from './pages/SupportTickets'
 import Analytics from './pages/Analytics'
+import Backups from './pages/Backups'
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="plans" element={<PlanManagement />} />
           <Route path="tickets" element={<SupportTickets />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="backups" element={<Backups />} />
           <Route path="audit-logs" element={<AuditLogs />} />
           <Route path="broadcast" element={<EmailBroadcast />} />
           <Route path="*" element={<Navigate to="/" replace />} />

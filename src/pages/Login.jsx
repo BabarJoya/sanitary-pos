@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, rlsSession } from '../services/supabase'
+import { supabaseAdmin } from '../services/supabaseAdmin'
 import { db as localDB } from '../services/db'
 import { hashPassword } from '../utils/authUtils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -34,36 +35,137 @@ function Login() {
   // Handle impersonation from superadmin
   useEffect(() => {
     const impId = searchParams.get('impersonateId')
-    if (impId) {
-      const shopName = searchParams.get('shopName') || 'Impersonated Shop'
-      const logoUrl = searchParams.get('logoUrl') || ''
-      const sessionToken = searchParams.get('sessionToken') || ''
+    if (!impId) return
 
-      try {
-        if (sessionToken) {
-          localStorage.setItem('session_token', sessionToken)
-        }
+    const shopName = searchParams.get('shopName') || 'Impersonated Shop'
+    const logoUrl  = searchParams.get('logoUrl')  || ''
+    const sessionToken = searchParams.get('sessionToken') || ''
 
-        if (typeof impersonate !== 'function') {
-          throw new Error('impersonate is not a function! It is: ' + typeof impersonate);
-        }
-
-        impersonate(impId, { name: shopName, logo_url: logoUrl })
-        
-        window.location.href = '/dashboard'
-      } catch (err) {
-        console.error("Impersonation login failed:", err);
-      }
+    // Build the impersonated user object
+    const impersonatedUser = {
+      id: `impersonated-${impId}`,
+      username: `Superadmin (${shopName})`,
+      role: 'admin',
+      shop_id: String(impId),
+      isImpersonating: true
     }
-  }, [searchParams, impersonate])
+
+    // Synchronously wipe any previous session so no stale shop bleeds through
+    localStorage.removeItem('user')
+    localStorage.removeItem('originalUser')
+    if (sessionToken) localStorage.setItem('session_token', sessionToken)
+
+    // Write all new shop data before the page reload
+    localStorage.setItem('user', JSON.stringify(impersonatedUser))
+    localStorage.setItem(`shop_name_${impId}`, shopName)
+    if (logoUrl) {
+      localStorage.setItem(`shop_logo_${impId}`, logoUrl)
+    } else {
+      localStorage.removeItem(`shop_logo_${impId}`)
+    }
+
+    // Also update React context (best-effort — page will reload anyway)
+    try { impersonate(impId, { name: shopName, logo_url: logoUrl }) } catch (_) {}
+
+    // Full reload so AuthContext re-initialises cleanly from the new localStorage state
+    window.location.href = '/dashboard'
+  }, [searchParams])  // intentionally omit `impersonate` — we write localStorage directly above
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
+    const isOffline = !navigator.onLine
+
+    // ── Offline fast-path: skip RPC entirely ──────────────────────────────
+    if (isOffline) {
+      try {
+        const hashedPassword = await hashPassword(password)
+        const allUsers = await localDB.users.toArray()
+        const localUser = allUsers.find(u =>
+          u.username?.toLowerCase() === username.trim().toLowerCase()
+        )
+
+        if (!localUser) {
+          setError('⚠️ Offline: No saved login found for this username. Please connect to internet and login once first.')
+          setLoading(false)
+          return
+        }
+
+        if (localUser.password !== hashedPassword) {
+          setError('Offline: Incorrect password.')
+          setLoading(false)
+          return
+        }
+
+        if (localUser.is_active === false) {
+          setError('Offline: This account is marked inactive.')
+          setLoading(false)
+          return
+        }
+
+        // Restore branding from IndexedDB
+        if (localUser.shop_id) {
+          localStorage.setItem('last_shop_id', localUser.shop_id)
+          try {
+            const localShop = await localDB.shops.get(localUser.shop_id)
+            if (localShop?.name) localStorage.setItem(`shop_name_${localUser.shop_id}`, localShop.name)
+            if (localShop?.logo_url) localStorage.setItem(`shop_logo_${localUser.shop_id}`, localShop.logo_url)
+          } catch (_) {}
+        }
+
+        login({
+          id: localUser.id,
+          username: localUser.username,
+          email: localUser.email || '',
+          role: localUser.role,
+          shop_id: localUser.shop_id,
+          permissions: localUser.permissions || []
+        })
+
+        setError('✅ Logged in offline. Some features (sync, reports) require internet.')
+        setTimeout(() => navigate('/dashboard'), 1500)
+      } catch (err) {
+        setError('Offline login failed. Please connect to internet.')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    // ── Online path ───────────────────────────────────────────────────────
     try {
       const hashedPassword = await hashPassword(password)
+      const cleanUsername = username.trim().toLowerCase()
+
+      // Direct Superadmin authentication path for babarjoya@gmail.com
+      if (cleanUsername === 'babarjoya@gmail.com' || cleanUsername.includes('babarjoya')) {
+        if (supabaseAdmin) {
+          const { data: saUser, error: saError } = await supabaseAdmin
+            .from('users')
+            .select('*')
+            .or(`email.ilike.${cleanUsername},username.ilike.${cleanUsername}`)
+            .eq('password', hashedPassword)
+            .eq('role', 'superadmin')
+            .eq('is_active', true)
+            .maybeSingle()
+
+          if (!saError && saUser) {
+            login({
+              id: saUser.id,
+              username: saUser.username || 'Superadmin',
+              email: saUser.email || cleanUsername,
+              role: 'superadmin',
+              shop_id: null,
+              permissions: []
+            })
+            localStorage.setItem('user_pw_hash', hashedPassword)
+            navigate('/admin')
+            return
+          }
+        }
+      }
 
       // Use secure_login RPC (handles auth + shop status check + RLS setup)
       // Wrap in a 5s timeout so offline users don't wait forever
@@ -125,6 +227,21 @@ function Login() {
 
       if (sessionToken) {
         localStorage.setItem('session_token', sessionToken)
+      }
+
+      // If user is a superadmin, immediately navigate to superadmin portal
+      if (userData.role === 'superadmin' || cleanUsername === 'babarjoya@gmail.com') {
+        login({
+          id: userData.id,
+          username: userData.username,
+          email: userData.email || '',
+          role: 'superadmin',
+          shop_id: null,
+          permissions: []
+        })
+        localStorage.setItem('user_pw_hash', hashedPassword)
+        navigate('/admin')
+        return
       }
       if (userData.shop_id) {
         localStorage.setItem('last_shop_id', userData.shop_id)
@@ -226,6 +343,12 @@ function Login() {
           u.username?.toLowerCase() === username.trim().toLowerCase()
         )
 
+        if (!localUser) {
+          setError('⚠️ No offline data found. Please connect to internet and login once first to enable offline access.')
+          setLoading(false)
+          return
+        }
+
         if (localUser && localUser.password === hashedPassword && localUser.is_active !== false) {
           // Offline login successful
           console.log('✅ Offline login successful')
@@ -256,14 +379,13 @@ function Login() {
             permissions: localUser.permissions || []
           })
 
-          // Show offline notice
-          setError('⚠️ Logged in offline mode. Some features may be limited.')
+          setError('✅ Logged in offline. Some features (sync, reports) require internet.')
 
           setTimeout(() => {
             navigate('/dashboard')
           }, 1500)
         } else {
-          setError('Offline mode: Invalid credentials. Please connect to internet for first-time login.')
+          setError('Offline mode: Incorrect password.')
         }
       } catch (offlineError) {
         console.error('Offline login error:', offlineError)

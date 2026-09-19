@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../services/supabase'
+import { supabaseAdmin } from '../../services/supabaseAdmin'
 import { Search, CreditCard, Clock, CheckCircle2, AlertTriangle, FileText, User, MessageSquare } from 'lucide-react'
-import { logAction } from '../services/auditService'
-import { useAuth } from '../context/AuthContext'
-import { buildWhatsAppUrl, formatRenewalMessage } from '../utils/whatsappTemplates'
+import { logAction } from '../../services/auditService'
+import { useAuth } from '../../context/AuthContext'
+import { buildWhatsAppUrl, formatRenewalMessage } from '../../utils/whatsappTemplates'
 import * as XLSX from 'xlsx'
 
 export default function Subscriptions() {

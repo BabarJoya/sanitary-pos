@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
   // the hash from IndexedDB so PasswordModal works without re-login.
   useEffect(() => {
     const restoreHash = async () => {
-      if (!user?.id) return
+      if (!user?.id || user.role === 'superadmin') return
       if (localStorage.getItem('user_pw_hash')) return // already cached
       try {
         const localUser = await db.users.get(user.id)
@@ -29,11 +29,14 @@ export function AuthProvider({ children }) {
       } catch (_) { /* IndexedDB might be empty — user must re-login once */ }
     }
     restoreHash()
-  }, [user?.id])
+  }, [user?.id, user?.role])
 
   const login = (userData) => {
     setUser(userData)
     localStorage.setItem('user', JSON.stringify(userData))
+    if (userData.role === 'superadmin') {
+      localStorage.setItem('superadmin_session', JSON.stringify(userData))
+    }
   }
 
   const impersonate = (shopId, shopData) => {
@@ -44,7 +47,7 @@ export function AuthProvider({ children }) {
       id: `impersonated-${shopId}`,
       username: `Superadmin (${shopData.name})`,
       role: 'admin',
-      shop_id: shopId,
+      shop_id: String(shopId),
       isImpersonating: true
     }
 
@@ -61,15 +64,20 @@ export function AuthProvider({ children }) {
   const stopImpersonating = () => {
     if (originalUser) {
       const currentShopId = user?.shop_id
-      setUser(originalUser)
-      localStorage.setItem('user', JSON.stringify(originalUser))
+      const restored = { ...originalUser }
+      delete restored.isImpersonating
+
+      setUser(restored)
+      localStorage.setItem('user', JSON.stringify(restored))
       setOriginalUser(null)
       localStorage.removeItem('originalUser')
       if (currentShopId) {
         localStorage.removeItem(`shop_name_${currentShopId}`)
         localStorage.removeItem(`shop_logo_${currentShopId}`)
       }
+      return restored
     }
+    return null
   }
 
   const logout = () => {
@@ -79,6 +87,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('originalUser')
     localStorage.removeItem('user_pw_hash')
     localStorage.removeItem('session_token')
+    localStorage.removeItem('superadmin_session')
   }
 
   return (

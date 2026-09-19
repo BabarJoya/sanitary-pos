@@ -65,7 +65,7 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-auth-cache',
-              networkTimeoutSeconds: 4,
+              networkTimeoutSeconds: 2,
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 // 1 hour

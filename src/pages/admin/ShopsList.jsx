@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../services/supabase'
+import { supabaseAdmin } from '../../services/supabaseAdmin'
 import { Search, Plus, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Edit, Users, FileText, Trash2, DatabaseBackup } from 'lucide-react'
-import CreateShopModal from '../components/CreateShopModal'
-import EditShopModal from '../components/EditShopModal'
-import ManageUsersModal from '../components/ManageUsersModal'
-import { useAuth } from '../context/AuthContext'
-import { logAction } from '../services/auditService'
+import CreateShopModal from '../../components/admin/CreateShopModal'
+import EditShopModal from '../../components/admin/EditShopModal'
+import ManageUsersModal from '../../components/admin/ManageUsersModal'
+import { useAuth } from '../../context/AuthContext'
+import { logAction } from '../../services/auditService'
 import * as XLSX from 'xlsx'
 
 export default function ShopsList() {
@@ -152,7 +152,7 @@ export default function ShopsList() {
   }
 
   const handleImpersonate = async (shop) => {
-    if (confirm(`Login as ${shop.name}? You will be temporarily signed out of the Superadmin portal.`)) {
+    if (confirm(`Login as ${shop.name}? You will be temporarily in shop view with an exit banner.`)) {
       // Retrieve first active admin user of the shop to associate with the database session
       let targetUserId = null;
       try {
@@ -234,8 +234,7 @@ export default function ShopsList() {
         logoUrl: shop.logo_url || '',
         sessionToken: token
       }).toString();
-      const posUrl = import.meta.env.VITE_POS_URL || 'https://pos.edgexsuite.com';
-      window.location.href = `${posUrl}/?${params}`;
+      window.location.href = `/?${params}`;
     }
   }
 

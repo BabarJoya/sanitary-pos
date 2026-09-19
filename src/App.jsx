@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import Layout from './components/Layout'
 
+// Shop POS Pages
 const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const POS = lazy(() => import('./pages/POS'))
@@ -29,6 +30,19 @@ const TrashBin = lazy(() => import('./pages/TrashBin'))
 const Support = lazy(() => import('./pages/Support'))
 const WhatsAppMessaging = lazy(() => import('./pages/WhatsAppMessaging'))
 
+// Superadmin Portal
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout'))
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
+const ShopsList = lazy(() => import('./pages/admin/ShopsList'))
+const Subscriptions = lazy(() => import('./pages/admin/Subscriptions'))
+const PlanManagement = lazy(() => import('./pages/admin/PlanManagement'))
+const SupportTickets = lazy(() => import('./pages/admin/SupportTickets'))
+const Analytics = lazy(() => import('./pages/admin/Analytics'))
+const Backups = lazy(() => import('./pages/admin/Backups'))
+const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'))
+const EmailBroadcast = lazy(() => import('./pages/admin/EmailBroadcast'))
+const ResetPassword = lazy(() => import('./pages/admin/ResetPassword'))
+
 function PageFallback() {
   return (
     <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -47,7 +61,29 @@ function App() {
             <Route path="/" element={<Login />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
 
-            {/* Both admin & cashier */}
+            {/* ── Superadmin Platform Portal (Role: superadmin only) ── */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={['superadmin']}>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AdminDashboard />} />
+              <Route path="shops" element={<ShopsList />} />
+              <Route path="subscriptions" element={<Subscriptions />} />
+              <Route path="plans" element={<PlanManagement />} />
+              <Route path="tickets" element={<SupportTickets />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="backups" element={<Backups />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
+              <Route path="broadcast" element={<EmailBroadcast />} />
+              <Route path="*" element={<Navigate to="/admin" replace />} />
+            </Route>
+            <Route path="/admin/reset-password" element={<ResetPassword />} />
+
+            {/* ── Shop Tenant Routes (Both admin & cashier/staff) ── */}
             <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
             <Route path="/pos" element={<ProtectedRoute requiredModule="pos" allowedRoles={['admin', 'manager', 'cashier']}><Layout><POS /></Layout></ProtectedRoute>} />
             <Route path="/customers" element={<ProtectedRoute requiredModule="customers" allowedRoles={['admin', 'manager', 'cashier']}><Layout><Customers /></Layout></ProtectedRoute>} />
@@ -55,7 +91,7 @@ function App() {
             <Route path="/customer-ledger" element={<ProtectedRoute requiredModule="customers" allowedRoles={['admin', 'manager', 'cashier']}><Layout><CustomerLedgerOverview /></Layout></ProtectedRoute>} />
             <Route path="/sales" element={<ProtectedRoute requiredModule="sales" allowedRoles={['admin', 'manager', 'accountant']}><Layout><Sales /></Layout></ProtectedRoute>} />
 
-            {/* Admin only */}
+            {/* ── Shop Admin only ── */}
             <Route path="/products" element={<ProtectedRoute requiredModule="products" allowedRoles={['admin']}><Layout><Products /></Layout></ProtectedRoute>} />
             <Route path="/add-product" element={<ProtectedRoute requiredModule="products" allowedRoles={['admin']}><Layout><AddProduct /></Layout></ProtectedRoute>} />
             <Route path="/edit-product/:id" element={<ProtectedRoute requiredModule="products" allowedRoles={['admin']}><Layout><EditProduct /></Layout></ProtectedRoute>} />

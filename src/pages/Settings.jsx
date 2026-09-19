@@ -8,6 +8,8 @@ import { buildSalesReportHTML, buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { printHTML } from '../utils/printUtils'
 import { syncOfflineData } from '../services/syncService'
+import { BUSINESS_PRESETS } from '../utils/businessPresets'
+import { Store, Tag, Receipt, ShieldCheck } from 'lucide-react'
 
 function Settings() {
   const { user } = useAuth()
@@ -34,7 +36,11 @@ function Settings() {
       wa_reminder_template: 'Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!',
       wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!',
       wa_reorder_template: 'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!',
-      invoice_prefix: ''
+      invoice_prefix: '',
+      business_preset: 'general',
+      pricing_mode: 'hidden',
+      custom_price_label: '',
+      tax_number: ''
     }
   })
   // Logo is managed completely separately from the rest of form state
@@ -65,26 +71,68 @@ function Settings() {
   const [previewTemplateId, setPreviewTemplateId] = useState(null)
   const [previewSize, setPreviewSize] = useState('thermal')
 
+  const getDummyItems = (presetId) => {
+    switch (presetId) {
+      case 'grocery':
+        return [
+          { name: 'Nestlé Milk 1L TetraPak', brand: 'Nestlé', qty: 3, custom_price: 290, sku: 'GROC-MLK-1L' },
+          { name: 'Super Basmati Rice 5kg', brand: 'Guard', qty: 1, custom_price: 1850, sku: 'GROC-RICE-5K' },
+          { name: 'Cooking Oil 1L Pouch', brand: 'Dalda', qty: 2, custom_price: 540, sku: 'GROC-OIL-1L' }
+        ]
+      case 'apparel':
+        return [
+          { name: 'Cotton Polo T-Shirt Navy (L)', brand: 'Polo', qty: 1, custom_price: 2450, sku: 'APP-POLO-NV-L' },
+          { name: 'Slim Fit Denim Jeans 32', brand: "Levi's", qty: 1, custom_price: 3800, sku: 'APP-JNS-BLU-32' },
+          { name: 'Casual Sports Socks (Pair)', brand: 'Nike', qty: 3, custom_price: 250, sku: 'APP-SOX-01' }
+        ]
+      case 'pharmacy':
+        return [
+          { name: 'Panadol Extra 500mg (Strip)', brand: 'GSK', qty: 5, custom_price: 45, sku: 'MED-PAN-EXT' },
+          { name: 'Augmentin 625mg Tablets', brand: 'GSK', qty: 1, custom_price: 340, sku: 'MED-AUG-625' },
+          { name: 'Surgical Face Mask (Pack 50)', brand: 'Pharmatec', qty: 1, custom_price: 450, sku: 'MED-MSK-50' }
+        ]
+      case 'electronics':
+        return [
+          { name: 'Fast Charger 65W GaN Type-C', brand: 'Anker', qty: 1, custom_price: 3200, sku: 'ELEC-CHG-65W' },
+          { name: 'True Wireless Earbuds Pro', brand: 'Xiaomi', qty: 1, custom_price: 4500, sku: 'ELEC-TWS-PRO' },
+          { name: 'Braided USB-C Cable 2m', brand: 'Baseus', qty: 2, custom_price: 650, sku: 'ELEC-CAB-2M' }
+        ]
+      case 'hardware':
+        return [
+          { name: 'Single Lever Basin Mixer', brand: 'Master', qty: 1, custom_price: 6500, sku: 'SAN-MIX-01' },
+          { name: 'PPRC Elbow 25mm Brass', brand: 'Popular', qty: 6, custom_price: 220, sku: 'PIP-ELB-25' },
+          { name: 'CP Waste Coupling 1.25" Brass', brand: 'Local', qty: 2, custom_price: 450, sku: 'CP-WST-125' }
+        ]
+      default: // general
+        return [
+          { name: 'Wireless Optical Mouse 2.4G', brand: 'Logitech', qty: 1, custom_price: 1850, sku: 'RET-MOU-01' },
+          { name: 'Executive Hardcover Notebook A5', brand: 'Deli', qty: 2, custom_price: 450, sku: 'RET-NTB-A5' },
+          { name: 'Ballpoint Pen Box (Pack of 10)', brand: 'Piano', qty: 1, custom_price: 300, sku: 'RET-PEN-10' }
+        ]
+    }
+  }
+
+  const dummyItems = getDummyItems(form.business_preset)
+  const dummySubtotal = dummyItems.reduce((acc, i) => acc + (i.custom_price * i.qty), 0)
+  const dummyDiscount = 200
+  const dummyTotal = dummySubtotal - dummyDiscount
+
   const dummyInvoiceData = {
     sale: {
       id: 87654321,
       created_at: new Date().toISOString(),
       created_by: user?.username || 'Staff Cashier',
       payment_type: 'cash',
-      paid_amount: 24750,
+      paid_amount: dummyTotal,
     },
-    items: [
-      { name: 'Super Toilet Commode Porta', brand: 'Porta', qty: 1, custom_price: 15000, sku: 'SAN-PORTA-12' },
-      { name: 'Master Mixer Wall Shower Faisal', brand: 'Faisal', qty: 2, custom_price: 4500, sku: 'SAN-FAIS-MIX' },
-      { name: 'CP Waste Coupling 1.25" Brass', brand: 'Local', qty: 5, custom_price: 350, sku: 'CP-WASTE-125' },
-    ],
+    items: dummyItems,
     customer: {
-      name: 'Sajid Mahmood',
+      name: 'Ahmed Tariq',
       phone: '0300-1234567'
     },
-    total: 24750,
-    subtotal: 25750,
-    totalDiscount: 1000,
+    total: dummyTotal,
+    subtotal: dummySubtotal,
+    totalDiscount: dummyDiscount,
     change: 0
   }
 
@@ -166,6 +214,10 @@ function Settings() {
         wa_bill_template:     data.wa_bill_template     || saved.wa_bill_template     || prev.wa_bill_template     || '',
         wa_reorder_template:  data.wa_reorder_template  || saved.wa_reorder_template  || prev.wa_reorder_template  || '',
         invoice_prefix:       data.invoice_prefix       || saved.invoice_prefix       || prev.invoice_prefix       || '',
+        business_preset:      data.business_preset      || saved.business_preset      || prev.business_preset      || 'general',
+        pricing_mode:         data.pricing_mode         || saved.pricing_mode         || prev.pricing_mode         || 'hidden',
+        custom_price_label:   data.custom_price_label   || saved.custom_price_label   || prev.custom_price_label   || '',
+        tax_number:           data.tax_number           || saved.tax_number           || prev.tax_number           || '',
       }
 
       // Sync immediately to localStorage to ensure consistent branding/printing across pages
@@ -507,8 +559,101 @@ function Settings() {
                 value={form.address}
                 onChange={e => setForm({ ...form, address: e.target.value })}
                 className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder="e.g. Sargodha, Punjab"
+                placeholder="e.g. Lahore, Pakistan"
               />
+            </div>
+          </div>
+
+          {/* Industry Preset & Business Type */}
+          <div className="pt-5 border-t">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Store size={18} className="text-blue-600" />
+              <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Business Type & Store Domain</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Selecting your store type tailors item placeholders, default units, and suggested pricing structures across the system.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {BUSINESS_PRESETS.map((preset) => {
+                const isSelected = form.business_preset === preset.id
+                return (
+                  <div
+                    key={preset.id}
+                    onClick={() => {
+                      setForm(prev => ({
+                        ...prev,
+                        business_preset: preset.id,
+                        pricing_mode: prev.pricing_mode === 'c_rate' && preset.id !== 'hardware' ? 'mrp' : prev.pricing_mode
+                      }))
+                    }}
+                    className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-sm text-gray-800">{preset.name}</span>
+                        {isSelected && <span className="text-xs text-blue-600 font-black">✓ Active</span>}
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-snug">{preset.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Pricing Model & Terminology Configuration */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-5 border-t">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Tag size={16} className="text-blue-600" />
+                <label className="block text-sm font-bold text-gray-700">Secondary / Catalog Price Field</label>
+              </div>
+              <select
+                value={form.pricing_mode}
+                onChange={e => setForm({ ...form, pricing_mode: e.target.value })}
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-sm"
+              >
+                <option value="hidden">Standard Retail (Only Cost & Sale Price)</option>
+                <option value="mrp">MRP / Printed List Price (Recommended for Grocery / Pharmacy / Mart)</option>
+                <option value="c_rate">Company Rate (C.Rate) with Discount Matrix (Hardware / Sanitary)</option>
+                <option value="custom">Custom Tag / Wholesale Price Label</option>
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Controls whether a catalog rate/MRP column is visible in Products, Inventory, and POS.
+              </p>
+            </div>
+
+            {form.pricing_mode === 'custom' && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Custom Price Label Name</label>
+                <input
+                  type="text"
+                  value={form.custom_price_label}
+                  onChange={e => setForm({ ...form, custom_price_label: e.target.value })}
+                  placeholder="e.g. Tag Price / MSRP / Distributor Price"
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Receipt size={16} className="text-blue-600" />
+                <label className="block text-sm font-bold text-gray-700">Tax / NTN / STRN No. (Optional)</label>
+              </div>
+              <input
+                type="text"
+                value={form.tax_number}
+                onChange={e => setForm({ ...form, tax_number: e.target.value })}
+                placeholder="e.g. NTN: 1234567-8 or STRN / GST No."
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Printed at the top of customer receipts & invoices</p>
             </div>
           </div>
 

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../services/supabase'
+import { supabaseAdmin } from '../../services/supabaseAdmin'
 import { X, Store, User, Mail, Key, Zap, AlertTriangle, CheckCircle2, MessageSquare, Copy, Check } from 'lucide-react'
-import { hashPassword } from '../utils/authUtils'
-import { buildWhatsAppUrl, formatOnboardingMessage } from '../utils/whatsappTemplates'
+import { hashPassword } from '../../utils/authUtils'
+import { buildWhatsAppUrl, formatOnboardingMessage } from '../../utils/whatsappTemplates'
 
 const STORE_TYPES = [
   { id: 'general', name: 'General Retail / Mart' },
@@ -144,7 +144,7 @@ export default function CreateShopModal({ onClose, onCreated }) {
         username: ownerUsername || ownerEmail.split('@')[0],
         password: ownerPassword,
         planName: activePlan?.name || 'Selected Plan',
-        loginUrl: import.meta.env.VITE_POS_URL || 'https://pos.edgexsuite.com'
+        loginUrl: window.location.origin
       })
 
       if (onCreated) onCreated()

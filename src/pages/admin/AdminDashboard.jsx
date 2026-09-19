@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabaseAdmin } from '../services/supabase'
+import { supabaseAdmin } from '../../services/supabaseAdmin'
 import { Store, Users, Activity, TrendingUp, CreditCard, DollarSign, AlertCircle, Megaphone, Trash2, Plus, Clock, RefreshCw, CheckCircle, MessageSquare } from 'lucide-react'
-import { buildWhatsAppUrl, formatRenewalMessage } from '../utils/whatsappTemplates'
+import { buildWhatsAppUrl, formatRenewalMessage } from '../../utils/whatsappTemplates'
 
-export default function Dashboard() {
+export default function AdminDashboard() {
   const [stats, setStats] = useState({ shops: 0, users: 0, activeShops: 0, mrr: 0, totalRevenue: 0, overdue: 0, onTrial: 0, gmv: 0, activeToday: 0 })
   const [announcements, setAnnouncements] = useState([])
   const [shopsList, setShopsList] = useState([])
@@ -31,7 +31,7 @@ export default function Dashboard() {
         supabaseAdmin.from('shops').select('id, name, status, subscription_plan, subscription_fee, next_billing_date'),
         supabaseAdmin.from('users').select('id', { count: 'exact' }),
         supabaseAdmin.from('shop_payments').select('amount'),
-        supabaseAdmin.from('sales').select('total_amount, created_at, shop_id')
+        supabaseAdmin.from('sales').select('total_amount, created_at, shop_id').order('created_at', { ascending: false }).limit(1000)
       ])
 
       const shops = shopsRes.data || []
@@ -224,7 +224,7 @@ export default function Dashboard() {
           </div>
 
           <Link
-            to="/analytics"
+            to="/admin/analytics"
             className="mt-6 flex items-center justify-center gap-2 w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-black transition-all shadow-lg shadow-slate-200"
           >
             <TrendingUp size={18} /> View Detailed Analytics

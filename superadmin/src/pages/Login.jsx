@@ -43,8 +43,9 @@ export default function Login() {
     setResetError('')
     setResetLoading(true)
     try {
+      const resetEmail = email.trim() || SUPERADMIN_EMAIL
       const redirectTo = `${SUPERADMIN_URL}/reset-password`
-      const { error } = await supabase.auth.resetPasswordForEmail(SUPERADMIN_EMAIL, { redirectTo })
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, { redirectTo })
       if (error) throw new Error(error.message)
       setResetSent(true)
     } catch (err) {

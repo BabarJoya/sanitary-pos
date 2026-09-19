@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../services/supabase'
-import { logAction } from '../services/auditService'
-import { useAuth } from '../context/AuthContext'
-import { hashPassword } from '../utils/authUtils'
-import { buildWhatsAppUrl, formatUserCredentialsMessage } from '../utils/whatsappTemplates'
+import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { logAction } from '../../services/auditService'
+import { useAuth } from '../../context/AuthContext'
+import { hashPassword } from '../../utils/authUtils'
+import { buildWhatsAppUrl, formatUserCredentialsMessage } from '../../utils/whatsappTemplates'
 import {
   X, Users, Plus, Edit2, Trash2, Save, XCircle,
   AlertTriangle, CheckCircle2, Eye, EyeOff, KeyRound, User, Copy, Check, MessageSquare
@@ -249,7 +249,7 @@ export default function ManageUsersModal({ shop, onClose }) {
       username: u.username,
       password: passwordToShow,
       role: u.role,
-      loginUrl: import.meta.env.VITE_POS_URL || 'https://pos.edgexsuite.com'
+      loginUrl: window.location.origin
     })
     const url = buildWhatsAppUrl(shop.phone, msg)
     window.open(url, '_blank')

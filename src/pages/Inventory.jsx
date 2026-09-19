@@ -6,6 +6,7 @@ import { db, addToSyncQueue } from '../services/db'
 import * as XLSX from 'xlsx'
 import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
+import BarcodeLabelModal from '../components/BarcodeLabelModal'
 
 function Inventory() {
   const { user } = useAuth()
@@ -17,6 +18,7 @@ function Inventory() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('')
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false)
 
   // Bulk Price Update
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false)
@@ -677,6 +679,13 @@ function Inventory() {
           {/* Row 2: Action Buttons */}
           <div className="flex flex-wrap gap-2 items-center">
             <button
+              onClick={() => setShowBarcodeModal(true)}
+              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+              title="Generate and print barcode labels for inventory"
+            >
+              🏷️ Barcodes
+            </button>
+            <button
               onClick={handleExport}
               className="px-3 py-1.5 border border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
             >
@@ -1286,6 +1295,16 @@ function Inventory() {
           </div>
         )
       })()}
+
+      {/* Barcode Label Printing Modal */}
+      {showBarcodeModal && (
+        <BarcodeLabelModal
+          isOpen={showBarcodeModal}
+          onClose={() => setShowBarcodeModal(false)}
+          products={filtered}
+          shopName={localStorage.getItem(`shop_name_${user?.shop_id}`) || 'EdgeX POS'}
+        />
+      )}
     </div>
   )
 }

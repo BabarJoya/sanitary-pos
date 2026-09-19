@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { supabaseAdmin } from '../services/supabase'
 import { hashPassword } from '../utils/authUtils'
 
@@ -7,19 +7,15 @@ const AuthContext = createContext()
 const SESSION_KEY = 'superadmin_session'
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // Restore session from localStorage on page load
+  const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem(SESSION_KEY)
-      if (saved) {
-        setUser(JSON.parse(saved))
-      }
-    } catch (_) {}
-    setLoading(false)
-  }, [])
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+  const [loading] = useState(false)
 
   const login = async (email, password) => {
     if (!supabaseAdmin) {
@@ -85,4 +81,5 @@ export function AuthProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext)

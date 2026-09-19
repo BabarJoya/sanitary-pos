@@ -82,6 +82,7 @@ function template1(r, isQuotation, s, isPurchase = false) {
     <p class="c" style="font-size:1.4em;font-weight:bold;margin-bottom:4px">${safeStr(s.name, 'Shop')}</p>
     ${s.address ? `<p class="c" style="font-size:0.9em">${s.address}</p>` : ''}
     ${s.phone ? `<p class="c" style="font-size:0.9em">Ph: ${s.phone}</p>` : ''}
+    ${s.tax_number ? `<p class="c" style="font-size:0.85em;font-weight:bold">${s.tax_number}</p>` : ''}
     <div class="dot"></div>
     <p>${isPurchase ? 'PURCHASE RECORD' : (isQuotation ? 'QUOTATION' : 'RECEIPT')}: ${invoiceNo}</p>
     <p>${dateStr}</p>
@@ -124,6 +125,7 @@ function template1(r, isQuotation, s, isPurchase = false) {
       <div class="shop-name">${safeStr(s.name, 'Shop')}</div>
       ${s.address ? `<div style="font-size:13px;color:#666;margin-top:2px">${s.address}</div>` : ''}
       ${s.phone ? `<div style="font-size:13px;color:#666">Ph: ${s.phone}</div>` : ''}
+      ${s.tax_number ? `<div style="font-size:12px;color:#444;font-weight:600">${s.tax_number}</div>` : ''}
     </div>
     <div class="inv-box">
       <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1px">${isPurchase ? 'Purchase Record' : (isQuotation ? 'Quotation' : 'Invoice')}</div>
@@ -171,6 +173,7 @@ function template2(r, isQuotation, s, isPurchase = false) {
     <p class="c b" style="font-size:1.3em">${safeStr(s.name, 'Shop')}</p>
     ${s.address ? `<p class="c">${s.address}</p>` : ''}
     ${s.phone ? `<p class="c">Ph: ${s.phone}</p>` : ''}
+    ${s.tax_number ? `<p class="c" style="font-size:0.85em;font-weight:bold">${s.tax_number}</p>` : ''}
     <hr/>
     <p class="c b">${isPurchase ? '— PURCHASE RECORD —' : (isQuotation ? '— QUOTATION —' : '— RECEIPT —')}</p>
     <p>#: ${invoiceNo}</p>
@@ -224,7 +227,7 @@ function template2(r, isQuotation, s, isPurchase = false) {
     <div>
       ${s.logo_url ? `<img src="${s.logo_url}" style="max-height:55px;margin-bottom:8px;display:block;filter:brightness(10)">` : ''}
       <div class="shop-name">${safeStr(s.name, 'Shop')}</div>
-      <div style="font-size:13px;opacity:0.85;margin-top:4px">${[s.address, s.phone].filter(Boolean).join(' · ')}</div>
+      <div style="font-size:13px;opacity:0.85;margin-top:4px">${[s.address, s.phone, s.tax_number].filter(Boolean).join(' · ')}</div>
     </div>
     <div class="inv-badge">
       <div style="font-size:11px;opacity:0.8;letter-spacing:1px">${isPurchase ? 'PURCHASE RECORD' : (isQuotation ? 'QUOTATION' : 'INVOICE')}</div>

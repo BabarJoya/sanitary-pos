@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../../context/AuthContext'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Store, LogOut, ShieldAlert, CreditCard, Activity,
@@ -10,39 +10,39 @@ const NAV_SECTIONS = [
   {
     label: 'Main',
     items: [
-      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-      { name: 'Analytics', path: '/analytics', icon: TrendingUp },
+      { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+      { name: 'Analytics', path: '/admin/analytics', icon: TrendingUp },
     ]
   },
   {
     label: 'Business',
     items: [
-      { name: 'Manage Shops', path: '/shops', icon: Store },
-      { name: 'Billing & Subs', path: '/subscriptions', icon: CreditCard },
-      { name: 'Subscription Plans', path: '/plans', icon: Zap },
+      { name: 'Manage Shops', path: '/admin/shops', icon: Store },
+      { name: 'Billing & Subs', path: '/admin/subscriptions', icon: CreditCard },
+      { name: 'Subscription Plans', path: '/admin/plans', icon: Zap },
     ]
   },
   {
     label: 'Support & System',
     items: [
-      { name: 'Support Tickets', path: '/tickets', icon: LifeBuoy },
-      { name: 'Shop Backups', path: '/backups', icon: DatabaseBackup },
-      { name: 'System Logs', path: '/audit-logs', icon: Activity },
-      { name: 'Email Broadcasts', path: '/broadcast', icon: Send },
+      { name: 'Support Tickets', path: '/admin/tickets', icon: LifeBuoy },
+      { name: 'Shop Backups', path: '/admin/backups', icon: DatabaseBackup },
+      { name: 'System Logs', path: '/admin/audit-logs', icon: Activity },
+      { name: 'Email Broadcasts', path: '/admin/broadcast', icon: Send },
     ]
   },
 ]
 
 // Bottom tab items for mobile (most used)
 const BOTTOM_TABS = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Shops', path: '/shops', icon: Store },
-  { name: 'Plans', path: '/plans', icon: Zap },
-  { name: 'Billing', path: '/subscriptions', icon: CreditCard },
+  { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+  { name: 'Shops', path: '/admin/shops', icon: Store },
+  { name: 'Plans', path: '/admin/plans', icon: Zap },
+  { name: 'Billing', path: '/admin/subscriptions', icon: CreditCard },
   { name: 'More', path: null, icon: Menu }, // opens sidebar
 ]
 
-export default function Layout() {
+export default function AdminLayout() {
   const { user, logout } = useAuth()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -52,7 +52,12 @@ export default function Layout() {
   const allItems = NAV_SECTIONS.flatMap(s => s.items)
   const currentPage = allItems.find(i => i.path === location.pathname)
 
-  const isActive = (path) => location.pathname === path
+  const isActive = (path) => {
+    if (path === '/admin') {
+      return location.pathname === '/admin' || location.pathname === '/admin/'
+    }
+    return location.pathname.startsWith(path)
+  }
 
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
@@ -123,7 +128,7 @@ export default function Layout() {
         <div className="p-3 border-t border-slate-800">
           <div className="bg-slate-800 rounded-xl px-4 py-3 mb-2">
             <p className="text-[10px] text-slate-500 font-bold uppercase mb-0.5">Signed in as</p>
-            <p className="text-xs text-white font-semibold truncate">{user?.email}</p>
+            <p className="text-xs text-white font-semibold truncate">{user?.email || user?.username}</p>
           </div>
           <button
             onClick={logout}
@@ -162,7 +167,7 @@ export default function Layout() {
             <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-black">
               {user?.email?.[0]?.toUpperCase() || 'S'}
             </div>
-            <span className="text-xs font-semibold text-slate-700 max-w-[160px] truncate">{user?.email}</span>
+            <span className="text-xs font-semibold text-slate-700 max-w-[160px] truncate">{user?.email || user?.username}</span>
           </div>
         </header>
 
@@ -177,7 +182,6 @@ export default function Layout() {
         {BOTTOM_TABS.map(tab => {
           const Icon = tab.icon
           if (tab.path === null) {
-            // "More" opens the sidebar
             return (
               <button
                 key="more"

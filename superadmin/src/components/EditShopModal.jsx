@@ -17,7 +17,6 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
     const [notes, setNotes] = useState('')
     const [planId, setPlanId] = useState('')
     const [allPlans, setAllPlans] = useState([])
-    const [plansLoading, setPlansLoading] = useState(true)
 
     useEffect(() => {
         fetchPlans()
@@ -29,9 +28,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
             if (error) throw error
             setAllPlans(data || [])
         } catch (err) {
-            console.error('Failed to fetch plans:', err)
-        } finally {
-            setPlansLoading(false)
+            console.error('Failed to load plans:', err)
         }
     }
 

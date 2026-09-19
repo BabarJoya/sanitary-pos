@@ -642,7 +642,7 @@ function Suppliers() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g. Porta Pakistan / Dealer Name"
+                placeholder="e.g. Metro Wholesale / National Distributors / Dealer Name"
               />
             </div>
             <div>
@@ -679,13 +679,13 @@ function Suppliers() {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">Product Type</label>
+                <label className="block text-gray-700 font-medium mb-1">Product Type / Category</label>
                 <input
                   type="text"
                   value={form.product_type}
                   onChange={(e) => setForm({ ...form, product_type: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g. CP Fittings / Tiles"
+                  placeholder="e.g. FMCG Goods, Garments, Hardware, Electronics"
                 />
               </div>
             </div>
