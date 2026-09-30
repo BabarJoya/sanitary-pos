@@ -2169,45 +2169,51 @@ function POS() {
             {/* RIGHT: Aligned Below the Cart Sidebar (Totals & Discount + Complete Sale) */}
             <div className="w-full md:w-96 lg:w-[410px] xl:w-[430px] shrink-0 flex items-center justify-between gap-2.5 md:pl-3 md:border-l-2 md:border-slate-300/80">
               {/* Totals & Discount Card */}
-              <div className="bg-white border border-blue-200/90 rounded-xl px-3 py-1.5 shadow-2xs flex-1 min-w-0">
-                <div className="flex items-center justify-between">
+              <div className="bg-white border border-blue-200/90 rounded-xl px-3 py-2 shadow-2xs flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider leading-none">Net Payable</span>
                   {hasFeature('discount') && (
-                    <div className="flex items-center gap-1 text-[10px]">
-                      <span className="font-bold text-slate-500">Disc:</span>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="font-bold text-slate-500 text-[11px]">Disc:</span>
                       <button
                         type="button"
                         onClick={() => setDiscountMode(m => m === 'percent' ? 'fixed' : 'percent')}
-                        className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-600 hover:bg-blue-700 text-white transition shadow-2xs"
+                        className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-white transition shadow-2xs"
                       >
                         {discountMode === 'percent' ? '%' : 'Rs'}
                       </button>
                       {discountMode === 'percent' ? (
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          max="100"
-                          value={discountPercent}
-                          onChange={e => handlePercentDiscountChange(e.target.value)}
-                          placeholder="0%"
-                          className="w-11 px-1 py-0.2 border border-slate-300 rounded text-center text-xs font-black text-blue-700 bg-slate-50 outline-none focus:border-blue-500 focus:bg-white"
-                        />
+                        <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg px-2 py-0.5 focus-within:border-blue-500 focus-within:bg-white transition">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            max="100"
+                            value={discountPercent}
+                            onChange={e => handlePercentDiscountChange(e.target.value)}
+                            placeholder="0"
+                            className="w-16 text-center text-xs font-black text-blue-700 bg-transparent outline-none"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400 ml-0.5">%</span>
+                        </div>
                       ) : (
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={discount}
-                          onChange={e => handleFixedDiscountChange(e.target.value)}
-                          placeholder="0"
-                          className="w-14 px-1 py-0.2 border border-slate-300 rounded text-center text-xs font-black text-blue-700 bg-slate-50 outline-none focus:border-blue-500 focus:bg-white"
-                        />
+                        <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg px-2 py-0.5 focus-within:border-blue-500 focus-within:bg-white transition">
+                          <span className="text-[10px] font-bold text-slate-400 mr-1">Rs.</span>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={discount}
+                            onChange={e => handleFixedDiscountChange(e.target.value)}
+                            placeholder="0"
+                            className="w-20 text-right text-xs font-black text-blue-700 bg-transparent outline-none font-mono"
+                          />
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
-                <div className="flex items-baseline justify-between gap-1 mt-0.5">
+                <div className="flex items-baseline justify-between gap-1 mt-1">
                   <div className="text-xl font-black text-slate-900 leading-tight tracking-tight">Rs. {total.toFixed(0)}</div>
                   <div className="text-[10px] text-slate-500 font-medium">Subtotal: Rs. {subtotal.toFixed(0)}</div>
                 </div>
