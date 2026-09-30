@@ -51,25 +51,33 @@ async function checkForForceUpdate() {
     const localVersion = localStorage.getItem(VERSION_KEY) || '0'
 
     if (remoteVersion !== localVersion) {
-      console.log(`[EdgeX] New version detected (${localVersion} → ${remoteVersion}). Reloading…`)
+      console.log(`[EdgeX] New version detected (${localVersion} → ${remoteVersion}). Flushing cache and reloading…`)
       localStorage.setItem(VERSION_KEY, remoteVersion)
+
+      // Flush CacheStorage to ensure brand new JS/CSS bundles are downloaded
+      if ('caches' in window) {
+        try {
+          const cacheKeys = await caches.keys()
+          await Promise.all(cacheKeys.map(k => caches.delete(k)))
+        } catch (_) {}
+      }
 
       // Ask the waiting SW to take control immediately, then reload
       if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration()
-        if (reg?.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-          // Wait for the new SW to take control before reloading
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            window.location.reload()
-          }, { once: true })
-        } else {
-          // No waiting SW — just reload to pick up cached assets
-          window.location.reload()
-        }
-      } else {
-        window.location.reload()
+        try {
+          const reg = await navigator.serviceWorker.getRegistration()
+          if (reg?.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              window.location.reload()
+            }, { once: true })
+            return
+          } else if (reg?.update) {
+            await reg.update()
+          }
+        } catch (_) {}
       }
+      window.location.reload()
     }
   } catch (_) {
     // Silently ignore — network error or table not yet created
