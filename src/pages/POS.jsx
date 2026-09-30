@@ -1287,11 +1287,11 @@ function POS() {
                   </button>
                 </div>
 
-                {/* Row 2: Price edit, line total & profit badge */}
+                {/* Row 2: Price edit input & line total (only shown when qty > 1 to avoid duplicate numbers) */}
                 <div className="flex items-center justify-between gap-2 mt-1.5 pt-1 border-t border-slate-200/50 text-xs">
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-bold text-gray-400 uppercase">Unit:</span>
-                    <div className="flex items-center bg-white border border-blue-200 rounded-md px-1.5 py-0.5 shadow-2xs">
+                    <div className="flex items-center bg-white border border-blue-200 rounded-md px-1.5 py-0.5 shadow-2xs" title="Editable Unit Price">
                       <span className="text-[10px] font-bold text-gray-400 mr-0.5">Rs.</span>
                       <input
                         type="number"
@@ -1302,15 +1302,17 @@ function POS() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {isAdminOrManager && (
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${itemProfit < 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
                         {itemProfit < 0 ? '⚠️ -Rs.' : '+Rs.'}{Math.abs(itemProfit).toFixed(0)}
                       </span>
                     )}
-                    <span className="font-black text-xs text-gray-900">
-                      Rs. {(item.custom_price * item.qty).toFixed(0)}
-                    </span>
+                    {Number(item.qty) > 1 && (
+                      <span className="font-black text-xs text-gray-900 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 shrink-0" title="Item Total = Unit Price × Quantity">
+                        = Rs. {(item.custom_price * item.qty).toFixed(0)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
