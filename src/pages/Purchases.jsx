@@ -503,7 +503,7 @@ function Purchases() {
             onClick={() => setPaymentType('credit')}
             className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${paymentType === 'credit' ? 'bg-orange-500 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}
           >
-            📒 Credit (Udhaar)
+            📒 Credit
           </button>
         </div>
 

@@ -348,11 +348,33 @@ function Sales() {
     printHTML(html)
   }
 
+  const renderPaymentBadge = (sale) => {
+    const pt = (sale.payment_type || sale.payment_method || 'cash').toLowerCase()
+    if (pt === 'cash') {
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700">💵 Cash</span>
+    }
+    if (pt === 'credit') {
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700">📒 Credit</span>
+    }
+    if (pt === 'split') {
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">🔀 Split</span>
+    }
+    const label = pt.charAt(0).toUpperCase() + pt.slice(1)
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">📱 {label}</span>
+  }
+
   const filtered = sales.filter(s => {
     const matchSearch = (s.customers?.name || s.customer_name || 'walk-in').toLowerCase().includes(search.toLowerCase()) ||
       String(s.id).toLowerCase().includes(search.toLowerCase())
     const matchType = typeFilter !== 'all' ? s.sale_type === typeFilter : true
-    const matchPayment = paymentFilter !== 'all' ? s.payment_type === paymentFilter : true
+    const sPay = (s.payment_type || s.payment_method || 'cash').toLowerCase()
+    const matchPayment = paymentFilter !== 'all' ? (
+      paymentFilter === 'cash' ? sPay === 'cash' :
+      paymentFilter === 'credit' ? sPay === 'credit' :
+      paymentFilter === 'split' ? sPay === 'split' :
+      paymentFilter === 'online' ? (sPay !== 'cash' && sPay !== 'credit' && sPay !== 'split' && sPay !== 'quotation') :
+      sPay === paymentFilter
+    ) : true
     const matchDate = dateFilter ? s.created_at?.startsWith(dateFilter) : true
     return matchSearch && matchType && matchPayment && matchDate
   })
@@ -456,10 +478,12 @@ function Sales() {
               <option value="quotation">Quotations Only</option>
               <option value="sale">Sales Only</option>
             </select>
-            <select className="px-4 py-2 border rounded-lg outline-none flex-shrink-0" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}>
+            <select className="px-4 py-2 border rounded-lg outline-none flex-shrink-0 bg-white text-sm" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}>
               <option value="all">All Payments</option>
-              <option value="cash">Cash Only</option>
-              <option value="credit">Udhaar Only</option>
+              <option value="cash">💵 Cash Only</option>
+              <option value="online">📱 Online / Bank</option>
+              <option value="credit">📒 Credit Only</option>
+              <option value="split">🔀 Split Payment</option>
             </select>
             <input
               type="date"
@@ -474,7 +498,7 @@ function Sales() {
           <p className="text-gray-500">Loading sales...</p>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400 text-lg">No sales found.</p>
+            <p className="text-gray-400 text-lg">No sales found</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -498,13 +522,11 @@ function Sales() {
                       <p className="text-lg font-black text-gray-900">
                         Rs. {(Number(sale.total_amount) - Number(sale.discount || 0)).toFixed(0)}
                       </p>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                          {sale.sale_type === 'quotation' ? 'Quotation' : 'Sale'}
+                      <div className="mt-1 flex flex-wrap gap-1.5 items-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                          {sale.sale_type === 'quotation' ? '📄 Quotation' : '🧾 Sale'}
                         </span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${sale.payment_type === 'cash' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}>
-                          {sale.payment_type === 'cash' ? 'Cash' : 'Udhaar'}
-                        </span>
+                        {renderPaymentBadge(sale)}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -543,13 +565,11 @@ function Sales() {
                         {sale.discount > 0 && <span className="text-xs text-gray-400 ml-1">(disc: {sale.discount})</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium w-fit ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium w-fit ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                             {sale.sale_type === 'quotation' ? '📄 Quotation' : '🧾 Sale'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium w-fit ${sale.payment_type === 'cash' ? 'bg-gray-100 text-gray-600' : 'bg-orange-100 text-orange-700'}`}>
-                            {sale.payment_type === 'cash' ? '💵 Cash' : '📒 Udhaar'}
-                          </span>
+                          {renderPaymentBadge(sale)}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-sm">{new Date(sale.created_at).toLocaleDateString('en-PK')}</td>

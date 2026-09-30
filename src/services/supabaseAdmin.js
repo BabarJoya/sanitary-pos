@@ -5,6 +5,7 @@ const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
 export const supabaseAdmin = globalThis.__supabaseAdmin || (serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey, {
   auth: {
+    storageKey: 'edgex-admin-auth-token',
     autoRefreshToken: false,
     persistSession: false,
     detectSessionInUrl: false,

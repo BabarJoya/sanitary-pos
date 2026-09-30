@@ -9,6 +9,7 @@ import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
 import { getPricingConfig } from '../utils/businessPresets'
+import { PAKISTANI_PAYMENT_PROVIDERS } from '../utils/paymentMethods'
 
 function POS() {
   const { user } = useAuth()
@@ -31,11 +32,23 @@ function POS() {
   const [customerId, setCustomerId] = useState('')
   const [walkInName, setWalkInName] = useState('')
   const [paymentType, setPaymentType] = useState('cash')
+  const [onlineProvider, setOnlineProvider] = useState('jazzcash')
+  const [transactionRef, setTransactionRef] = useState('')
+  const searchInputRef = useRef(null)
   const [receivedAmount, setReceivedAmount] = useState('') // New state for partial payments
   const [payments, setPayments] = useState([]) // [{method, amount}]
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [discount, setDiscount] = useState(0)
+  const [discountMode, setDiscountMode] = useState('fixed') // 'fixed' | 'percent'
+  const [discountPercent, setDiscountPercent] = useState('')
   const [saleType, setSaleType] = useState('sale')
+
+  const subtotal = cart.reduce((sum, i) => sum + i.custom_price * i.qty, 0)
+  const totalDiscount = discountMode === 'percent'
+    ? Math.round((subtotal * (parseFloat(discountPercent) || 0)) / 100 * 100) / 100
+    : parseFloat(discount) || 0
+  const total = Math.max(0, subtotal - totalDiscount)
+  const totalProfit = cart.reduce((sum, i) => sum + (i.custom_price - (i.cost_price || 0)) * i.qty, 0) - totalDiscount
   const [saving, setSaving] = useState(false)
   const [lastReceipt, setLastReceipt] = useState(null)
   const [showQuotationSearch, setShowQuotationSearch] = useState(false)
@@ -368,8 +381,14 @@ function POS() {
     }
   }
 
+  // Union of brands from brands table AND products to guarantee zero missing brands
+  const displayBrands = Array.from(new Set([
+    ...brands.map(b => b.name?.trim()),
+    ...products.map(p => p.brand?.trim())
+  ])).filter(Boolean).sort((a, b) => a.localeCompare(b))
+
   // Filter categories by selected brand (brand-category link)
-  const brandObj = brands.find(b => b.name === selectedBrand)
+  const brandObj = brands.find(b => b.name?.toLowerCase() === selectedBrand?.trim().toLowerCase())
   const posCategories = brandObj && brandCategoryMap[brandObj.id]?.length
     ? categories.filter(c => brandCategoryMap[brandObj.id].includes(c.id))
     : categories
@@ -381,6 +400,28 @@ function POS() {
       if (!allowed.includes(String(selectedCategory))) setSelectedCategory('')
     }
   }, [selectedBrand])
+
+  // Counter Keyboard Shortcuts (F2: search, F4: cash, Esc: clear/dismiss)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'F2') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+      } else if (e.key === 'F4') {
+        e.preventDefault()
+        setPaymentType('cash')
+        setReceivedAmount(total.toString())
+      } else if (e.key === 'Escape') {
+        if (showPaymentModal) setShowPaymentModal(false)
+        else if (showQuickView) setShowQuickView(false)
+        else if (showBrandDiscount) setShowBrandDiscount(false)
+        else if (search) setSearch('')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [total, showPaymentModal, showQuickView, showBrandDiscount, search])
 
   const categoryNameMap = categories.reduce((acc, c) => {
     acc[String(c.id)] = c.name
@@ -435,10 +476,31 @@ function POS() {
     setCart(prev => prev.map(i => i.id === id ? { ...i, custom_price: num } : i))
   }
 
+  const handleFixedDiscountChange = (val) => {
+    setDiscount(val)
+    const num = parseFloat(val)
+    if (!isNaN(num) && subtotal > 0) {
+      setDiscountPercent(((num / subtotal) * 100).toFixed(1))
+    } else {
+      setDiscountPercent('')
+    }
+  }
+
+  const handlePercentDiscountChange = (val) => {
+    setDiscountPercent(val)
+    const num = parseFloat(val)
+    if (!isNaN(num) && subtotal > 0) {
+      const rs = Math.round((subtotal * num) / 100)
+      setDiscount(rs.toString())
+    } else {
+      setDiscount('0')
+    }
+  }
+
   const removeFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id))
 
   const clearCart = () => {
-    setCart([]); setCustomerId(''); setWalkInName(''); setPaymentType('cash'); setReceivedAmount(''); setPayments([]); setDiscount(0)
+    setCart([]); setCustomerId(''); setWalkInName(''); setPaymentType('cash'); setReceivedAmount(''); setPayments([]); setDiscount(0); setDiscountPercent(''); setDiscountMode('fixed')
   }
 
   const handleSaveCustomer = async () => {
@@ -599,20 +661,23 @@ function POS() {
     setBrandDiscountValue('')
   }
 
-  const subtotal = cart.reduce((sum, i) => sum + i.custom_price * i.qty, 0)
-  const totalDiscount = parseFloat(discount) || 0
-  const total = Math.max(0, subtotal - totalDiscount)
-  const totalProfit = cart.reduce((sum, i) => sum + (i.custom_price - (i.cost_price || 0)) * i.qty, 0) - totalDiscount
-
   const handleCompleteSale = async () => {
     if (cart.length === 0) { alert('Cart khali hai!'); return }
 
     // If split payment not used, default to single payment
-    const finalPayments = payments.length > 0 ? payments : [{ method: paymentType, amount: (receivedAmount === '' ? total : Number(receivedAmount)) }]
+    const singleMethod = paymentType === 'online' ? onlineProvider : paymentType
+    const finalPayments = payments.length > 0
+      ? payments
+      : [{
+          method: singleMethod,
+          provider: paymentType === 'online' ? onlineProvider : null,
+          ref: paymentType === 'online' ? transactionRef : null,
+          amount: (receivedAmount === '' ? total : Number(receivedAmount))
+        }]
     const totalPaid = finalPayments.reduce((s, p) => s + Number(p.amount), 0)
 
-    if ((paymentType === 'credit' || paymentType === 'partial') && !customerId) {
-      alert('Balance amount (Udhaar / Partial) ke liye customer select karna zaroori hai!');
+    if ((paymentType === 'credit' || totalPaid < total) && !customerId) {
+      alert('Balance amount (Credit) ke liye customer select karna zaroori hai!');
       return
     }
 
@@ -620,6 +685,10 @@ function POS() {
 
     // Sanitize integer FK — offline-created customers have UUID ids
     const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+
+    const primaryPaymentMethod = saleType === 'quotation'
+      ? 'quotation'
+      : (finalPayments.length > 1 ? 'split' : singleMethod)
 
     // Generate Sale Object
     const saleData = {
@@ -629,15 +698,16 @@ function POS() {
       total_amount: subtotal,
       discount: totalDiscount,
       paid_amount: saleType === 'quotation' ? 0 : totalPaid,
-      payment_type: saleType === 'quotation' ? 'quotation' : (finalPayments.length > 1 ? 'split' : finalPayments[0].method),
+      payment_type: primaryPaymentMethod,
+      payment_method: primaryPaymentMethod,
       sale_type: saleType,
       status: 'completed',
       created_by: user.username,
       created_at: new Date().toISOString()
     }
 
-    // Only include payment_details if it's a split payment (to avoid schema cache errors for standard sales)
-    if (saleType !== 'quotation' && finalPayments.length > 1) {
+    // Include payment_details for split or online/ref metadata
+    if (saleType !== 'quotation') {
       saleData.payment_details = finalPayments
     }
 
@@ -675,7 +745,9 @@ function POS() {
           await db.products.update(item.id, { stock_quantity: newStock })
         }
         if (customerId) {
-          const balanceIncrease = total - totalPaid
+          // CLAMPED to avoid deducting cash change returned from customer's long-term ledger!
+          const actualPaidToBill = Math.min(total, totalPaid)
+          const balanceIncrease = total - actualPaidToBill
           if (balanceIncrease !== 0) {
             const customer = customers.find(c => String(c.id) === String(customerId))
             const newBalance = (customer?.outstanding_balance || 0) + balanceIncrease
@@ -717,9 +789,10 @@ function POS() {
             await db.products.update(item.id, { stock_quantity: newStock })
             await addToSyncQueue('products', 'UPDATE', { id: item.id, stock_quantity: newStock })
           }
-          // Update Local Customer Balance
+          // Update Local Customer Balance (clamped)
           if (customerId) {
-            const balanceIncrease = total - totalPaid
+            const actualPaidToBill = Math.min(total, totalPaid)
+            const balanceIncrease = total - actualPaidToBill
             if (balanceIncrease !== 0) {
               const customer = customers.find(c => String(c.id) === String(customerId))
               const newBalance = (customer?.outstanding_balance || 0) + balanceIncrease
@@ -948,54 +1021,136 @@ function POS() {
 
         {/* Search + Filters */}
         <div className="flex gap-2 flex-wrap">
-          <input type="text" placeholder="🔍 Product / Brand search..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="flex-1 px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="🔍 Search products / brand (F2)..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="flex-1 px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 shadow-sm"
+          />
           <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none">
+            className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none shadow-sm">
             <option value="">All Categories</option>
             {posCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none">
+            className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none shadow-sm">
             <option value="">All Brands</option>
-            {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+            {displayBrands.map(bName => <option key={bName} value={bName}>{bName}</option>)}
           </select>
           {selectedBrand && (
             <button onClick={() => setShowBrandDiscount(true)}
-              className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition whitespace-nowrap">
+              className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm transition whitespace-nowrap shadow-sm">
               % Brand Discount
             </button>
           )}
         </div>
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto flex-1 min-h-0 content-start pb-24 md:pb-0">
-          {filtered.length === 0 && <p className="text-gray-400 col-span-3 text-center py-10">No products found</p>}
-          {filtered.map(p => (
-            <button key={p.id}
-              onClick={() => { addToCart(p, parseFloat(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}
-              className="pos-product-card bg-white rounded-xl shadow p-3 text-left hover:shadow-md hover:bg-blue-50 transition border border-transparent hover:border-blue-300 h-fit">
-              <p className="font-semibold text-gray-800 text-sm leading-tight">{p.name}</p>
-              {p.brand && <p className="text-xs text-gray-400">{p.brand}</p>}
-              {p.categories?.name && <p className="text-xs text-gray-400">{p.categories.name}</p>}
-              <p className="text-blue-600 font-bold mt-1 text-sm">Rs. {p.sale_price}</p>
-              <p className="text-xs text-gray-400">Stock: {p.stock_quantity}</p>
-              {(user.role === 'admin' || user.role === 'manager') && (
-                <p className="text-xs text-gray-300 mt-1">Cost: {p.cost_price}</p>
-              )}
-              <div onClick={e => e.stopPropagation()} className="flex items-center gap-1 mt-1.5">
-                <input
-                  type="number" step="any" min="0.001" max={p.stock_quantity}
-                  value={cardQtys[p.id] || ''}
-                  onChange={e => setCardQtys(prev => ({ ...prev, [p.id]: e.target.value }))}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); addToCart(p, parseFloat(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}}
-                  placeholder="Qty"
-                  className="w-14 text-xs border border-gray-200 rounded px-1.5 py-0.5 outline-none focus:border-blue-400 bg-white"
-                />
+        {/* Product Grid - Compact High-Density Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 overflow-y-auto flex-1 min-h-0 content-start pb-24 md:pb-0 custom-scrollbar">
+          {filtered.length === 0 && <p className="text-gray-400 col-span-full text-center py-10">No products found</p>}
+          {filtered.map(p => {
+            const isOutOfStock = Number(p.stock_quantity) <= 0
+            const isLowStock = !isOutOfStock && Number(p.stock_quantity) <= (p.low_stock_threshold || 5)
+            return (
+              <div
+                key={p.id}
+                onClick={() => { addToCart(p, parseFloat(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}
+                className={`pos-product-card group bg-white rounded-xl shadow-xs hover:shadow-md p-2.5 text-left transition-all border cursor-pointer flex flex-col justify-between select-none relative ${
+                  isOutOfStock
+                    ? 'border-red-200 bg-red-50/20 opacity-80'
+                    : isLowStock
+                      ? 'border-amber-200 bg-amber-50/15 hover:border-amber-400'
+                      : 'border-gray-200/80 hover:border-blue-500 hover:bg-blue-50/30'
+                }`}
+              >
+                {/* Row 1: Name & Price */}
+                <div className="flex items-start justify-between gap-1.5">
+                  <h3 className="font-bold text-gray-800 text-xs sm:text-sm leading-tight line-clamp-1 flex-1" title={p.name}>
+                    {p.name}
+                  </h3>
+                  <div className="text-right shrink-0">
+                    <span className="font-black text-sm text-blue-600 block leading-tight">
+                      Rs. {Number(p.sale_price).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Row 2: Brand, Category & Status badges */}
+                <div className="flex items-center gap-1.5 my-1 text-[11px] text-gray-500 overflow-hidden">
+                  {p.brand && (
+                    <span className="font-semibold text-gray-700 truncate max-w-[110px]">
+                      {p.brand}
+                    </span>
+                  )}
+                  {p.brand && p.categories?.name && (
+                    <span className="text-gray-300">•</span>
+                  )}
+                  {p.categories?.name && (
+                    <span className="text-gray-400 truncate">
+                      {p.categories.name}
+                    </span>
+                  )}
+                  {isOutOfStock ? (
+                    <span className="ml-auto text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-red-100 text-red-700 shrink-0">
+                      Out
+                    </span>
+                  ) : isLowStock ? (
+                    <span className="ml-auto text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 shrink-0">
+                      Low
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* Row 3: Stock, Cost & Quick Qty Action */}
+                <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-0.5">
+                  <div className="text-[11px] flex items-center gap-1 text-gray-500">
+                    <span className={isOutOfStock ? 'text-red-600 font-bold' : isLowStock ? 'text-amber-600 font-semibold' : 'text-gray-500'}>
+                      Stock: <span className="font-semibold">{p.stock_quantity}</span>
+                    </span>
+                    {(user.role === 'admin' || user.role === 'manager') && p.cost_price != null && (
+                      <span className="text-gray-400 text-[10px] hidden sm:inline">
+                        · Cost: {p.cost_price}
+                      </span>
+                    )}
+                  </div>
+
+                  <div onClick={e => e.stopPropagation()} className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.001"
+                      max={p.stock_quantity > 0 ? p.stock_quantity : undefined}
+                      value={cardQtys[p.id] || ''}
+                      onChange={e => setCardQtys(prev => ({ ...prev, [p.id]: e.target.value }))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.stopPropagation();
+                          addToCart(p, parseFloat(cardQtys[p.id]) || 1);
+                          setCardQtys(prev => ({ ...prev, [p.id]: '' }))
+                        }
+                      }}
+                      placeholder="Qty"
+                      title="Custom quantity"
+                      className="w-12 text-[11px] font-medium text-center border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-blue-500 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addToCart(p, parseFloat(cardQtys[p.id]) || 1);
+                        setCardQtys(prev => ({ ...prev, [p.id]: '' }))
+                      }}
+                      title="Add to cart"
+                      className="px-2 py-0.5 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded text-xs font-black transition border border-blue-200 hover:border-transparent active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
               </div>
-            </button>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -1016,129 +1171,293 @@ function POS() {
       {showMobileCart && (
         <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileCart(false)} />
       )}
-      <div className={`${showMobileCart ? 'fixed inset-x-2 top-4 bottom-4 z-50 flex max-h-[calc(100dvh-2rem)]' : 'hidden md:flex'} md:static md:w-80 flex-col gap-2 bg-white rounded-xl shadow p-4 h-full min-h-0 overflow-hidden`}>
+      <div className={`${showMobileCart ? 'fixed inset-x-2 top-2 bottom-2 z-50 flex max-h-[calc(100dvh-1rem)]' : 'hidden md:flex'} md:static md:w-96 lg:w-[410px] xl:w-[430px] flex-col gap-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-3.5 h-full min-h-0 overflow-hidden shrink-0`}>
 
         {/* Mobile close button */}
-        <button onClick={() => setShowMobileCart(false)} className="md:hidden self-end text-gray-400 hover:text-gray-700 text-2xl font-bold mb-1">✕</button>
+        <button onClick={() => setShowMobileCart(false)} className="md:hidden self-end text-gray-400 hover:text-gray-700 text-xl font-bold -mt-1 -mr-1 p-1">✕</button>
 
-        <h2 className="text-base font-bold text-gray-800 border-b pb-2 shrink-0 flex justify-between items-center">
+        {/* Cart Header */}
+        <div className="border-b border-gray-100 pb-2 shrink-0 flex justify-between items-center gap-2">
           <div className="flex items-center gap-2">
-            <span>🛒 Cart</span>
-            {saleType === 'quotation' && <span className="text-purple-600 text-xs">(Quotation)</span>}
+            <h2 className="text-sm font-black text-gray-900 tracking-tight flex items-center gap-1.5">
+              <span>🛒 Cart</span>
+              <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-1.5 py-0.5 rounded-full">{cart.length}</span>
+            </h2>
+            {saleType === 'quotation' && <span className="text-purple-600 font-bold text-[10px] uppercase bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">Quotation</span>}
           </div>
-          {heldCarts.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            {heldCarts.length > 0 && (
+              <button
+                onClick={() => setShowHeldCarts(true)}
+                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/80 rounded-lg text-[10px] font-bold uppercase transition flex items-center gap-1"
+              >
+                <span>⏸️</span> Held ({heldCarts.length})
+              </button>
+            )}
             <button
-              onClick={() => setShowHeldCarts(true)}
-              className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold uppercase hover:bg-orange-200 transition"
+              onClick={() => setShowQuickView(true)}
+              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200/80 rounded-lg text-[10px] font-black uppercase transition flex items-center gap-1"
             >
-              ⏸️ Held ({heldCarts.length})
-            </button>
-          )}
-          <button
-            onClick={() => setShowQuickView(true)}
-            className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded text-[10px] font-black uppercase hover:bg-blue-200 transition"
-          >
-            🔍 Quick View
-          </button>
-        </h2>
-
-        {/* Customer */}
-        <select value={customerId} onChange={e => setCustomerId(e.target.value)}
-          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0">
-          <option value="">Walk-in Customer</option>
-          {customers.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.name} {c.outstanding_balance > 0 ? `(Rs.${c.outstanding_balance} udhar)` : ''}
-            </option>
-          ))}
-        </select>
-
-        {!customerId && (
-          <div className="flex gap-1 shrink-0">
-            <input
-              type="text"
-              placeholder="Customer Name (Optional)?"
-              value={walkInName}
-              onChange={e => setWalkInName(e.target.value)}
-              className="flex-1 min-w-0 px-3 py-2 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
-            />
-            <button
-              onClick={() => { setSaveCustomerForm({ name: walkInName, mobile: '' }); setShowSaveCustomer(true) }}
-              title="Customer list mein save karein"
-              className="px-2 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition shrink-0"
-            >
-              + Save
+              <span>🔍</span> Quick View
             </button>
           </div>
-        )}
-
-        {/* Cart Items — scrollable */}
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pr-1 custom-scrollbar">
-          {cart.length === 0 && <p className="text-gray-400 text-xs text-center py-8">Left side sy products add karo</p>}
-          {cart.map(item => (
-            <div key={item.id} className="pos-cart-item bg-gray-50 rounded-lg p-2">
-              <div className="flex items-center gap-1">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-800 truncate">{item.name}</p>
-                  {item.brand && <p className="text-xs text-gray-400">{item.brand}</p>}
-                </div>
-                <input type="number" step="any" min="0.001" value={item.qty} onChange={e => updateQty(item.id, e.target.value)}
-                  className="w-14 px-1 py-1 border rounded text-center text-xs" />
-                <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 font-bold pl-1">×</button>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-gray-400">Rs.</span>
-                <input type="number" value={item.custom_price} onChange={e => updatePrice(item.id, e.target.value)}
-                  className="w-20 px-1 py-0.5 border border-blue-200 rounded text-xs text-blue-700 font-semibold" />
-                <span className="text-xs text-gray-500 ml-auto">= Rs. {(item.custom_price * item.qty).toFixed(0)}</span>
-              </div>
-              {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && (() => {
-                const itemProfit = (item.custom_price - (item.cost_price || 0)) * item.qty
-                return (
-                  <p className={`text-xs mt-0.5 ${itemProfit < 0 ? 'text-red-600 font-bold' : 'text-green-600'}`}>
-                    {itemProfit < 0 ? '⚠️ Loss: ' : 'Profit: '}
-                    Rs. {Math.abs(itemProfit).toFixed(0)}
-                  </p>
-                )
-              })()}
-            </div>
-          ))}
         </div>
 
-        {/* Bottom section — fixed */}
-        <div className="shrink-0 space-y-1 border-t pt-1">
+        {/* Compact Single-Row Customer Selector */}
+        <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 p-1.5 rounded-xl border border-slate-200/60">
+          <select
+            value={customerId}
+            onChange={e => setCustomerId(e.target.value)}
+            className="flex-1 min-w-0 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
+          >
+            <option value="">👤 Walk-in Customer</option>
+            {customers.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.name} {c.outstanding_balance > 0 ? `(Rs.${c.outstanding_balance} credit)` : ''}
+              </option>
+            ))}
+          </select>
 
-          {/* Totals & Discount Mini-Grid */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span><span>Rs.{subtotal.toFixed(0)}</span>
-              </div>
-              {hasFeature('discount') && (
-              <div className="flex items-center justify-between">
-                <label className="text-gray-600">Disc (Rs):</label>
-                <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} className="w-16 px-1 border rounded text-right" min="0" placeholder="0" />
-              </div>
+          {!customerId && (
+            <>
+              <input
+                type="text"
+                placeholder="Walk-in Name"
+                value={walkInName}
+                onChange={e => setWalkInName(e.target.value)}
+                className="w-28 sm:w-32 px-2 py-1.5 border border-blue-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white placeholder:text-gray-400"
+              />
+              {walkInName.trim() && (
+                <button
+                  onClick={() => { setSaveCustomerForm({ name: walkInName, mobile: '' }); setShowSaveCustomer(true) }}
+                  title="Save customer permanently"
+                  className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shrink-0 shadow-xs"
+                >
+                  + Save
+                </button>
               )}
+            </>
+          )}
+        </div>
+
+        {/* Cart Items — Expanded High-Density Scrollable View */}
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 pr-0.5 custom-scrollbar">
+          {cart.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full py-12 text-center text-gray-400">
+              <span className="text-3xl mb-1 opacity-50">🛍️</span>
+              <p className="text-xs font-semibold">Cart is empty</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Click products on left panel to add</p>
             </div>
-            <div className="flex flex-col justify-end text-right border-l pl-2 border-gray-100">
-              <div className="text-gray-500 text-[10px] uppercase">Net Total</div>
-              <div className="font-black text-lg text-gray-800 leading-none">Rs.{total.toFixed(0)}</div>
-              {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
-                <div className={`text-[9px] mt-1 ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Profit: {totalProfit.toFixed(0)}</div>
-              )}
+          )}
+          {cart.map(item => {
+            const itemProfit = (item.custom_price - (item.cost_price || 0)) * item.qty
+            const isAdminOrManager = (user.role === 'admin' || user.role === 'manager' || user.role === 'accountant')
+            return (
+              <div key={item.id} className="group bg-slate-50 hover:bg-blue-50/40 border border-slate-200/70 hover:border-blue-200 rounded-xl p-2 transition duration-150 shadow-2xs">
+                {/* Row 1: Title, Qty stepper & Remove */}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex-1 min-w-0 pr-1">
+                    <p className="text-xs font-bold text-gray-800 truncate leading-tight">{item.name}</p>
+                    {item.brand && <p className="text-[10px] text-gray-400 font-medium truncate">{item.brand}</p>}
+                  </div>
+
+                  {/* Quantity controls */}
+                  <div className="flex items-center bg-white border border-gray-200 rounded-lg p-0.5 shadow-2xs shrink-0">
+                    <button
+                      onClick={() => updateQty(item.id, Math.max(1, (parseFloat(item.qty) || 1) - 1))}
+                      className="w-5 h-5 flex items-center justify-center text-xs font-bold text-gray-500 hover:bg-gray-100 rounded text-center select-none"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.001"
+                      value={item.qty}
+                      onChange={e => updateQty(item.id, e.target.value)}
+                      className="w-11 text-center text-xs font-bold text-gray-800 border-none outline-none p-0 focus:ring-0 bg-transparent"
+                    />
+                    <button
+                      onClick={() => updateQty(item.id, (parseFloat(item.qty) || 0) + 1)}
+                      className="w-5 h-5 flex items-center justify-center text-xs font-bold text-gray-500 hover:bg-gray-100 rounded text-center select-none"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => removeFromCart(item.id)}
+                    className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0 text-sm font-bold"
+                    title="Remove item"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Row 2: Price edit, line total & profit badge */}
+                <div className="flex items-center justify-between gap-2 mt-1.5 pt-1 border-t border-slate-200/50 text-xs">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Unit:</span>
+                    <div className="flex items-center bg-white border border-blue-200 rounded-md px-1.5 py-0.5 shadow-2xs">
+                      <span className="text-[10px] font-bold text-gray-400 mr-0.5">Rs.</span>
+                      <input
+                        type="number"
+                        value={item.custom_price}
+                        onChange={e => updatePrice(item.id, e.target.value)}
+                        className="w-16 text-xs font-bold text-blue-700 outline-none p-0 bg-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isAdminOrManager && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${itemProfit < 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {itemProfit < 0 ? '⚠️ -Rs.' : '+Rs.'}{Math.abs(itemProfit).toFixed(0)}
+                      </span>
+                    )}
+                    <span className="font-black text-xs text-gray-900">
+                      Rs. {(item.custom_price * item.qty).toFixed(0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Bottom Checkout & Payment Section */}
+        <div className="shrink-0 space-y-2 border-t border-gray-100 pt-2 bg-white">
+
+          {/* Subtotal & Discount Summary Card */}
+          <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 space-y-1.5 text-xs">
+            <div className="flex justify-between items-center text-gray-600">
+              <span className="font-semibold text-slate-600">Subtotal ({cart.reduce((a, c) => a + (parseFloat(c.qty) || 0), 0)} pcs)</span>
+              <span className="font-bold text-gray-900 text-sm">Rs. {subtotal.toFixed(0)}</span>
+            </div>
+
+            {hasFeature('discount') && (
+              <div className="pt-1.5 border-t border-slate-200/60 space-y-1">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-700">Discount:</span>
+                    <div className="flex bg-slate-200/80 rounded-lg p-0.5 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountMode('fixed')}
+                        className={`px-1.5 py-0.5 rounded-md transition ${discountMode === 'fixed' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                      >
+                        Rs
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountMode('percent')}
+                        className={`px-1.5 py-0.5 rounded-md transition ${discountMode === 'percent' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+
+                  {discountMode === 'percent' ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        max="100"
+                        value={discountPercent}
+                        onChange={e => handlePercentDiscountChange(e.target.value)}
+                        className="w-16 px-1.5 py-0.5 border border-blue-300 rounded-lg text-right text-xs font-bold text-blue-700 bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="0"
+                      />
+                      <span className="text-xs font-bold text-slate-500">%</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-slate-400">Rs.</span>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={discount}
+                        onChange={e => handleFixedDiscountChange(e.target.value)}
+                        className="w-20 px-1.5 py-0.5 border border-blue-300 rounded-lg text-right text-xs font-bold text-blue-700 bg-white outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="0"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick percentage presets */}
+                <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar py-0.5">
+                  <span className="text-[9px] text-slate-400 font-semibold shrink-0">Quick %:</span>
+                  {[2, 5, 10, 15, 20].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => {
+                        setDiscountMode('percent')
+                        handlePercentDiscountChange(pct.toString())
+                      }}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition shrink-0 ${
+                        discountMode === 'percent' && Number(discountPercent) === pct
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                  {(Number(totalDiscount) > 0 || Number(discountPercent) > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscount(0)
+                        setDiscountPercent('')
+                      }}
+                      className="text-[9px] text-red-500 hover:underline ml-auto font-bold shrink-0"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {Number(totalDiscount) > 0 && (
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 pt-0.5 border-t border-slate-200/60">
+                    <span>Total Discount:</span>
+                    <span className="font-bold text-red-600">
+                      −Rs. {Number(totalDiscount).toFixed(0)} {discountMode === 'fixed' && subtotal > 0 ? `(${((totalDiscount / subtotal) * 100).toFixed(1)}%)` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Net Total Row */}
+            <div className="flex justify-between items-center pt-1.5 border-t border-slate-200/70">
+              <div>
+                <span className="text-slate-500 text-[10px] uppercase font-black tracking-wider block">Net Total</span>
+                {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
+                  <div className={`text-[10px] font-bold ${totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    Net Profit: Rs. {totalProfit.toFixed(0)}
+                  </div>
+                )}
+              </div>
+              <div className="font-black text-2xl text-slate-900 tracking-tight leading-none">
+                Rs. {total.toFixed(0)}
+              </div>
             </div>
           </div>
 
-          {/* Received & Payment Types */}
+          {/* Tendered & Payment Section */}
           {saleType === 'sale' && (
-            <div className="flex flex-col gap-1.5 bg-gradient-to-br from-blue-50 to-indigo-50/40 p-2 rounded-xl border border-blue-100">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-blue-800 flex items-center gap-1">
+            <div className="flex flex-col gap-1.5 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-2.5 rounded-xl border border-blue-100 shadow-2xs">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-bold text-blue-900 flex items-center gap-1 shrink-0">
                   <span>💵 Tendered</span>
                 </label>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-gray-500">Rs.</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-bold text-slate-400">Rs.</span>
                   <input
                     type="number"
                     value={receivedAmount}
@@ -1149,19 +1468,19 @@ function POS() {
                       else if (val !== '' && Number(val) >= total) setPaymentType('cash');
                     }}
                     placeholder={total.toFixed(0)}
-                    className="w-24 px-2 py-1 border border-blue-300 rounded-lg text-right font-bold text-blue-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm shadow-sm"
+                    className="w-28 px-2.5 py-1 border border-blue-300 rounded-lg text-right font-black text-blue-900 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-base shadow-2xs"
                   />
                 </div>
               </div>
 
-              {/* Quick Cash Suggestions */}
-              <div className="flex flex-wrap items-center gap-1 pt-0.5">
+              {/* Quick Tender Suggestions */}
+              <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar py-0.5">
                 <button
                   type="button"
                   onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                  className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition"
+                  className="px-2 py-1 text-[10px] font-black rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shrink-0 shadow-2xs"
                 >
-                  Exact
+                  Exact Cash
                 </button>
                 {(() => {
                   const ceil100 = Math.ceil(total / 100) * 100
@@ -1181,7 +1500,7 @@ function POS() {
                       key={note}
                       type="button"
                       onClick={() => { setPaymentType('cash'); setReceivedAmount(note.toString()) }}
-                      className="px-1.5 py-0.5 text-[10px] font-semibold rounded-md bg-white border border-blue-200 hover:bg-blue-100 text-blue-700 transition"
+                      className="px-2 py-1 text-[10px] font-bold rounded-lg bg-white border border-blue-200 hover:bg-blue-100 text-blue-700 transition shrink-0 shadow-2xs"
                     >
                       Rs.{note}
                     </button>
@@ -1191,51 +1510,118 @@ function POS() {
 
               {/* Live Change Due or Balance Indicator */}
               {receivedAmount !== '' && Number(receivedAmount) > total && (
-                <div className="flex items-center justify-between bg-emerald-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-sm">
+                <div className="flex items-center justify-between bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">
                   <span>🟢 Change Due:</span>
                   <span className="text-sm font-black">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
                 </div>
               )}
               {receivedAmount !== '' && Number(receivedAmount) < total && (
-                <div className="flex items-center justify-between bg-amber-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-sm">
-                  <span>🟠 Balance (Udhaar):</span>
+                <div className="flex items-center justify-between bg-amber-500 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">
+                  <span>🟠 Balance (Credit):</span>
                   <span className="text-sm font-black">Rs. {(total - Number(receivedAmount)).toFixed(0)}</span>
                 </div>
               )}
 
-              <div className="flex gap-1 mt-0.5">
+              {/* Payment Mode Selector Grid */}
+              <div className="grid grid-cols-4 gap-1 mt-0.5">
                 <button onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                  className={`flex-1 py-1 rounded-lg font-bold text-[10px] uppercase transition ${paymentType === 'cash' ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-600 border'}`}>
-                  Cash
+                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'cash' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  💵 Cash
+                </button>
+                <button onClick={() => { setPaymentType('online'); setReceivedAmount(total.toString()) }}
+                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'online' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  📱 Online
                 </button>
                 <button onClick={() => { setPaymentType('credit'); setReceivedAmount('0') }}
-                  className={`flex-1 py-1 rounded-lg font-bold text-[10px] uppercase transition ${paymentType === 'credit' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-gray-600 border'}`}>
-                  Udhaar
+                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'credit' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  📒 Credit
                 </button>
                 <button onClick={() => { setPaymentType('split'); setShowPaymentModal(true); if (payments.length === 0) setPayments([{ method: 'cash', amount: total }]) }}
-                  className={`flex-1 py-1 rounded-lg font-bold text-[10px] uppercase transition ${paymentType === 'split' ? 'bg-purple-600 text-white shadow-sm' : 'bg-white text-gray-600 border'}`}>
-                  Split
+                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'split' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  🔀 Split
                 </button>
               </div>
+
+              {/* Online payment provider selector + Transaction ID */}
+              {paymentType === 'online' && (
+                <div className="mt-1.5 p-2 bg-white border border-blue-200 rounded-lg space-y-1.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-blue-900 shrink-0">Provider:</span>
+                    <select
+                      value={onlineProvider}
+                      onChange={e => setOnlineProvider(e.target.value)}
+                      className="w-full text-xs font-semibold px-2 py-1 bg-slate-50 border border-blue-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-slate-800"
+                    >
+                      <optgroup label="Mobile Wallets & FinTech">
+                        <option value="jazzcash">📱 JazzCash</option>
+                        <option value="easypaisa">🟢 Easypaisa</option>
+                        <option value="sadapay">💳 SadaPay</option>
+                        <option value="nayapay">🟣 NayaPay</option>
+                      </optgroup>
+                      <optgroup label="Pakistani Banks (IBFT / Raast)">
+                        <option value="meezan">🏦 Meezan Bank</option>
+                        <option value="hbl">🏦 HBL (Habib Bank)</option>
+                        <option value="ubl">🏦 UBL (United Bank)</option>
+                        <option value="mcb">🏦 MCB Bank</option>
+                        <option value="abl">🏦 Allied Bank (ABL)</option>
+                        <option value="alfalah">🏦 Bank Alfalah</option>
+                        <option value="faysal">🏦 Faysal Bank</option>
+                        <option value="bop">🏦 Bank of Punjab (BOP)</option>
+                        <option value="askari">🏦 Askari Bank</option>
+                        <option value="other_bank">🏛️ Other Bank Transfer / Raast</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-blue-800 shrink-0">TID / Ref #:</span>
+                    <input
+                      type="text"
+                      value={transactionRef}
+                      onChange={e => setTransactionRef(e.target.value)}
+                      placeholder="e.g. TID-98214 (optional)"
+                      className="w-full text-xs px-2 py-1 bg-slate-50 border border-blue-200 rounded-md outline-none focus:border-blue-400 placeholder:text-gray-400 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="flex gap-1 pt-1">
-            <button onClick={handleHoldBill} disabled={cart.length === 0}
-              className="px-2 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold transition disabled:opacity-50">
+          {/* Action Buttons Row */}
+          <div className="flex gap-1.5 pt-1">
+            <button
+              onClick={handleHoldBill}
+              disabled={cart.length === 0}
+              title="Hold this cart"
+              className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-xs font-bold transition disabled:opacity-40 shrink-0"
+            >
               ⏸️
             </button>
-            <button onClick={clearCart}
-              className="px-2 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs transition">
+            <button
+              onClick={clearCart}
+              disabled={cart.length === 0}
+              title="Clear cart"
+              className="px-3 py-2 bg-slate-100 hover:bg-red-100 hover:text-red-700 text-slate-600 rounded-xl text-xs font-bold transition disabled:opacity-40 shrink-0"
+            >
               🗑️
             </button>
-            <button onClick={handleCompleteSale} disabled={saving || cart.length === 0}
-              className={`flex-1 py-1.5 text-white text-sm font-bold rounded-lg transition disabled:opacity-50 ${saleType === 'quotation' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
-              {saving ? '...' : saleType === 'quotation' ? 'Print Quote' : '✅ Complete Sale'}
+            <button
+              onClick={handleCompleteSale}
+              disabled={saving || cart.length === 0}
+              className={`flex-1 py-2.5 text-white text-sm font-black rounded-xl transition duration-150 shadow-md active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 ${
+                saleType === 'quotation'
+                  ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-200'
+              }`}
+            >
+              {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Print Quote' : '✅ Complete Sale'}
             </button>
             {saleType === 'quotation' && cart.length > 0 && (
-              <button onClick={waQuotation} title="WhatsApp par quotation bhejein"
-                className="px-2 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold transition">
+              <button
+                onClick={waQuotation}
+                title="Send quotation via WhatsApp"
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition shrink-0 shadow-xs"
+              >
                 💬
               </button>
             )}
@@ -1384,7 +1770,7 @@ function POS() {
             <div className="text-center mb-4">
               <div className="text-4xl mb-1">✅</div>
               <h2 className="text-xl font-bold text-gray-800">Sale Complete!</h2>
-              <p className="text-gray-500 text-sm">{lastReceipt.paymentType === 'credit' ? '📒 Udhaar sale' : '💵 Cash sale'}</p>
+              <p className="text-gray-500 text-sm">{lastReceipt.paymentType === 'credit' ? '📒 Credit sale' : '💵 Cash sale'}</p>
               {form.logo_url && (
                 <div className="mt-2 flex justify-center">
                   <img src={form.logo_url} alt="Logo Preview" className="h-10 object-contain opacity-50 sepia-[.5]" />
@@ -1534,29 +1920,56 @@ function POS() {
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-gray-800 mb-4">🔀 Split Payment</h2>
-            <div className="space-y-3 mb-4 max-h-[300px] overflow-y-auto">
+            <div className="space-y-3 mb-4 max-h-[340px] overflow-y-auto">
               {payments.map((p, idx) => (
-                <div key={idx} className="flex gap-2 items-center bg-gray-50 p-2 rounded-lg">
-                  <select
-                    value={p.method}
-                    onChange={(e) => {
-                      const newP = [...payments]; newP[idx].method = e.target.value; setPayments(newP)
-                    }}
-                    className="flex-1 bg-white border rounded px-2 py-1 text-sm outline-none"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="bank">Bank</option>
-                    <option value="card">Card</option>
-                  </select>
+                <div key={idx} className="flex flex-col gap-1.5 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={p.method}
+                      onChange={(e) => {
+                        const newP = [...payments]; newP[idx].method = e.target.value; setPayments(newP)
+                      }}
+                      className="flex-1 bg-white border border-gray-300 rounded px-2 py-1.5 text-xs font-semibold outline-none focus:border-blue-500"
+                    >
+                      <option value="cash">💵 Cash</option>
+                      <optgroup label="Mobile Wallets & FinTech">
+                        <option value="jazzcash">📱 JazzCash</option>
+                        <option value="easypaisa">🟢 Easypaisa</option>
+                        <option value="sadapay">💳 SadaPay</option>
+                        <option value="nayapay">🟣 NayaPay</option>
+                      </optgroup>
+                      <optgroup label="Pakistani Banks">
+                        <option value="meezan">🏦 Meezan Bank</option>
+                        <option value="hbl">🏦 HBL (Habib Bank)</option>
+                        <option value="ubl">🏦 UBL (United Bank)</option>
+                        <option value="mcb">🏦 MCB Bank</option>
+                        <option value="abl">🏦 Allied Bank (ABL)</option>
+                        <option value="bank">🏛️ Bank Transfer / Raast</option>
+                        <option value="card">💳 Card</option>
+                      </optgroup>
+                    </select>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={p.amount}
+                      onChange={(e) => {
+                        const newP = [...payments]; newP[idx].amount = e.target.value; setPayments(newP)
+                      }}
+                      className="w-24 border border-gray-300 rounded px-2 py-1.5 text-xs font-bold text-right"
+                      placeholder="Amount"
+                    />
+                    <button onClick={() => setPayments(payments.filter((_, i) => i !== idx))} className="text-red-500 font-bold px-1 text-sm hover:bg-red-50 rounded">✕</button>
+                  </div>
                   <input
-                    type="number"
-                    value={p.amount}
+                    type="text"
+                    value={p.ref || ''}
                     onChange={(e) => {
-                      const newP = [...payments]; newP[idx].amount = e.target.value; setPayments(newP)
+                      const newP = [...payments]; newP[idx].ref = e.target.value; setPayments(newP)
                     }}
-                    className="w-24 border rounded px-2 py-1 text-sm"
+                    className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 bg-white outline-none focus:border-blue-400 placeholder:text-gray-400"
+                    placeholder="TID / Ref # / Account (optional)"
                   />
-                  <button onClick={() => setPayments(payments.filter((_, i) => i !== idx))} className="text-red-500 font-bold">×</button>
                 </div>
               ))}
             </div>
@@ -1580,7 +1993,7 @@ function POS() {
               <button
                 onClick={() => {
                   const remaining = total - payments.reduce((s, p) => s + Number(p.amount), 0)
-                  setPayments([...payments, { method: 'bank', amount: Math.max(0, remaining) }])
+                  setPayments([...payments, { method: 'jazzcash', amount: Math.max(0, remaining), ref: '' }])
                 }}
                 className="flex-1 py-1.5 border border-purple-200 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-50"
               >

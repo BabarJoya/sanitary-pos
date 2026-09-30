@@ -240,7 +240,7 @@ function Dashboard() {
       <hr/>
       <p class="center bold">SALES SUMMARY</p>
       <div class="row"><span>💵 Cash Sales</span><span class="green bold">Rs. ${d.cashSales.toLocaleString()}</span></div>
-      <div class="row"><span>📒 Credit (Udhaar)</span><span class="red bold">Rs. ${d.creditSales.toLocaleString()}</span></div>
+      <div class="row"><span>📒 Credit</span><span class="red bold">Rs. ${d.creditSales.toLocaleString()}</span></div>
       <div class="row bold"><span>Total Sales</span><span>Rs. ${d.totalSales.toLocaleString()}</span></div>
       <hr/>
       <p class="center bold">EXPENSES &amp; PURCHASES</p>
@@ -377,7 +377,7 @@ function Dashboard() {
             <span className="font-bold text-green-700">Rs. {stats.todayCashSales.toLocaleString()}</span>
           </div>
           <div className="flex-1 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2 flex justify-between items-center">
-            <span className="text-sm font-medium text-orange-700">📒 Credit (Udhaar)</span>
+            <span className="text-sm font-medium text-orange-700">📒 Credit</span>
             <span className="font-bold text-orange-700">Rs. {stats.todayCreditSales.toLocaleString()}</span>
           </div>
         </div>
@@ -499,7 +499,7 @@ function Dashboard() {
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Sales</p>
                   <div className="space-y-2">
                     <div className="flex justify-between"><span className="text-gray-600">💵 Cash Sales</span><span className="font-bold text-green-600">Rs. {eodData.cashSales.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">📒 Credit (Udhaar)</span><span className="font-bold text-orange-500">Rs. {eodData.creditSales.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">📒 Credit</span><span className="font-bold text-orange-500">Rs. {eodData.creditSales.toLocaleString()}</span></div>
                     <div className="flex justify-between border-t pt-2"><span className="font-semibold text-gray-800">Total Sales</span><span className="font-bold text-gray-800">Rs. {eodData.totalSales.toLocaleString()}</span></div>
                   </div>
                 </div>

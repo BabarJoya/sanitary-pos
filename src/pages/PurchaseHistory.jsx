@@ -493,7 +493,7 @@ function PurchaseHistory() {
                                             </p>
                                             <div className="mt-1 flex flex-wrap gap-1.5">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                    {p.payment_type === 'cash' ? '💵 Cash' : '📒 Credit/Udhaar'}
+                                                    {p.payment_type === 'cash' ? '💵 Cash' : '📒 Credit'}
                                                 </span>
                                                 {p.paid_amount != null && Number(p.paid_amount) < Number(p.total_amount) && (
                                                     <span className="bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded text-[10px] font-bold">
@@ -538,7 +538,7 @@ function PurchaseHistory() {
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium w-fit ${p.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                        {p.payment_type === 'cash' ? '💵 Cash' : '📒 Credit/Udhaar'}
+                                                        {p.payment_type === 'cash' ? '💵 Cash' : '📒 Credit'}
                                                     </span>
                                                 </div>
                                             </td>

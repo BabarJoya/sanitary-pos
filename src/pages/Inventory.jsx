@@ -312,6 +312,12 @@ function Inventory() {
     return matchSearch && matchCat && matchBrand && matchLow
   })
 
+  // Union of brands from master table AND product records
+  const displayBrands = Array.from(new Set([
+    ...brands.map(b => b.name?.trim()),
+    ...products.map(p => p.brand?.trim())
+  ])).filter(Boolean).sort((a, b) => a.localeCompare(b))
+
   // Valuation
   const totalCostValue = products.reduce((sum, p) => sum + (p.cost_price || 0) * p.stock_quantity, 0)
   const totalSaleValue = products.reduce((sum, p) => sum + (p.sale_price || 0) * p.stock_quantity, 0)
@@ -675,12 +681,12 @@ function Inventory() {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select
-              className="px-3 py-1.5 border rounded-lg outline-none text-sm"
+              className="px-3 py-1.5 border rounded-lg outline-none text-sm bg-white"
               value={selectedBrand}
               onChange={e => setSelectedBrand(e.target.value)}
             >
               <option value="">All Brands</option>
-              {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+              {displayBrands.map(bName => <option key={bName} value={bName}>{bName}</option>)}
             </select>
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
               <input

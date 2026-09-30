@@ -46,11 +46,15 @@ function itemRows(items, thermal) {
 function paymentLine(r) {
   if (!r.sale) return ''
   if (r.sale.payment_type === 'split' && r.sale.payment_details?.length) {
-    return r.sale.payment_details.map(p =>
-      `<p style="margin:1px 0;padding-left:8px;font-size:0.85em">— ${String(p.method).toUpperCase()}: Rs. ${safeNum(p.amount).toFixed(0)}</p>`
-    ).join('')
+    return r.sale.payment_details.map(p => {
+      const refStr = p.ref ? ` (Ref: ${p.ref})` : ''
+      return `<p style="margin:1px 0;padding-left:8px;font-size:0.85em">— ${String(p.method).toUpperCase()}${refStr}: Rs. ${safeNum(p.amount).toFixed(0)}</p>`
+    }).join('')
   }
-  return `<p style="margin:2px 0">Payment: ${String(r.sale.payment_type || r.paymentType || 'Cash').toUpperCase()}</p>`
+  const firstDetail = Array.isArray(r.sale.payment_details) && r.sale.payment_details[0]
+  const refStr = firstDetail?.ref ? ` (Ref: ${firstDetail.ref})` : ''
+  const typeStr = String(r.sale.payment_type || r.paymentType || 'Cash').toUpperCase()
+  return `<p style="margin:2px 0">Payment: ${typeStr}${refStr}</p>`
 }
 
 function customerLine(r) {

@@ -28,6 +28,10 @@ function Brands() {
   const [productHistory, setProductHistory] = useState({})
   const [loadingHistoryId, setLoadingHistoryId] = useState(null)
 
+  const [searchBrand, setSearchBrand] = useState('')
+  const [missingBrands, setMissingBrands] = useState([])
+  const [syncingMissing, setSyncingMissing] = useState(false)
+
   useEffect(() => {
     if (user?.shop_id) {
       fetchBrands()
@@ -41,6 +45,97 @@ function Brands() {
       const sid = String(user.shop_id)
       setCategories(localData.filter(x => String(x.shop_id) === sid).sort((a, b) => a.name.localeCompare(b.name)))
     } catch (e) { console.error('Brands: categories fetch error', e) }
+  }
+
+  const detectMissingBrands = async (currentBrands) => {
+    try {
+      const knownNames = new Set((currentBrands || []).map(b => b.name?.trim().toLowerCase()).filter(Boolean))
+      let prods = []
+      if (navigator.onLine) {
+        const { data } = await supabase.from('products').select('brand, category_id').eq('shop_id', user.shop_id)
+        prods = data || []
+      } else {
+        const local = await db.products.toArray()
+        prods = local.filter(x => String(x.shop_id) === String(user.shop_id))
+      }
+      const missingMap = {}
+      prods.forEach(p => {
+        if (!p.brand) return
+        const bTrim = p.brand.trim()
+        if (bTrim && !knownNames.has(bTrim.toLowerCase())) {
+          if (!missingMap[bTrim.toLowerCase()]) {
+            missingMap[bTrim.toLowerCase()] = { name: bTrim, count: 0, categoryIds: new Set() }
+          }
+          missingMap[bTrim.toLowerCase()].count++
+          if (p.category_id) missingMap[bTrim.toLowerCase()].categoryIds.add(p.category_id)
+        }
+      })
+      setMissingBrands(Object.values(missingMap).map(m => ({ ...m, categoryIds: Array.from(m.categoryIds) })))
+    } catch (err) {
+      console.warn('Brands: detectMissingBrands error', err)
+    }
+  }
+
+  const handleSyncMissingBrand = async (missingItem) => {
+    setSyncingMissing(true)
+    try {
+      const payload = { name: missingItem.name, shop_id: user.shop_id }
+      let brandId = null
+
+      if (navigator.onLine) {
+        const { data, error } = await supabase.from('brands').insert([payload]).select()
+        if (error) throw error
+        brandId = data?.[0]?.id
+        if (brandId && missingItem.categoryIds.length > 0) {
+          await supabase.from('brand_categories').insert(
+            missingItem.categoryIds.map(cId => ({ brand_id: brandId, category_id: Number(cId), shop_id: user.shop_id }))
+          ).catch(() => {})
+        }
+      } else {
+        brandId = crypto.randomUUID()
+        const offlineData = { ...payload, id: brandId, created_at: new Date().toISOString() }
+        await addToSyncQueue('brands', 'INSERT', offlineData)
+        await db.brands.add(offlineData)
+      }
+      alert(`✅ Brand "${missingItem.name}" Master Data mein add ho gaya!`)
+      fetchBrands()
+    } catch (err) {
+      alert('Error adding brand: ' + (err.message || err))
+    } finally {
+      setSyncingMissing(false)
+    }
+  }
+
+  const handleSyncAllMissing = async () => {
+    if (!missingBrands.length) return
+    setSyncingMissing(true)
+    try {
+      let count = 0
+      for (const item of missingBrands) {
+        const payload = { name: item.name, shop_id: user.shop_id }
+        if (navigator.onLine) {
+          const { data } = await supabase.from('brands').insert([payload]).select()
+          const bId = data?.[0]?.id
+          if (bId && item.categoryIds.length > 0) {
+            await supabase.from('brand_categories').insert(
+              item.categoryIds.map(cId => ({ brand_id: bId, category_id: Number(cId), shop_id: user.shop_id }))
+            ).catch(() => {})
+          }
+        } else {
+          const bId = crypto.randomUUID()
+          const offlineData = { ...payload, id: bId, created_at: new Date().toISOString() }
+          await addToSyncQueue('brands', 'INSERT', offlineData)
+          await db.brands.add(offlineData)
+        }
+        count++
+      }
+      alert(`✅ ${count} missing brands Master Data mein successfully add ho gaye!`)
+      fetchBrands()
+    } catch (err) {
+      alert('Error syncing brands: ' + (err.message || err))
+    } finally {
+      setSyncingMissing(false)
+    }
   }
 
   const fetchBrands = async () => {
@@ -61,12 +156,15 @@ function Brands() {
       const filtered = localData.filter(x => String(x.shop_id) === sid)
       const sorted = filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
       setBrands(sorted)
+      detectMissingBrands(sorted)
     } catch (err) {
       console.log('Brands: Fetching from local DB (Offline)')
       try {
         const localData = await db.brands.toArray()
         const sid = String(user.shop_id)
-        setBrands(localData.filter(x => String(x.shop_id) === sid))
+        const sorted = localData.filter(x => String(x.shop_id) === sid)
+        setBrands(sorted)
+        detectMissingBrands(sorted)
       } catch (e) { console.error('Local DB Brands Error', e) }
     } finally {
       setLoading(false)
@@ -344,6 +442,57 @@ function Brands() {
         </div>
       </div>
 
+      {/* Missing Brands Banner */}
+      {missingBrands.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h3 className="font-bold text-amber-800 text-sm flex items-center gap-2">
+                <span>⚠️ Missing Brands Detected</span>
+                <span className="bg-amber-200 text-amber-900 text-xs px-2 py-0.5 rounded-full font-black">
+                  {missingBrands.length} unlisted
+                </span>
+              </h3>
+              <p className="text-xs text-amber-700 mt-1">
+                Products mein kuch brands use ho rahe hain jo Master Data brands list mein register nahi hain. Inhe add karne se POS aur filters theek ho jayenge:
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {missingBrands.map((item, idx) => (
+                  <span key={idx} className="bg-white border border-amber-300 text-amber-900 text-xs px-2.5 py-1 rounded-lg flex items-center gap-2 font-medium">
+                    <span>🏷️ <strong>{item.name}</strong> ({item.count} products)</span>
+                    <button
+                      onClick={() => handleSyncMissingBrand(item)}
+                      disabled={syncingMissing}
+                      className="text-[10px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-2 py-0.5 rounded transition disabled:opacity-50"
+                    >
+                      + Add
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={handleSyncAllMissing}
+              disabled={syncingMissing}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition whitespace-nowrap shadow-sm disabled:opacity-50"
+            >
+              {syncingMissing ? 'Syncing...' : '⚡ Add All Missing Brands'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Search Bar */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="🔍 Search brands..."
+          value={searchBrand}
+          onChange={(e) => setSearchBrand(e.target.value)}
+          className="w-full sm:w-80 px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
       {showForm && (
         <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-lg">
           <h2 className="font-semibold text-gray-700 mb-4">
@@ -424,7 +573,9 @@ function Brands() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {brands.map((brand) => (
+                {brands
+                  .filter(b => (b.name || '').toLowerCase().includes(searchBrand.trim().toLowerCase()))
+                  .map((brand) => (
                   <tr key={brand.id} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4 whitespace-nowrap font-semibold text-gray-900">{brand.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -451,9 +602,9 @@ function Brands() {
                     </td>
                   </tr>
                 ))}
-                {brands.length === 0 && (
+                {brands.filter(b => (b.name || '').toLowerCase().includes(searchBrand.trim().toLowerCase())).length === 0 && (
                   <tr>
-                    <td colSpan="2" className="px-6 py-8 text-center text-gray-500">No brands found</td>
+                    <td colSpan="2" className="px-6 py-8 text-center text-gray-500">No brands match your search</td>
                   </tr>
                 )}
               </tbody>
