@@ -75,7 +75,27 @@ export const syncOfflineData = async () => {
                     return obj;
                 })();
 
-                const { data: resData, error: err } = await supabase.from(item.table).insert(payload).select();
+                let { data: resData, error: err } = await supabase.from(item.table).insert(payload).select();
+
+                // If sales table doesn't have online_provider or transaction_ref columns yet in Supabase, retry without them
+                if (err && item.table === 'sales' && (err.code === 'PGRST204' || err.code === '42703' || err.message?.includes('online_provider') || err.message?.includes('transaction_ref'))) {
+                    console.warn('SyncService: Retrying sales insert without top-level online columns (details preserved in payment_details JSONB)');
+                    const strippedPayload = isArray ? payload.map(d => {
+                        const copy = { ...d };
+                        delete copy.online_provider;
+                        delete copy.transaction_ref;
+                        return copy;
+                    }) : (() => {
+                        const copy = { ...payload };
+                        delete copy.online_provider;
+                        delete copy.transaction_ref;
+                        return copy;
+                    })();
+                    const retry = await supabase.from(item.table).insert(strippedPayload).select();
+                    resData = retry.data;
+                    err = retry.error;
+                }
+
                 error = err;
                 returnedData = resData;
 
