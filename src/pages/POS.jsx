@@ -86,12 +86,15 @@ function POS() {
          activeEl.tagName === 'SELECT' ||
          activeEl.isContentEditable)
       ) {
+        if (activeEl === barcodeRef.current) return;
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key.length === 1) {
         setBarcodeInput(prev => prev + e.key);
-        setTimeout(() => barcodeRef.current?.focus(), 20);
+        if (barcodeRef.current && activeEl !== barcodeRef.current) {
+          barcodeRef.current.focus()
+        }
       }
     };
 
@@ -101,21 +104,35 @@ function POS() {
 
   const handleBarcodeSubmit = (e) => {
     e.preventDefault()
-    const sku = barcodeInput.trim()
-    if (!sku) return
-    const product = products.find(p =>
-      (p.sku && p.sku.toLowerCase() === sku.toLowerCase()) ||
-      (p.name && p.name.toLowerCase() === sku.toLowerCase())
-    )
+    const rawSku = barcodeInput.trim()
+    if (!rawSku) return
+    const skuLower = rawSku.toLowerCase()
+    const cleanSku = rawSku.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+
+    const product = products.find(p => {
+      const pSku = String(p.sku || '').trim().toLowerCase()
+      const pId = String(p.id || '').trim()
+      const pName = String(p.name || '').trim().toLowerCase()
+      const cleanPSku = pSku.replace(/[^a-zA-Z0-9]/g, '')
+
+      return (
+        (pSku && (pSku === skuLower || cleanPSku === cleanSku)) ||
+        (pId && pId === rawSku) ||
+        (pName && pName === skuLower)
+      )
+    })
+
     if (product) {
       addToCart(product)
     } else {
-      const beep = new AudioContext()
-      const osc = beep.createOscillator()
-      osc.connect(beep.destination)
-      osc.frequency.value = 200
-      osc.start(); osc.stop(beep.currentTime + 0.15)
-      alert(`❌ SKU "${sku}" — product not found. Add SKU in Products page.`)
+      try {
+        const beep = new AudioContext()
+        const osc = beep.createOscillator()
+        osc.connect(beep.destination)
+        osc.frequency.value = 200
+        osc.start(); osc.stop(beep.currentTime + 0.15)
+      } catch (_) {}
+      alert(`❌ SKU / Barcode "${rawSku}" — product not found. Add SKU in Products page.`)
     }
     setBarcodeInput('')
     setTimeout(() => barcodeRef.current?.focus(), 50)
@@ -239,17 +256,12 @@ function POS() {
     if (!navigator.onLine) return;
     try {
       const [p, c, cu, b, s] = await Promise.all([
-        supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).eq('status', 'active'),
+        supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).or('status.eq.active,status.is.null'),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
         supabase.from('customers').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
       ])
-
-      if (p.error || c.error || cu.error || b.error) {
-        console.warn('POS: Supabase background refresh failed:', p.error || c.error || cu.error || b.error)
-        return
-      }
 
       if (p.data) await db.products.bulkPut(JSON.parse(JSON.stringify(p.data)))
       if (c.data) await db.categories.bulkPut(JSON.parse(JSON.stringify(c.data)))
@@ -370,9 +382,25 @@ function POS() {
     }
   }, [selectedBrand])
 
+  const categoryNameMap = categories.reduce((acc, c) => {
+    acc[String(c.id)] = c.name
+    return acc
+  }, {})
+
   const filtered = products.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.brand || '').toLowerCase().includes(search.toLowerCase())
+    const q = search.trim().toLowerCase()
+    let matchSearch = true
+    if (q) {
+      const tokens = q.split(/\s+/).filter(Boolean)
+      const pName = String(p.name || '').toLowerCase()
+      const pBrand = String(p.brand || '').toLowerCase()
+      const pSku = String(p.sku || '').toLowerCase()
+      const pId = String(p.id || '').toLowerCase()
+      const pCat = String(categoryNameMap[String(p.category_id)] || p.categories?.name || '').toLowerCase()
+      const searchTarget = `${pName} ${pBrand} ${pSku} ${pId} ${pCat}`
+
+      matchSearch = tokens.every(token => searchTarget.includes(token))
+    }
     const matchCat = selectedCategory ? String(p.category_id) === String(selectedCategory) : true
     const matchBrand = selectedBrand ? String(p.brand) === String(selectedBrand) : true
     return matchSearch && matchCat && matchBrand

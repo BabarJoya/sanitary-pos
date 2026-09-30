@@ -146,9 +146,31 @@ function Products() {
     return 10
   }
 
+  const categoryNameMap = categories.reduce((acc, c) => {
+    acc[String(c.id)] = c.name
+    return acc
+  }, {})
+
+  const unitNameMap = units.reduce((acc, u) => {
+    acc[String(u.id)] = u.name
+    return acc
+  }, {})
+
   const filteredProducts = products.filter(p => {
-    const matchSearch = String(p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(p.brand || '').toLowerCase().includes(search.toLowerCase())
+    const q = search.trim().toLowerCase()
+    let matchSearch = true
+    if (q) {
+      const tokens = q.split(/\s+/).filter(Boolean)
+      const pName = String(p.name || '').toLowerCase()
+      const pBrand = String(p.brand || '').toLowerCase()
+      const pSku = String(p.sku || '').toLowerCase()
+      const pId = String(p.id || '').toLowerCase()
+      const pCat = String(categoryNameMap[String(p.category_id)] || p.categories?.name || '').toLowerCase()
+      const pUnit = String(unitNameMap[String(p.unit_id)] || '').toLowerCase()
+      const searchTarget = `${pName} ${pBrand} ${pSku} ${pId} ${pCat} ${pUnit}`
+
+      matchSearch = tokens.every(token => searchTarget.includes(token))
+    }
     const matchCat = selectedCategory ? String(p.category_id) === String(selectedCategory) : true
     const matchLow = showLowStockOnly ? p.stock_quantity <= getEffectiveThreshold(p) : true
     return matchSearch && matchCat && matchLow

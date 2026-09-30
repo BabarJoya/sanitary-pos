@@ -83,7 +83,7 @@ function Inventory() {
           </tr>
         </thead>
         <tbody>
-          ${(products || []).filter(p => !showLowStockOnly || p.stock_quantity <= (p.low_stock_threshold || 10)).filter(p => !search || String(p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.brand && p.brand.toLowerCase().includes(search.toLowerCase()))).map(p => `
+          ${(filtered || []).map(p => `
             <tr>
               <td>${p.name}</td>
               <td>${p.categories?.name || '-'}</td>
@@ -287,9 +287,25 @@ function Inventory() {
     }
   }
 
+  const categoryNameMap = categories.reduce((acc, c) => {
+    acc[String(c.id)] = c.name
+    return acc
+  }, {})
+
   const filtered = products.filter(p => {
-    const matchSearch = String(p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(p.brand || '').toLowerCase().includes(search.toLowerCase())
+    const q = search.trim().toLowerCase()
+    let matchSearch = true
+    if (q) {
+      const tokens = q.split(/\s+/).filter(Boolean)
+      const pName = String(p.name || '').toLowerCase()
+      const pBrand = String(p.brand || '').toLowerCase()
+      const pSku = String(p.sku || '').toLowerCase()
+      const pId = String(p.id || '').toLowerCase()
+      const pCat = String(categoryNameMap[String(p.category_id)] || p.categories?.name || '').toLowerCase()
+      const searchTarget = `${pName} ${pBrand} ${pSku} ${pId} ${pCat}`
+
+      matchSearch = tokens.every(token => searchTarget.includes(token))
+    }
     const matchCat = selectedCategory ? String(p.category_id) === String(selectedCategory) : true
     const matchBrand = selectedBrand ? String(p.brand) === String(selectedBrand) : true
     const matchLow = showLowStockOnly ? p.stock_quantity <= (p.low_stock_threshold || 10) : true

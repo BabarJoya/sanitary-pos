@@ -353,11 +353,22 @@ function Purchases() {
     }
   }
 
-  const filteredProducts = products.filter(p =>
-    (p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.brand || '').toLowerCase().includes(search.toLowerCase())) &&
-    (selectedBrand ? String(p.brand) === String(selectedBrand) : true)
-  )
+  const filteredProducts = products.filter(p => {
+    const q = search.trim().toLowerCase()
+    let matchSearch = true
+    if (q) {
+      const tokens = q.split(/\s+/).filter(Boolean)
+      const pName = String(p.name || '').toLowerCase()
+      const pBrand = String(p.brand || '').toLowerCase()
+      const pSku = String(p.sku || '').toLowerCase()
+      const pId = String(p.id || '').toLowerCase()
+      const searchTarget = `${pName} ${pBrand} ${pSku} ${pId}`
+
+      matchSearch = tokens.every(token => searchTarget.includes(token))
+    }
+    const matchBrand = selectedBrand ? String(p.brand) === String(selectedBrand) : true
+    return matchSearch && matchBrand
+  })
 
   if (!hasFeature('purchases')) return <UpgradeWall feature="purchases" />
 
