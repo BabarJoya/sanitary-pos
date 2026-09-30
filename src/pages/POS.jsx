@@ -1047,8 +1047,8 @@ function POS() {
           )}
         </div>
 
-        {/* Product Grid - Compact High-Density Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5 overflow-y-auto flex-1 min-h-0 content-start pb-24 md:pb-0 custom-scrollbar">
+        {/* Product Grid - High-Visibility Responsive Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto flex-1 min-h-0 content-start pb-24 md:pb-0 custom-scrollbar">
           {filtered.length === 0 && <p className="text-gray-400 col-span-full text-center py-10">No products found</p>}
           {filtered.map(p => {
             const isOutOfStock = Number(p.stock_quantity) <= 0
@@ -1057,7 +1057,7 @@ function POS() {
               <div
                 key={p.id}
                 onClick={() => { addToCart(p, parseFloat(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}
-                className={`pos-product-card group bg-white rounded-xl shadow-xs hover:shadow-md p-2.5 text-left transition-all border cursor-pointer flex flex-col justify-between select-none relative ${
+                className={`pos-product-card group bg-white rounded-xl shadow-xs hover:shadow-md p-3 text-left transition-all border cursor-pointer flex flex-col justify-between select-none relative ${
                   isOutOfStock
                     ? 'border-red-200 bg-red-50/20 opacity-80'
                     : isLowStock
@@ -1065,42 +1065,35 @@ function POS() {
                       : 'border-gray-200/80 hover:border-blue-500 hover:bg-blue-50/30'
                 }`}
               >
-                {/* Row 1: Name & Price */}
-                <div className="flex items-start justify-between gap-1.5">
-                  <h3 className="font-bold text-gray-800 text-xs sm:text-sm leading-tight line-clamp-1 flex-1" title={p.name}>
+                {/* Row 1: Dedicated Product Name (100% visible, multi-line wrapping allowed) */}
+                <div className="w-full mb-1">
+                  <h3 className="font-bold text-gray-900 text-xs sm:text-sm leading-snug break-words w-full" title={p.name}>
                     {p.name}
                   </h3>
-                  <div className="text-right shrink-0">
-                    <span className="font-black text-sm text-blue-600 block leading-tight">
-                      Rs. {Number(p.sale_price).toLocaleString()}
-                    </span>
-                  </div>
                 </div>
 
-                {/* Row 2: Brand, Category & Status badges */}
-                <div className="flex items-center gap-1.5 my-1 text-[11px] text-gray-500 overflow-hidden">
-                  {p.brand && (
-                    <span className="font-semibold text-gray-700 truncate max-w-[110px]">
-                      {p.brand}
-                    </span>
-                  )}
-                  {p.brand && p.categories?.name && (
-                    <span className="text-gray-300">•</span>
-                  )}
-                  {p.categories?.name && (
-                    <span className="text-gray-400 truncate">
-                      {p.categories.name}
-                    </span>
-                  )}
-                  {isOutOfStock ? (
-                    <span className="ml-auto text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-red-100 text-red-700 shrink-0">
-                      Out
-                    </span>
-                  ) : isLowStock ? (
-                    <span className="ml-auto text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-700 shrink-0">
-                      Low
-                    </span>
-                  ) : null}
+                {/* Row 2: Separate Price Line & Category / Stock Status Badge */}
+                <div className="flex items-center justify-between gap-1 mb-1.5 pt-1 border-t border-gray-100/70">
+                  <span className="font-black text-sm sm:text-base text-blue-600 tracking-tight">
+                    Rs. {Number(p.sale_price).toLocaleString()}
+                  </span>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {p.brand && (
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 truncate max-w-[90px]">
+                        {p.brand}
+                      </span>
+                    )}
+                    {isOutOfStock ? (
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-700">
+                        Out
+                      </span>
+                    ) : isLowStock ? (
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                        Low
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
                 {/* Row 3: Stock, Cost & Quick Qty Action */}
@@ -1329,37 +1322,36 @@ function POS() {
         <div className="shrink-0 space-y-2 border-t border-gray-100 pt-2 bg-white">
 
           {/* Subtotal & Discount Summary Card */}
-          <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 space-y-1.5 text-xs">
-            <div className="flex justify-between items-center text-gray-600">
-              <span className="font-semibold text-slate-600">Subtotal ({cart.reduce((a, c) => a + (parseFloat(c.qty) || 0), 0)} pcs)</span>
-              <span className="font-bold text-gray-900 text-sm">Rs. {subtotal.toFixed(0)}</span>
-            </div>
+          <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 space-y-1 text-xs">
+            {/* Row 1: Subtotal & Inline Discount */}
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 text-slate-600 font-medium">
+                <span>Subtotal ({cart.reduce((a, c) => a + (parseFloat(c.qty) || 0), 0)} pcs):</span>
+                <span className="font-bold text-gray-900">Rs. {subtotal.toFixed(0)}</span>
+              </div>
 
-            {hasFeature('discount') && (
-              <div className="pt-1.5 border-t border-slate-200/60 space-y-1">
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-bold text-slate-700">Discount:</span>
-                    <div className="flex bg-slate-200/80 rounded-lg p-0.5 text-[10px] font-bold">
-                      <button
-                        type="button"
-                        onClick={() => setDiscountMode('fixed')}
-                        className={`px-1.5 py-0.5 rounded-md transition ${discountMode === 'fixed' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-                      >
-                        Rs
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDiscountMode('percent')}
-                        className={`px-1.5 py-0.5 rounded-md transition ${discountMode === 'percent' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-                      >
-                        %
-                      </button>
-                    </div>
+              {hasFeature('discount') && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-slate-500">Disc:</span>
+                  <div className="flex bg-slate-200/80 rounded p-0.5 text-[9px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode('fixed')}
+                      className={`px-1 py-0.2 rounded transition ${discountMode === 'fixed' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600'}`}
+                    >
+                      Rs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode('percent')}
+                      className={`px-1 py-0.2 rounded transition ${discountMode === 'percent' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600'}`}
+                    >
+                      %
+                    </button>
                   </div>
 
                   {discountMode === 'percent' ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                       <input
                         type="number"
                         step="any"
@@ -1367,74 +1359,72 @@ function POS() {
                         max="100"
                         value={discountPercent}
                         onChange={e => handlePercentDiscountChange(e.target.value)}
-                        className="w-16 px-1.5 py-0.5 border border-blue-300 rounded-lg text-right text-xs font-bold text-blue-700 bg-white outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="0"
+                        className="w-12 px-1 py-0.5 border border-blue-300 rounded text-right text-xs font-bold text-blue-700 bg-white outline-none"
                       />
-                      <span className="text-xs font-bold text-slate-500">%</span>
+                      <span className="text-[10px] font-bold text-slate-400">%</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-slate-400">Rs.</span>
+                    <div className="flex items-center gap-0.5">
+                      <span className="text-[10px] text-slate-400">Rs.</span>
                       <input
                         type="number"
                         step="any"
                         min="0"
                         value={discount}
                         onChange={e => handleFixedDiscountChange(e.target.value)}
-                        className="w-20 px-1.5 py-0.5 border border-blue-300 rounded-lg text-right text-xs font-bold text-blue-700 bg-white outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="0"
+                        className="w-14 px-1 py-0.5 border border-blue-300 rounded text-right text-xs font-bold text-blue-700 bg-white outline-none"
                       />
                     </div>
                   )}
                 </div>
+              )}
+            </div>
 
-                {/* Quick percentage presets */}
-                <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar py-0.5">
-                  <span className="text-[9px] text-slate-400 font-semibold shrink-0">Quick %:</span>
-                  {[2, 5, 10, 15, 20].map(pct => (
-                    <button
-                      key={pct}
-                      type="button"
-                      onClick={() => {
-                        setDiscountMode('percent')
-                        handlePercentDiscountChange(pct.toString())
-                      }}
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition shrink-0 ${
-                        discountMode === 'percent' && Number(discountPercent) === pct
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                  {(Number(totalDiscount) > 0 || Number(discountPercent) > 0) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDiscount(0)
-                        setDiscountPercent('')
-                      }}
-                      className="text-[9px] text-red-500 hover:underline ml-auto font-bold shrink-0"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-
+            {/* Row 2: Quick % Presets */}
+            {hasFeature('discount') && (
+              <div className="flex items-center gap-1 pt-0.5 border-t border-slate-200/50">
+                <span className="text-[9px] text-slate-400 font-semibold shrink-0">Quick %:</span>
+                {[2, 5, 10, 15, 20].map(pct => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => {
+                      setDiscountMode('percent')
+                      handlePercentDiscountChange(pct.toString())
+                    }}
+                    className={`px-1.5 py-0.2 rounded text-[9px] font-bold border transition shrink-0 ${
+                      discountMode === 'percent' && Number(discountPercent) === pct
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+                {(Number(totalDiscount) > 0 || Number(discountPercent) > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDiscount(0)
+                      setDiscountPercent('')
+                    }}
+                    className="text-[9px] text-red-500 hover:underline ml-1 font-bold shrink-0"
+                  >
+                    Clear
+                  </button>
+                )}
                 {Number(totalDiscount) > 0 && (
-                  <div className="flex justify-between items-center text-[10px] text-slate-500 pt-0.5 border-t border-slate-200/60">
-                    <span>Total Discount:</span>
-                    <span className="font-bold text-red-600">
-                      −Rs. {Number(totalDiscount).toFixed(0)} {discountMode === 'fixed' && subtotal > 0 ? `(${((totalDiscount / subtotal) * 100).toFixed(1)}%)` : ''}
-                    </span>
-                  </div>
+                  <span className="text-[10px] font-bold text-red-600 ml-auto">
+                    −Rs. {Number(totalDiscount).toFixed(0)} {discountMode === 'fixed' && subtotal > 0 ? `(${((totalDiscount / subtotal) * 100).toFixed(0)}%)` : ''}
+                  </span>
                 )}
               </div>
             )}
 
-            {/* Net Total Row */}
-            <div className="flex justify-between items-center pt-1.5 border-t border-slate-200/70">
+            {/* Row 3: Net Total & Net Profit */}
+            <div className="flex justify-between items-center pt-1 border-t border-slate-200/70">
               <div>
                 <span className="text-slate-500 text-[10px] uppercase font-black tracking-wider block">Net Total</span>
                 {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
@@ -1443,7 +1433,7 @@ function POS() {
                   </div>
                 )}
               </div>
-              <div className="font-black text-2xl text-slate-900 tracking-tight leading-none">
+              <div className="font-black text-xl text-slate-900 tracking-tight leading-none">
                 Rs. {total.toFixed(0)}
               </div>
             </div>
@@ -1451,106 +1441,107 @@ function POS() {
 
           {/* Tendered & Payment Section */}
           {saleType === 'sale' && (
-            <div className="flex flex-col gap-1.5 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-2.5 rounded-xl border border-blue-100 shadow-2xs">
-              <div className="flex items-center justify-between gap-2">
-                <label className="text-xs font-bold text-blue-900 flex items-center gap-1 shrink-0">
-                  <span>💵 Tendered</span>
-                </label>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-bold text-slate-400">Rs.</span>
-                  <input
-                    type="number"
-                    value={receivedAmount}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setReceivedAmount(val);
-                      if (val !== '' && Number(val) < total) setPaymentType('partial');
-                      else if (val !== '' && Number(val) >= total) setPaymentType('cash');
-                    }}
-                    placeholder={total.toFixed(0)}
-                    className="w-28 px-2.5 py-1 border border-blue-300 rounded-lg text-right font-black text-blue-900 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-base shadow-2xs"
-                  />
+            <div className="flex flex-col gap-1 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-2 rounded-xl border border-blue-100 shadow-2xs">
+              {/* Row 1: Tendered input + Quick Chips on same row */}
+              <div className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[11px] font-bold text-blue-900">💵 Tendered:</span>
+                  <div className="flex items-center bg-white border border-blue-300 rounded-md px-1.5 py-0.5 shadow-2xs">
+                    <span className="text-[10px] font-bold text-slate-400 mr-0.5">Rs.</span>
+                    <input
+                      type="number"
+                      value={receivedAmount}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setReceivedAmount(val);
+                        if (val !== '' && Number(val) < total) setPaymentType('partial');
+                        else if (val !== '' && Number(val) >= total) setPaymentType('cash');
+                      }}
+                      placeholder={total.toFixed(0)}
+                      className="w-20 text-right font-black text-blue-900 text-xs outline-none bg-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Tender Suggestions inline */}
+                <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
+                    className="px-1.5 py-0.5 text-[9px] font-black rounded bg-emerald-600 hover:bg-emerald-700 text-white transition shrink-0 shadow-2xs"
+                  >
+                    Exact
+                  </button>
+                  {(() => {
+                    const ceil100 = Math.ceil(total / 100) * 100
+                    const ceil500 = Math.ceil(total / 500) * 500
+                    const ceil1000 = Math.ceil(total / 1000) * 1000
+                    const notes = [
+                      ceil100 > total ? ceil100 : null,
+                      ceil500 > total && ceil500 !== ceil100 ? ceil500 : null,
+                      ceil1000 > total && ceil1000 !== ceil500 ? ceil1000 : null,
+                      500 > total ? 500 : null,
+                      1000 > total ? 1000 : null,
+                      5000 > total ? 5000 : null
+                    ].filter((v, i, arr) => v !== null && arr.indexOf(v) === i).sort((a,b) => a - b).slice(0, 3)
+
+                    return notes.map(note => (
+                      <button
+                        key={note}
+                        type="button"
+                        onClick={() => { setPaymentType('cash'); setReceivedAmount(note.toString()) }}
+                        className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-white border border-blue-200 hover:bg-blue-100 text-blue-700 transition shrink-0 shadow-2xs"
+                      >
+                        Rs.{note}
+                      </button>
+                    ))
+                  })()}
                 </div>
               </div>
 
-              {/* Quick Tender Suggestions */}
-              <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar py-0.5">
-                <button
-                  type="button"
-                  onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                  className="px-2 py-1 text-[10px] font-black rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shrink-0 shadow-2xs"
-                >
-                  Exact Cash
-                </button>
-                {(() => {
-                  const ceil100 = Math.ceil(total / 100) * 100
-                  const ceil500 = Math.ceil(total / 500) * 500
-                  const ceil1000 = Math.ceil(total / 1000) * 1000
-                  const notes = [
-                    ceil100 > total ? ceil100 : null,
-                    ceil500 > total && ceil500 !== ceil100 ? ceil500 : null,
-                    ceil1000 > total && ceil1000 !== ceil500 ? ceil1000 : null,
-                    500 > total ? 500 : null,
-                    1000 > total ? 1000 : null,
-                    5000 > total ? 5000 : null
-                  ].filter((v, i, arr) => v !== null && arr.indexOf(v) === i).sort((a,b) => a - b).slice(0, 4)
-
-                  return notes.map(note => (
-                    <button
-                      key={note}
-                      type="button"
-                      onClick={() => { setPaymentType('cash'); setReceivedAmount(note.toString()) }}
-                      className="px-2 py-1 text-[10px] font-bold rounded-lg bg-white border border-blue-200 hover:bg-blue-100 text-blue-700 transition shrink-0 shadow-2xs"
-                    >
-                      Rs.{note}
-                    </button>
-                  ))
-                })()}
-              </div>
-
-              {/* Live Change Due or Balance Indicator */}
+              {/* Row 2: Live Change Due or Balance Indicator */}
               {receivedAmount !== '' && Number(receivedAmount) > total && (
-                <div className="flex items-center justify-between bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">
+                <div className="flex items-center justify-between bg-emerald-600 text-white px-2 py-0.5 rounded-lg text-xs font-bold shadow-2xs">
                   <span>🟢 Change Due:</span>
                   <span className="text-sm font-black">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
                 </div>
               )}
               {receivedAmount !== '' && Number(receivedAmount) < total && (
-                <div className="flex items-center justify-between bg-amber-500 text-white px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">
+                <div className="flex items-center justify-between bg-amber-500 text-white px-2 py-0.5 rounded-lg text-xs font-bold shadow-2xs">
                   <span>🟠 Balance (Credit):</span>
                   <span className="text-sm font-black">Rs. {(total - Number(receivedAmount)).toFixed(0)}</span>
                 </div>
               )}
 
-              {/* Payment Mode Selector Grid */}
-              <div className="grid grid-cols-4 gap-1 mt-0.5">
+              {/* Row 3: Payment Mode Selector Grid */}
+              <div className="grid grid-cols-4 gap-1">
                 <button onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'cash' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'cash' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
                   💵 Cash
                 </button>
                 <button onClick={() => { setPaymentType('online'); setReceivedAmount(total.toString()) }}
-                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'online' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'online' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
                   📱 Online
                 </button>
                 <button onClick={() => { setPaymentType('credit'); setReceivedAmount('0') }}
-                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'credit' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'credit' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
                   📒 Credit
                 </button>
                 <button onClick={() => { setPaymentType('split'); setShowPaymentModal(true); if (payments.length === 0) setPayments([{ method: 'cash', amount: total }]) }}
-                  className={`py-1.5 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'split' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
+                  className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'split' ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}>
                   🔀 Split
                 </button>
               </div>
 
               {/* Online payment provider selector + Transaction ID */}
               {paymentType === 'online' && (
-                <div className="mt-1.5 p-2 bg-white border border-blue-200 rounded-lg space-y-1.5 shadow-2xs">
+                <div className="p-1.5 bg-white border border-blue-200 rounded-lg space-y-1 shadow-2xs">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-bold text-blue-900 shrink-0">Provider:</span>
+                    <span className="text-[10px] font-bold text-blue-900 shrink-0">Provider:</span>
                     <select
                       value={onlineProvider}
                       onChange={e => setOnlineProvider(e.target.value)}
-                      className="w-full text-xs font-semibold px-2 py-1 bg-slate-50 border border-blue-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-slate-800"
+                      className="w-full text-xs font-semibold px-2 py-0.5 bg-slate-50 border border-blue-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-slate-800"
                     >
                       <optgroup label="Mobile Wallets & FinTech">
                         <option value="jazzcash">📱 JazzCash</option>
@@ -1573,13 +1564,13 @@ function POS() {
                     </select>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-semibold text-blue-800 shrink-0">TID / Ref #:</span>
+                    <span className="text-[10px] font-semibold text-blue-800 shrink-0">TID / Ref:</span>
                     <input
                       type="text"
                       value={transactionRef}
                       onChange={e => setTransactionRef(e.target.value)}
                       placeholder="e.g. TID-98214 (optional)"
-                      className="w-full text-xs px-2 py-1 bg-slate-50 border border-blue-200 rounded-md outline-none focus:border-blue-400 placeholder:text-gray-400 font-mono"
+                      className="w-full text-xs px-2 py-0.5 bg-slate-50 border border-blue-200 rounded-md outline-none focus:border-blue-400 placeholder:text-gray-400 font-mono"
                     />
                   </div>
                 </div>

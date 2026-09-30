@@ -40,7 +40,8 @@ function Settings() {
       business_preset: 'general',
       pricing_mode: 'hidden',
       custom_price_label: '',
-      tax_number: ''
+      tax_number: '',
+      pos_layout: 'two_stage'
     }
   })
   // Logo is managed completely separately from the rest of form state
@@ -654,6 +655,82 @@ function Settings() {
                 className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
               />
               <p className="text-[11px] text-gray-400 mt-1">Printed at the top of customer receipts & invoices</p>
+            </div>
+          </div>
+
+          {/* POS Layout Preference */}
+          <div className="pt-5 border-t">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-lg">🖥️</span>
+              <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">POS Screen & Checkout Layout</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Choose how the product cart and checkout controls are arranged on your POS register screen.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div
+                onClick={() => setForm(prev => ({ ...prev, pos_layout: 'two_stage' }))}
+                className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                  (form.pos_layout || 'two_stage') === 'two_stage'
+                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-black text-sm text-gray-800">⚡ Two-Stage Flow</span>
+                    {(form.pos_layout || 'two_stage') === 'two_stage' && (
+                      <span className="text-xs text-blue-600 font-black">✓ Active</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-500 leading-snug">
+                    <strong className="text-gray-700">Shopify / Square style:</strong> Maximum vertical space for cart list (~15 items visible). Tapping "Charge (F4)" opens a slide-up tender sheet with quick cash note chips and online wallets.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setForm(prev => ({ ...prev, pos_layout: 'bottom_dock' }))}
+                className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                  form.pos_layout === 'bottom_dock'
+                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-black text-sm text-gray-800">🖥️ Global Bottom Dock</span>
+                    {form.pos_layout === 'bottom_dock' && (
+                      <span className="text-xs text-blue-600 font-black">✓ Active</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-500 leading-snug">
+                    <strong className="text-gray-700">Supermarket / Register style:</strong> Tendered input, cash chips, and payment buttons span horizontally at the bottom of the screen. Right cart list is 100% full height.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setForm(prev => ({ ...prev, pos_layout: 'compact_dock' }))}
+                className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                  form.pos_layout === 'compact_dock'
+                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-black text-sm text-gray-800">📱 Compact Sidebar</span>
+                    {form.pos_layout === 'compact_dock' && (
+                      <span className="text-xs text-blue-600 font-black">✓ Active</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-500 leading-snug">
+                    <strong className="text-gray-700">All-in-one Sidebar:</strong> All payment buttons, quick cash notes, and tender inputs stay inside the right sidebar below the cart.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
