@@ -447,6 +447,26 @@ function SupplierLedger() {
         fetchSupplierData()
     }
 
+    const handleReconcileBalance = async () => {
+        if (!ledger.length && supplier?.outstanding_balance === 0) return
+        const computedBalance = ledger.length > 0 ? ledger[0].balance : 0
+        const confirmed = confirm(`Balance Reconcile Karein?\n\nPresent Stored Balance: Rs. ${supplier?.outstanding_balance || 0}\nCalculated Ledger Sum: Rs. ${computedBalance}\n\nSupplier balance transaction ledger ke mutabiq sync ho jayega.`)
+        if (!confirmed) return
+
+        try {
+            if (navigator.onLine) {
+                await supabase.from('suppliers').update({ outstanding_balance: Math.max(0, computedBalance) }).eq('id', id)
+            } else {
+                await db.suppliers.update(parseInt(id), { outstanding_balance: Math.max(0, computedBalance) })
+                await db.sync_queue.add({ table: 'suppliers', action: 'UPDATE', data: { id, outstanding_balance: Math.max(0, computedBalance) }, timestamp: new Date().toISOString() })
+            }
+            setSupplier(s => s ? { ...s, outstanding_balance: Math.max(0, computedBalance) } : s)
+            alert(`✅ Balance reconciled successfully to Rs. ${Math.max(0, computedBalance)}`)
+        } catch (err) {
+            alert('Reconcile error: ' + err.message)
+        }
+    }
+
     if (!hasFeature('supplier_ledger')) return <UpgradeWall feature="supplier_ledger" />
     if (loading) return <div className="p-8">Loading ledger...</div>
     if (!supplier) return <div className="p-8 text-red-500">Supplier not found!</div>
@@ -479,6 +499,11 @@ function SupplierLedger() {
                             📤 Import Excel
                         </button>
                         <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
+                        <button onClick={handleReconcileBalance}
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-sm shadow transition"
+                            title="Recalculate supplier balance from transaction ledger sum">
+                            ⚡ Reconcile
+                        </button>
                         <button onClick={() => setShowModal(true)}
                             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm shadow transition">
                             ➕ Add Transaction

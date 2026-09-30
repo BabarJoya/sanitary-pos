@@ -80,7 +80,7 @@ export function AuthProvider({ children }) {
     return null
   }
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null)
     setOriginalUser(null)
     localStorage.removeItem('user')
@@ -88,6 +88,27 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user_pw_hash')
     localStorage.removeItem('session_token')
     localStorage.removeItem('superadmin_session')
+    try {
+      await Promise.all([
+        db.products.clear(),
+        db.categories.clear(),
+        db.suppliers.clear(),
+        db.customers.clear(),
+        db.brands.clear(),
+        db.sales.clear(),
+        db.sale_items.clear(),
+        db.purchases.clear(),
+        db.purchase_items.clear(),
+        db.expenses.clear(),
+        db.users.clear(),
+        db.shops.clear(),
+        db.customer_payments.clear(),
+        db.supplier_payments.clear(),
+        db.held_carts.clear()
+      ])
+    } catch (e) {
+      console.warn('Dexie logout cleanup failed:', e)
+    }
   }
 
   return (

@@ -611,8 +611,8 @@ function POS() {
     const finalPayments = payments.length > 0 ? payments : [{ method: paymentType, amount: (receivedAmount === '' ? total : Number(receivedAmount)) }]
     const totalPaid = finalPayments.reduce((s, p) => s + Number(p.amount), 0)
 
-    if ((paymentType === 'credit' || (paymentType === 'partial' && totalPaid < total)) && !customerId) {
-      alert('Balance amount (Udhaar) ke liye customer select karna zaroori hai!');
+    if ((paymentType === 'credit' || paymentType === 'partial') && !customerId) {
+      alert('Balance amount (Udhaar / Partial) ke liye customer select karna zaroori hai!');
       return
     }
 

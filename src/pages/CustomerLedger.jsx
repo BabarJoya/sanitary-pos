@@ -504,10 +504,29 @@ function CustomerLedger() {
                 setCustomer(c => c ? ({ ...c, outstanding_balance: Math.max(0, newBalance) }) : c)
             } catch (_) { /* customer may already be deleted — ignore */ }
             setSelectedIds(new Set())
-            fetchCustomerData()
         } catch (err) {
             alert('Kuch entries delete nahi huin: ' + err.message)
             fetchCustomerData()
+        }
+    }
+
+    const handleReconcileBalance = async () => {
+        if (!ledger.length && customer?.outstanding_balance === 0) return
+        const computedBalance = ledger.length > 0 ? ledger[0].balance : 0
+        const confirmed = confirm(`Balance Reconcile Karein?\n\nPresent Stored Balance: Rs. ${customer?.outstanding_balance || 0}\nCalculated Ledger Sum: Rs. ${computedBalance}\n\nCustomer balance transaction ledger ke mutabiq sync ho jayega.`)
+        if (!confirmed) return
+
+        try {
+            if (navigator.onLine) {
+                await supabase.from('customers').update({ outstanding_balance: Math.max(0, computedBalance) }).eq('id', id)
+            } else {
+                await db.customers.update(parseInt(id), { outstanding_balance: Math.max(0, computedBalance) })
+                await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: Math.max(0, computedBalance) }, timestamp: new Date().toISOString() })
+            }
+            setCustomer(c => c ? { ...c, outstanding_balance: Math.max(0, computedBalance) } : c)
+            alert(`✅ Balance reconciled successfully to Rs. ${Math.max(0, computedBalance)}`)
+        } catch (err) {
+            alert('Reconcile error: ' + err.message)
         }
     }
 
@@ -570,6 +589,13 @@ function CustomerLedger() {
                                 <span>💬</span> WhatsApp Reminder
                             </button>
                         )}
+                        <button
+                            onClick={handleReconcileBalance}
+                            className="w-full sm:w-auto px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition font-semibold shadow-lg flex items-center justify-center gap-1.5"
+                            title="Recalculate customer balance from transaction ledger sum"
+                        >
+                            ⚡ Reconcile
+                        </button>
                         <button
                             onClick={() => setShowTxModal(true)}
                             className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold shadow-lg">

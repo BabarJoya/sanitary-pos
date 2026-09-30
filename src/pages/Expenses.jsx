@@ -335,7 +335,34 @@ function Expenses() {
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <p className="px-6 py-12 text-center text-gray-400">Loading expenses...</p>
+          ) : expenses.length === 0 ? (
+            <p className="px-6 py-12 text-center text-gray-400 italic">No expenses recorded yet.</p>
+          ) : expenses.map(exp => (
+            <div key={exp.id} className={`p-4 ${selected.includes(exp.id) ? 'bg-blue-50' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[10px] font-bold uppercase">
+                    {exp.category}
+                  </span>
+                  <p className="mt-1 font-bold text-gray-900 text-sm">{exp.note || 'No note'}</p>
+                  <p className="mt-1 text-xs text-gray-400">{new Date(exp.created_at).toLocaleDateString('en-PK')}</p>
+                </div>
+                <input type="checkbox" checked={selected.includes(exp.id)} onChange={() => toggleSelect(exp.id)} className="mt-1 h-4 w-4 rounded" />
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-lg font-black text-gray-900">Rs. {exp.amount.toLocaleString()}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => handleEdit(exp)} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">Edit</button>
+                  <button onClick={() => requestDelete([exp.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b">
               <tr>

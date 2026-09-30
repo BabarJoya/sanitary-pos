@@ -161,15 +161,23 @@ export const syncOfflineData = async () => {
                 await db.sync_queue.delete(item.id);
             } else {
                 console.error(`Sync error for ${item.table}:`, error);
-                // If table doesn't exist or column doesn't exist, remove from queue to stop spam
-                if (['PGRST205', '42P01', 'PGRST204', '22P02'].includes(error.code)) {
+                const retries = (item.retry_count || 0) + 1;
+                // If table/column error or exceeded max 5 retries, remove to prevent queue stalls
+                if (retries >= 5 || ['PGRST205', '42P01', 'PGRST204', '22P02'].includes(error.code)) {
+                    console.warn(`Removing un-syncable item ${item.id} after ${retries} attempts.`);
                     await db.sync_queue.delete(item.id);
+                } else {
+                    await db.sync_queue.update(item.id, { retry_count: retries });
                 }
             }
         } catch (e) {
             console.error('Sync failed:', e);
         }
     }
+
+    try {
+        window.dispatchEvent(new CustomEvent('sync_completed'));
+    } catch (_) {}
 };
 
 // Periodically check for sync if online
