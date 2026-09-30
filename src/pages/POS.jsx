@@ -9,7 +9,29 @@ import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
 import { getPricingConfig } from '../utils/businessPresets'
-import { PAKISTANI_PAYMENT_PROVIDERS } from '../utils/paymentMethods'
+const PAKISTANI_PAYMENT_PROVIDERS = [
+  { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
+  { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
+  { id: 'sadapay', name: 'SadaPay', icon: '💳' },
+  { id: 'nayapay', name: 'NayaPay', icon: '🟣' }
+]
+
+const getCategoryColor = (catName = '') => {
+  const lower = String(catName || '').toLowerCase()
+  if (lower.includes('pipe') || lower.includes('fitting') || lower.includes('pvc') || lower.includes('upvc'))
+    return { border: 'border-t-emerald-500', pill: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+  if (lower.includes('tile') || lower.includes('ceramic') || lower.includes('marble') || lower.includes('granite'))
+    return { border: 'border-t-amber-500', pill: 'bg-amber-100 text-amber-800 border-amber-200' }
+  if (lower.includes('paint') || lower.includes('chemical') || lower.includes('color') || lower.includes('distemper'))
+    return { border: 'border-t-purple-500', pill: 'bg-purple-100 text-purple-800 border-purple-200' }
+  if (lower.includes('sanitary') || lower.includes('tap') || lower.includes('shower') || lower.includes('faucet') || lower.includes('basin'))
+    return { border: 'border-t-cyan-500', pill: 'bg-cyan-100 text-cyan-800 border-cyan-200' }
+  if (lower.includes('electric') || lower.includes('wire') || lower.includes('cable') || lower.includes('switch') || lower.includes('light'))
+    return { border: 'border-t-yellow-500', pill: 'bg-yellow-100 text-yellow-800 border-yellow-200' }
+  if (lower.includes('tool') || lower.includes('hardware') || lower.includes('iron') || lower.includes('valve') || lower.includes('screw'))
+    return { border: 'border-t-slate-500', pill: 'bg-slate-100 text-slate-800 border-slate-200' }
+  return { border: 'border-t-blue-500', pill: 'bg-blue-100 text-blue-800 border-blue-200' }
+}
 
 function POS() {
   const { user } = useAuth()
@@ -465,27 +487,48 @@ function POS() {
     }
   }, [selectedBrand])
 
-  // Counter Keyboard Shortcuts (F2: search, F4: cash, Esc: clear/dismiss)
+  // Counter Keyboard Shortcuts (F2: search, F4: tender, F9 / Ctrl+Enter: complete sale, Esc: clear/dismiss)
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Don't intercept when typing in active text inputs except for function keys & Ctrl+Enter
+      const activeEl = document.activeElement
+      const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')
+
       if (e.key === 'F2') {
         e.preventDefault()
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
       } else if (e.key === 'F4') {
         e.preventDefault()
-        setPaymentType('cash')
-        setReceivedAmount(total.toString())
+        if (cart.length > 0) {
+          setShowTenderSheet(prev => !prev)
+          setPaymentType('cash')
+          if (!receivedAmount) setReceivedAmount(total.toString())
+        }
+      } else if (e.key === 'F9' || (e.ctrlKey && e.key === 'Enter')) {
+        e.preventDefault()
+        if (cart.length > 0 && !saving) {
+          handleCompleteSale()
+        }
       } else if (e.key === 'Escape') {
-        if (showPaymentModal) setShowPaymentModal(false)
+        if (showTenderSheet) setShowTenderSheet(false)
+        else if (showPaymentModal) setShowPaymentModal(false)
         else if (showQuickView) setShowQuickView(false)
         else if (showBrandDiscount) setShowBrandDiscount(false)
+        else if (showSaveCustomer) setShowSaveCustomer(false)
+        else if (showQuotationSearch) setShowQuotationSearch(false)
+        else if (showHeldCarts) setShowHeldCarts(false)
+        else if (lastReceipt) setLastReceipt(null)
         else if (search) setSearch('')
+      } else if (e.key === 'Enter' && lastReceipt && !isInputFocused) {
+        e.preventDefault()
+        printReceipt()
+        setLastReceipt(null)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [total, showPaymentModal, showQuickView, showBrandDiscount, search])
+  }, [total, cart, saving, showTenderSheet, showPaymentModal, showQuickView, showBrandDiscount, showSaveCustomer, showQuotationSearch, showHeldCarts, lastReceipt, search, receivedAmount])
 
   const categoryNameMap = categories.reduce((acc, c) => {
     acc[String(c.id)] = c.name
@@ -897,6 +940,9 @@ function POS() {
     }
 
     const customer = customers.find(c => String(c.id) === String(customerId))
+    const tendered = receivedAmount !== '' ? Number(receivedAmount) : totalPaid
+    const changeDueVal = (tendered > total && paymentType === 'cash') ? (tendered - total) : 0
+
     setLastReceipt({
       sale: finalSale,
       items: cart,
@@ -906,6 +952,8 @@ function POS() {
       totalDiscount,
       total,
       paymentType,
+      receivedAmount: tendered,
+      changeDue: changeDueVal,
       totalProfit,
       isQuotation: saleType === 'quotation'
     })
@@ -1143,11 +1191,14 @@ function POS() {
           {filtered.map(p => {
             const isOutOfStock = Number(p.stock_quantity) <= 0
             const isLowStock = !isOutOfStock && Number(p.stock_quantity) <= (p.low_stock_threshold || 5)
+            const catName = categoryNameMap[String(p.category_id)] || p.categories?.name || ''
+            const catStyle = getCategoryColor(catName)
+
             return (
               <div
                 key={p.id}
                 onClick={() => { addToCart(p, parseFloat(cardQtys[p.id]) || 1); setCardQtys(prev => ({ ...prev, [p.id]: '' })) }}
-                className={`pos-product-card group bg-white rounded-xl shadow-xs hover:shadow-md p-3 text-left transition-all border cursor-pointer flex flex-col justify-between select-none relative ${
+                className={`pos-product-card group bg-white rounded-xl shadow-xs hover:shadow-md p-3 text-left transition-all border cursor-pointer flex flex-col justify-between select-none relative border-t-4 ${catStyle.border} ${
                   isOutOfStock
                     ? 'border-red-200 bg-red-50/20 opacity-80'
                     : isLowStock
@@ -1162,15 +1213,20 @@ function POS() {
                   </h3>
                 </div>
 
-                {/* Row 2: Separate Price Line & Category / Stock Status Badge */}
+                {/* Row 2: Separate Price Line & Category / Brand / Stock Status Badges */}
                 <div className="flex items-center justify-between gap-1 mb-1.5 pt-1 border-t border-gray-100/70">
                   <span className="font-black text-sm sm:text-base text-blue-600 tracking-tight">
                     Rs. {Number(p.sale_price).toLocaleString()}
                   </span>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {catName && (
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border truncate max-w-[75px] ${catStyle.pill}`} title={catName}>
+                        {catName}
+                      </span>
+                    )}
                     {p.brand && (
-                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 truncate max-w-[90px]">
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60 truncate max-w-[80px]">
                         {p.brand}
                       </span>
                     )}
@@ -1254,28 +1310,28 @@ function POS() {
       {showMobileCart && (
         <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileCart(false)} />
       )}
-      <div className={`${showMobileCart ? 'fixed inset-x-2 top-2 bottom-2 z-50 flex max-h-[calc(100dvh-1rem)]' : 'hidden md:flex'} md:static md:w-96 lg:w-[410px] xl:w-[430px] flex-col gap-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-3.5 h-full min-h-0 overflow-hidden shrink-0`}>
+      <div className={`${showMobileCart ? 'fixed inset-x-2 top-2 bottom-2 z-50 flex max-h-[calc(100dvh-1rem)]' : 'hidden md:flex'} md:static md:w-96 lg:w-[410px] xl:w-[430px] flex-col gap-2 bg-gradient-to-b from-blue-50/95 via-sky-50/40 to-blue-50/80 rounded-2xl shadow-xl border-2 border-blue-200/90 p-3 h-full min-h-0 overflow-hidden shrink-0`}>
 
         {/* Mobile close button */}
         <button onClick={() => setShowMobileCart(false)} className="md:hidden self-end text-gray-400 hover:text-gray-700 text-xl font-bold -mt-1 -mr-1 p-1">✕</button>
 
         {/* Cart Header */}
-        <div className="border-b border-gray-100 pb-2 shrink-0 flex justify-between items-center gap-2">
+        <div className="border-b border-blue-200/80 pb-2 shrink-0 flex justify-between items-center gap-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black text-gray-900 tracking-tight flex items-center gap-1.5">
+            <h2 className="text-sm font-black text-blue-950 tracking-tight flex items-center gap-1.5">
               <span>🛒 Cart</span>
-              <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-1.5 py-0.5 rounded-full">{cart.length}</span>
+              <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">{cart.length}</span>
             </h2>
             {saleType === 'quotation' && <span className="text-purple-600 font-bold text-[10px] uppercase bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">Quotation</span>}
           </div>
           <div className="flex items-center gap-1.5">
             {/* Quick POS Layout Switcher */}
-            <div className="hidden sm:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold">
+            <div className="hidden sm:flex items-center bg-white/90 p-0.5 rounded-lg border border-blue-200/80 text-[10px] font-bold shadow-2xs">
               <button
                 type="button"
                 onClick={() => switchPosLayout('two_stage')}
                 title="Two-Stage Flow (Max Vertical Cart)"
-                className={`px-1.5 py-0.5 rounded transition ${posLayout === 'two_stage' ? 'bg-white text-blue-700 shadow-2xs font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`px-1.5 py-0.5 rounded transition ${posLayout === 'two_stage' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-slate-600 hover:text-blue-900'}`}
               >
                 ⚡ 2-Stage
               </button>
@@ -1283,7 +1339,7 @@ function POS() {
                 type="button"
                 onClick={() => switchPosLayout('bottom_dock')}
                 title="Global Bottom Dock (Full-height Cart)"
-                className={`px-1.5 py-0.5 rounded transition ${posLayout === 'bottom_dock' ? 'bg-white text-blue-700 shadow-2xs font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`px-1.5 py-0.5 rounded transition ${posLayout === 'bottom_dock' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-slate-600 hover:text-blue-900'}`}
               >
                 🖥️ Dock
               </button>
@@ -1291,7 +1347,7 @@ function POS() {
                 type="button"
                 onClick={() => switchPosLayout('compact_dock')}
                 title="Compact Sidebar"
-                className={`px-1.5 py-0.5 rounded transition ${posLayout === 'compact_dock' ? 'bg-white text-blue-700 shadow-2xs font-black' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`px-1.5 py-0.5 rounded transition ${posLayout === 'compact_dock' ? 'bg-blue-600 text-white shadow-2xs font-black' : 'text-slate-600 hover:text-blue-900'}`}
               >
                 📱 Side
               </button>
@@ -1307,48 +1363,70 @@ function POS() {
             )}
             <button
               onClick={() => setShowQuickView(true)}
-              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200/80 rounded-lg text-[10px] font-black uppercase transition flex items-center gap-1"
+              className="px-2 py-1 bg-white hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-lg text-[10px] font-black uppercase transition flex items-center gap-1 shadow-2xs"
             >
               <span>🔍</span> Quick
             </button>
           </div>
         </div>
 
-        {/* Compact Single-Row Customer Selector */}
-        <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 p-1.5 rounded-xl border border-slate-200/60">
-          <select
-            value={customerId}
-            onChange={e => setCustomerId(e.target.value)}
-            className="flex-1 min-w-0 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
-          >
-            <option value="">👤 Walk-in Customer</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.outstanding_balance > 0 ? `(Rs.${c.outstanding_balance} credit)` : ''}
-              </option>
-            ))}
-          </select>
+        {/* Compact Customer Selector with Real-Time Credit Badge */}
+        <div className="flex flex-col gap-1 shrink-0 bg-white/95 p-1.5 rounded-xl border border-blue-200/90 shadow-2xs">
+          <div className="flex items-center gap-1.5">
+            <select
+              value={customerId}
+              onChange={e => setCustomerId(e.target.value)}
+              className="flex-1 min-w-0 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
+            >
+              <option value="">👤 Walk-in Customer</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.outstanding_balance > 0 ? `(Rs.${c.outstanding_balance} credit)` : ''}
+                </option>
+              ))}
+            </select>
 
-          {!customerId && (
-            <>
-              <input
-                type="text"
-                placeholder="Walk-in Name"
-                value={walkInName}
-                onChange={e => setWalkInName(e.target.value)}
-                className="w-28 sm:w-32 px-2 py-1.5 border border-blue-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white placeholder:text-gray-400"
-              />
-              {walkInName.trim() && (
-                <button
-                  onClick={() => { setSaveCustomerForm({ name: walkInName, mobile: '' }); setShowSaveCustomer(true) }}
-                  title="Save customer permanently"
-                  className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shrink-0 shadow-xs"
-                >
-                  + Save
-                </button>
-              )}
-            </>
-          )}
+            {!customerId && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Walk-in Name"
+                  value={walkInName}
+                  onChange={e => setWalkInName(e.target.value)}
+                  className="w-28 sm:w-32 px-2 py-1.5 border border-blue-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white placeholder:text-gray-400"
+                />
+                {walkInName.trim() && (
+                  <button
+                    onClick={() => { setSaveCustomerForm({ name: walkInName, mobile: '' }); setShowSaveCustomer(true) }}
+                    title="Save customer permanently"
+                    className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shrink-0 shadow-xs"
+                  >
+                    + Save
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Real-time Customer Credit / Balance Summary Badge */}
+          {customerId && (() => {
+            const selectedCust = customers.find(c => String(c.id) === String(customerId))
+            if (!selectedCust) return null
+            const bal = Number(selectedCust.outstanding_balance || 0)
+            return (
+              <div className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-bold border transition ${
+                bal > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                <span className="flex items-center gap-1 font-semibold truncate max-w-[200px]">
+                  <span>👤 {selectedCust.name}</span>
+                  {selectedCust.phone && <span className="text-[10px] text-slate-500">({selectedCust.phone})</span>}
+                </span>
+                <span className="font-mono font-black shrink-0">
+                  {bal > 0 ? `🔴 Udhaar: Rs. ${bal.toLocaleString()}` : `🟢 Previous Due: Clean`}
+                </span>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Cart Items — Expanded High-Density Scrollable View */}
@@ -1364,7 +1442,7 @@ function POS() {
             const itemProfit = (item.custom_price - (item.cost_price || 0)) * item.qty
             const isAdminOrManager = (user.role === 'admin' || user.role === 'manager' || user.role === 'accountant')
             return (
-              <div key={item.id} className="group bg-slate-50 hover:bg-blue-50/50 border border-slate-200/60 rounded-lg px-2 py-1 transition duration-150 shadow-2xs">
+              <div key={item.id} className="group bg-white hover:bg-blue-50/40 border border-blue-100 hover:border-blue-300 rounded-lg px-2 py-1 transition duration-150 shadow-2xs">
                 <div className="flex items-center justify-between gap-1.5">
                   {/* Left: Product Name, Brand & Unit Price edit */}
                   <div className="flex-1 min-w-0">
@@ -1438,14 +1516,14 @@ function POS() {
 
         {/* 1. BOTTOM DOCK MODE: Slim Cart Footer (checkout controls sit in Global Bottom Dock) */}
         {posLayout === 'bottom_dock' && (
-          <div className="shrink-0 pt-1.5 border-t border-gray-100 flex items-center justify-between text-xs bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/60">
+          <div className="shrink-0 pt-1.5 border-t border-blue-200/70 flex items-center justify-between text-xs bg-white/90 px-3 py-1.5 rounded-xl border border-blue-200/80 shadow-2xs">
             <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-              <span>🛒 {cart.length} items in cart</span>
+              <span>🛒 {cart.length} items</span>
               <span className="text-slate-400">·</span>
               <span className="text-slate-900 font-black">Subtotal: Rs. {subtotal.toFixed(0)}</span>
             </div>
-            <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
-              Terminal Active ↓
+            <span className="text-[10px] font-black uppercase text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-300/60">
+              Terminal Below ↓
             </span>
           </div>
         )}
@@ -1924,208 +2002,230 @@ function POS() {
 
       {/* 4. GLOBAL BOTTOM DOCK (renders across bottom when posLayout === 'bottom_dock') */}
       {posLayout === 'bottom_dock' && (
-        <div className="shrink-0 bg-slate-900 border-t-4 border-blue-500 shadow-[0_-12px_30px_rgba(15,23,42,0.4)] px-4 py-2.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2.5 z-40 relative text-white">
-          {/* Col 1: Totals & Discount */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="bg-slate-800/95 border border-slate-700/80 rounded-xl px-3.5 py-1.5 shadow-inner">
-              <div className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Net Payable</div>
-              <div className="text-2xl font-black text-emerald-400 leading-tight tracking-tight">Rs. {total.toFixed(0)}</div>
-              <div className="text-[10px] text-slate-400 font-medium">Subtotal: Rs. {subtotal.toFixed(0)}</div>
-            </div>
+        <div className="shrink-0 bg-slate-100/95 border-t-[3px] border-slate-300 shadow-[0_-8px_20px_rgba(0,0,0,0.06)] px-4 py-2 z-30 relative text-slate-800">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {/* LEFT / CENTER: Remaining Area of the Dock (Tender, Notes, Methods, Hold/Clear) */}
+            <div className="flex-1 min-w-0 flex flex-wrap items-center justify-between gap-2.5">
+              {/* Tendered Input & Smart Quick Notes */}
+              {saleType === 'sale' && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs shrink-0">
+                    <span className="text-xs font-bold text-slate-600 shrink-0 whitespace-nowrap">💵 Tendered:</span>
+                    <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg px-2 py-0.5 shrink-0 focus-within:border-blue-500 focus-within:bg-white transition">
+                      <span className="text-xs font-bold text-slate-400 mr-1 shrink-0">Rs.</span>
+                      <input
+                        type="number"
+                        value={receivedAmount}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setReceivedAmount(val);
+                          if (val !== '' && Number(val) < total) setPaymentType('partial');
+                          else if (val !== '' && Number(val) >= total) setPaymentType('cash');
+                        }}
+                        placeholder={total.toFixed(0)}
+                        className="w-20 font-black text-xs text-blue-900 bg-transparent text-right outline-none font-mono"
+                      />
+                    </div>
 
-            {hasFeature('discount') && (
-              <div className="flex items-center gap-1.5 bg-slate-800/95 p-1.5 rounded-xl border border-slate-700/80 text-xs">
-                <span className="text-[10px] font-bold text-slate-300">Disc:</span>
-                <button
-                  type="button"
-                  onClick={() => setDiscountMode(m => m === 'percent' ? 'fixed' : 'percent')}
-                  className="px-1.5 py-0.5 rounded text-[10px] font-black bg-blue-600 hover:bg-blue-500 text-white transition shadow-xs"
-                >
-                  {discountMode === 'percent' ? '%' : 'Rs'}
-                </button>
-                {discountMode === 'percent' ? (
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    max="100"
-                    value={discountPercent}
-                    onChange={e => handlePercentDiscountChange(e.target.value)}
-                    placeholder="0%"
-                    className="w-12 px-1.5 py-1 border border-slate-600 rounded-lg text-center text-xs font-black text-emerald-300 bg-slate-950 outline-none focus:border-blue-400"
-                  />
-                ) : (
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={discount}
-                    onChange={e => handleFixedDiscountChange(e.target.value)}
-                    placeholder="Rs"
-                    className="w-16 px-1.5 py-1 border border-slate-600 rounded-lg text-center text-xs font-black text-emerald-300 bg-slate-950 outline-none focus:border-blue-400"
-                  />
-                )}
-              </div>
-            )}
-          </div>
+                    {/* Quick exact & smart round note buttons */}
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
+                      className="px-2.5 py-1 text-xs font-black rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-2xs shrink-0 active:scale-95"
+                    >
+                      Exact
+                    </button>
+                    {(() => {
+                      if (total <= 0) return null;
+                      const next100 = Math.ceil(total / 100) * 100;
+                      const next500 = Math.ceil(total / 500) * 500;
+                      const next1000 = Math.ceil(total / 1000) * 1000;
+                      const next5000 = Math.ceil(total / 5000) * 5000;
+                      const candidates = [next100, next500, next1000, next5000, 1000, 5000];
+                      const notes = candidates
+                        .filter((v, i, arr) => v > total && arr.indexOf(v) === i)
+                        .sort((a, b) => a - b)
+                        .slice(0, 2);
 
-          {/* Col 2: Tendered Input & Quick Notes */}
-          {saleType === 'sale' && (
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-              <div className="flex items-center gap-1.5 bg-slate-800/95 px-3 py-1.5 rounded-xl border border-slate-700/80 shrink-0">
-                <span className="text-xs font-bold text-slate-300">💵 Tendered:</span>
-                <div className="flex items-center bg-slate-950 border border-slate-600 rounded-lg px-2 py-0.5">
-                  <span className="text-xs font-bold text-slate-400 mr-1">Rs.</span>
-                  <input
-                    type="number"
-                    value={receivedAmount}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setReceivedAmount(val);
-                      if (val !== '' && Number(val) < total) setPaymentType('partial');
-                      else if (val !== '' && Number(val) >= total) setPaymentType('cash');
-                    }}
-                    placeholder={total.toFixed(0)}
-                    className="w-20 font-black text-sm text-emerald-300 bg-transparent text-right outline-none font-mono"
-                  />
-                </div>
-              </div>
+                      return notes.map(note => (
+                        <button
+                          key={note}
+                          type="button"
+                          onClick={() => { setPaymentType('cash'); setReceivedAmount(note.toString()) }}
+                          className="px-2 py-1 text-xs font-bold rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 transition shrink-0 active:scale-95 whitespace-nowrap shadow-2xs"
+                        >
+                          Rs.{note}
+                        </button>
+                      ));
+                    })()}
+                  </div>
 
-              {/* Quick cash notes */}
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                  className="px-2.5 py-1.5 text-xs font-black rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm active:scale-95"
-                >
-                  Exact
-                </button>
-                {[500, 1000, 5000].map(note => (
-                  <button
-                    key={note}
-                    type="button"
-                    onClick={() => { setPaymentType('cash'); setReceivedAmount(note.toString()) }}
-                    className="px-2.5 py-1.5 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 hover:border-slate-500 transition shadow-2xs active:scale-95"
-                  >
-                    Rs.{note}
-                  </button>
-                ))}
-              </div>
-
-              {/* Live Change Due / Balance Indicator */}
-              {receivedAmount !== '' && Number(receivedAmount) > total && (
-                <div className="bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-black shrink-0 shadow-md flex items-center gap-1 animate-pulse">
-                  <span>🟢 Change:</span>
-                  <span className="font-mono text-sm">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
+                  {/* Live Change Due / Balance Indicator */}
+                  {receivedAmount !== '' && Number(receivedAmount) > total && (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 shadow-2xs">
+                      <span>🟢 Change:</span>
+                      <span className="font-mono font-black text-emerald-700 text-sm">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
+                    </div>
+                  )}
+                  {receivedAmount !== '' && Number(receivedAmount) < total && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 shadow-2xs">
+                      <span>🟠 Balance:</span>
+                      <span className="font-mono font-black text-amber-700 text-sm">Rs. {(total - Number(receivedAmount)).toFixed(0)}</span>
+                    </div>
+                  )}
                 </div>
               )}
-              {receivedAmount !== '' && Number(receivedAmount) < total && (
-                <div className="bg-amber-500 text-white px-3 py-1.5 rounded-xl text-xs font-black shrink-0 shadow-md flex items-center gap-1">
-                  <span>🟠 Balance:</span>
-                  <span className="font-mono text-sm">Rs. {(total - Number(receivedAmount)).toFixed(0)}</span>
+
+              {/* Payment Method Tabs & Online Details */}
+              {saleType === 'sale' && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200/90 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'cash' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                      💵 Cash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentType('online'); setReceivedAmount(total.toString()) }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'online' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                      📱 Online
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentType('credit'); setReceivedAmount('0') }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'credit' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                      📒 Credit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentType('split'); setShowPaymentModal(true); if (payments.length === 0) setPayments([{ method: 'cash', amount: total }]) }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'split' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                      🔀 Split
+                    </button>
+                  </div>
+
+                  {paymentType === 'online' && (
+                    <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-blue-200 shadow-2xs">
+                      <select
+                        value={onlineProvider}
+                        onChange={e => setOnlineProvider(e.target.value)}
+                        className="text-xs font-semibold px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 outline-none focus:border-blue-500"
+                      >
+                        <optgroup label="Wallets">
+                          <option value="jazzcash">JazzCash</option>
+                          <option value="easypaisa">Easypaisa</option>
+                          <option value="sadapay">SadaPay</option>
+                          <option value="nayapay">NayaPay</option>
+                        </optgroup>
+                        <optgroup label="Banks">
+                          <option value="meezan">Meezan Bank</option>
+                          <option value="hbl">HBL</option>
+                          <option value="ubl">UBL</option>
+                          <option value="mcb">MCB</option>
+                          <option value="abl">ABL</option>
+                          <option value="alfalah">Bank Alfalah</option>
+                          <option value="other_bank">Other Bank</option>
+                        </optgroup>
+                      </select>
+                      <input
+                        type="text"
+                        value={transactionRef}
+                        onChange={e => setTransactionRef(e.target.value)}
+                        placeholder="TID/Ref"
+                        className="w-24 text-xs px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 outline-none placeholder:text-slate-400 font-mono focus:border-blue-500"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Col 3: Payment Method Tabs & Online Details */}
-          {saleType === 'sale' && (
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+              {/* Hold & Clear Buttons */}
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
-                  type="button"
-                  onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'cash' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                  onClick={handleHoldBill}
+                  disabled={cart.length === 0}
+                  title="Hold this cart"
+                  className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold transition disabled:opacity-40 flex items-center gap-1 shadow-2xs active:scale-95"
                 >
-                  💵 Cash
+                  ⏸️ Hold
                 </button>
                 <button
-                  type="button"
-                  onClick={() => { setPaymentType('online'); setReceivedAmount(total.toString()) }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'online' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                  onClick={clearCart}
+                  disabled={cart.length === 0}
+                  title="Clear cart"
+                  className="px-3 py-2 bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200 hover:border-red-200 rounded-xl text-xs font-bold transition disabled:opacity-40 flex items-center gap-1 shadow-2xs active:scale-95"
                 >
-                  📱 Online
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setPaymentType('credit'); setReceivedAmount('0') }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'credit' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                >
-                  📒 Credit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setPaymentType('split'); setShowPaymentModal(true); if (payments.length === 0) setPayments([{ method: 'cash', amount: total }]) }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'split' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                >
-                  🔀 Split
+                  🗑️ Clear
                 </button>
               </div>
-
-              {paymentType === 'online' && (
-                <div className="flex items-center gap-1.5 bg-slate-800/95 p-1.5 rounded-xl border border-slate-700">
-                  <select
-                    value={onlineProvider}
-                    onChange={e => setOnlineProvider(e.target.value)}
-                    className="text-xs font-bold px-2 py-1 bg-slate-950 border border-slate-600 rounded-lg text-white outline-none focus:border-blue-400"
-                  >
-                    <optgroup label="Wallets" className="bg-slate-900 text-white">
-                      <option value="jazzcash">JazzCash</option>
-                      <option value="easypaisa">Easypaisa</option>
-                      <option value="sadapay">SadaPay</option>
-                      <option value="nayapay">NayaPay</option>
-                    </optgroup>
-                    <optgroup label="Banks" className="bg-slate-900 text-white">
-                      <option value="meezan">Meezan Bank</option>
-                      <option value="hbl">HBL</option>
-                      <option value="ubl">UBL</option>
-                      <option value="mcb">MCB</option>
-                      <option value="abl">ABL</option>
-                      <option value="alfalah">Bank Alfalah</option>
-                      <option value="other_bank">Other Bank</option>
-                    </optgroup>
-                  </select>
-                  <input
-                    type="text"
-                    value={transactionRef}
-                    onChange={e => setTransactionRef(e.target.value)}
-                    placeholder="TID/Ref"
-                    className="w-24 text-xs px-2 py-1 bg-slate-950 border border-slate-600 rounded-lg text-white outline-none placeholder:text-slate-500 font-mono focus:border-blue-400"
-                  />
-                </div>
-              )}
             </div>
-          )}
 
-          {/* Col 4: Action Buttons */}
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleHoldBill}
-              disabled={cart.length === 0}
-              title="Hold this cart"
-              className="px-3.5 py-2.5 bg-slate-800 hover:bg-amber-600 text-amber-300 hover:text-white border border-slate-700 hover:border-amber-500 rounded-xl text-xs font-bold transition disabled:opacity-40 flex items-center gap-1 shadow-sm active:scale-95"
-            >
-              ⏸️ Hold
-            </button>
-            <button
-              onClick={clearCart}
-              disabled={cart.length === 0}
-              title="Clear cart"
-              className="px-3.5 py-2.5 bg-slate-800 hover:bg-red-600 text-red-300 hover:text-white border border-slate-700 hover:border-red-500 rounded-xl text-xs font-bold transition disabled:opacity-40 flex items-center gap-1 shadow-sm active:scale-95"
-            >
-              🗑️ Clear
-            </button>
-            <button
-              onClick={handleCompleteSale}
-              disabled={saving || cart.length === 0}
-              className={`px-6 py-2.5 text-white text-sm font-black rounded-xl transition duration-150 shadow-xl active:scale-[0.98] disabled:opacity-40 flex items-center gap-2 ${
-                saleType === 'quotation'
-                  ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-950/60'
-                  : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 shadow-emerald-950/60'
-              }`}
-            >
-              {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Print Quote' : '✅ Complete Sale'}
-            </button>
+            {/* RIGHT: Aligned Below the Cart Sidebar (Totals & Discount + Complete Sale) */}
+            <div className="w-full md:w-96 lg:w-[410px] xl:w-[430px] shrink-0 flex items-center justify-between gap-2.5 md:pl-3 md:border-l-2 md:border-slate-300/80">
+              {/* Totals & Discount Card */}
+              <div className="bg-white border border-blue-200/90 rounded-xl px-3 py-1.5 shadow-2xs flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider leading-none">Net Payable</span>
+                  {hasFeature('discount') && (
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <span className="font-bold text-slate-500">Disc:</span>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountMode(m => m === 'percent' ? 'fixed' : 'percent')}
+                        className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-600 hover:bg-blue-700 text-white transition shadow-2xs"
+                      >
+                        {discountMode === 'percent' ? '%' : 'Rs'}
+                      </button>
+                      {discountMode === 'percent' ? (
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          max="100"
+                          value={discountPercent}
+                          onChange={e => handlePercentDiscountChange(e.target.value)}
+                          placeholder="0%"
+                          className="w-11 px-1 py-0.2 border border-slate-300 rounded text-center text-xs font-black text-blue-700 bg-slate-50 outline-none focus:border-blue-500 focus:bg-white"
+                        />
+                      ) : (
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={discount}
+                          onChange={e => handleFixedDiscountChange(e.target.value)}
+                          placeholder="0"
+                          className="w-14 px-1 py-0.2 border border-slate-300 rounded text-center text-xs font-black text-blue-700 bg-slate-50 outline-none focus:border-blue-500 focus:bg-white"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-baseline justify-between gap-1 mt-0.5">
+                  <div className="text-xl font-black text-slate-900 leading-tight tracking-tight">Rs. {total.toFixed(0)}</div>
+                  <div className="text-[10px] text-slate-500 font-medium">Subtotal: Rs. {subtotal.toFixed(0)}</div>
+                </div>
+              </div>
+
+              {/* Complete Sale Primary Action */}
+              <button
+                onClick={handleCompleteSale}
+                disabled={saving || cart.length === 0}
+                className={`px-4 py-2.5 text-white text-sm font-black rounded-xl transition shadow-md active:scale-95 disabled:opacity-40 flex items-center justify-center gap-1.5 shrink-0 ${
+                  saleType === 'quotation'
+                    ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200'
+                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-blue-200'
+                }`}
+              >
+                {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Quote' : '✅ Complete Sale'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2516,6 +2616,17 @@ function POS() {
               {form.logo_url && (
                 <div className="mt-2 flex justify-center">
                   <img src={form.logo_url} alt="Logo Preview" className="h-10 object-contain opacity-50 sepia-[.5]" />
+                </div>
+              )}
+              {lastReceipt.changeDue > 0 && (
+                <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-2xl p-3.5 text-center shadow-xl my-3 border-2 border-emerald-300 transform transition">
+                  <p className="text-[11px] uppercase font-black tracking-widest text-emerald-100">🟢 WAPIS KAREIN (CHANGE DUE)</p>
+                  <p className="text-3xl font-black font-mono mt-1 tracking-tight">Rs. {lastReceipt.changeDue.toFixed(0)}</p>
+                  <div className="flex justify-center gap-3 text-[10px] text-emerald-100 mt-1 font-semibold pt-1 border-t border-emerald-500/50">
+                    <span>Paid: Rs. {lastReceipt.receivedAmount}</span>
+                    <span>•</span>
+                    <span>Total: Rs. {lastReceipt.total.toFixed(0)}</span>
+                  </div>
                 </div>
               )}
             </div>
