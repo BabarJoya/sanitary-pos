@@ -8,6 +8,7 @@ import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { hasFeature } from '../utils/featureGate'
+import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 
 function Products() {
   const [products, setProducts] = useState([])
@@ -19,6 +20,7 @@ function Products() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
   const { user } = useAuth()
+  const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const fileInputRef = useRef(null)
   const [selected, setSelected] = useState([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -200,6 +202,7 @@ function Products() {
         'Stock Qty': p.stock_quantity,
         'Cost Price': p.cost_price,
         'Sale Price': p.sale_price,
+        ...(wholesaleEnabled ? { 'Wholesale Price': p.wholesale_price || 0 } : {}),
         'C.Rate': p.c_rate || 0,
         'Min Thresh': p.low_stock_threshold,
         'Status': p.status
@@ -250,6 +253,7 @@ function Products() {
           cost_price: parseFloat(row['Cost Price'] || row['cost'] || 0),
           sale_price: parseFloat(row['Sale Price'] || row['sale'] || 0),
           c_rate: parseFloat(row['C.Rate'] || 0),
+          wholesale_price: parseFloat(row['Wholesale Price'] || row['wholesale'] || 0) || 0,
           low_stock_threshold: parseFloat(row['Min Thresh'] || 10),
           status: row['Status'] || 'active'
         })
@@ -382,6 +386,7 @@ function Products() {
         cost_price: r.cost_price,
         sale_price: r.sale_price,
         c_rate: r.c_rate,
+        ...(wholesaleEnabled ? { wholesale_price: r.wholesale_price || 0 } : {}),
         low_stock_threshold: r.low_stock_threshold,
         status: r.status
       })
@@ -420,6 +425,7 @@ function Products() {
       cost_price: parseFloat(inlineForm.cost_price) || 0,
       sale_price: parseFloat(inlineForm.sale_price) || 0,
       c_rate: parseFloat(inlineForm.c_rate) || 0,
+      ...(wholesaleEnabled ? { wholesale_price: parseFloat(inlineForm.wholesale_price) || 0 } : {}),
       status: inlineForm.status || 'active'
     }
     try {
@@ -730,8 +736,11 @@ function Products() {
                       <p className={`font-black ${isLow ? 'text-red-600' : 'text-green-600'}`}>{product.stock_quantity}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold uppercase text-gray-400">Sale</p>
+                      <p className="text-[10px] font-bold uppercase text-gray-400">{wholesaleEnabled ? 'Retail' : 'Sale'}</p>
                       <p className="font-black text-gray-900">Rs. {product.sale_price}</p>
+                      {wholesaleEnabled && (
+                        <p className="text-[11px] font-bold text-amber-700">W: Rs. {Number(product.wholesale_price) > 0 ? product.wholesale_price : '—'}</p>
+                      )}
                     </div>
                     {(user.role === 'admin' || user.role === 'manager') && (
                       <div>
@@ -819,7 +828,13 @@ function Products() {
                     </td>
                     <td className="px-3 py-2">
                       <input type="number" value={inlineForm.sale_price || ''} onChange={e => setInlineForm(f => ({ ...f, sale_price: e.target.value }))}
+                        aria-label={wholesaleEnabled ? 'Retail price' : 'Sale price'}
                         className="w-20 text-sm border rounded px-2 py-1 outline-none" />
+                      {wholesaleEnabled && (
+                        <input type="number" value={inlineForm.wholesale_price || ''} onChange={e => setInlineForm(f => ({ ...f, wholesale_price: e.target.value }))}
+                          aria-label="Wholesale price" placeholder="W.Price"
+                          className="mt-1 w-20 text-sm border border-amber-300 rounded px-2 py-1 outline-none" />
+                      )}
                     </td>
                     {(user.role === 'admin' || user.role === 'manager') && <td className="px-3 py-2"></td>}
                     <td className="px-3 py-2">
@@ -877,7 +892,12 @@ function Products() {
                   </td>
                   <td className="px-6 py-4 font-mono text-xs text-gray-400">{product.sku || <span className="italic">—</span>}</td>
                   <td className="px-6 py-4 text-gray-500">Rs. {product.cost_price}</td>
-                  <td className="px-6 py-4 text-gray-500">Rs. {product.sale_price}</td>
+                  <td className="px-6 py-4 text-gray-500">
+                    Rs. {product.sale_price}
+                    {wholesaleEnabled && (
+                      <div className="text-[11px] font-bold text-amber-700">W: {Number(product.wholesale_price) > 0 ? `Rs. ${product.wholesale_price}` : '—'}</div>
+                    )}
+                  </td>
                   {(user.role === 'admin' || user.role === 'manager') && (() => {
                     const cost = Number(product.cost_price || 0)
                     const sale = Number(product.sale_price || 0)

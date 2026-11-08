@@ -8,7 +8,7 @@ import { buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
-import { getPricingConfig } from '../utils/businessPresets'
+import { getPricingConfig, getShopSettings, isWholesaleEnabled, getUnitPrice, normalizeTier } from '../utils/businessPresets'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
   { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
@@ -35,7 +35,9 @@ const getCategoryColor = (catName = '') => {
 
 function POS() {
   const { user } = useAuth()
-  const pricingConfig = getPricingConfig(user?.shop_id)
+  const shopSettings = getShopSettings(user?.shop_id)
+  const pricingConfig = getPricingConfig(shopSettings)
+  const wholesaleEnabled = isWholesaleEnabled(shopSettings)
   const [searchParams] = useSearchParams()
 
   const [products, setProducts] = useState([])
@@ -51,6 +53,20 @@ function POS() {
   const [selectedBrand, setSelectedBrand] = useState('')
 
   const [cart, setCart] = useState([])
+
+  // ── Price tier (Retail / Wholesale) ──────────────────────────
+  // baseTier = cashier's chosen default (persisted per shop); priceTier = tier for the current bill
+  // (a wholesale customer can switch it for one bill; clearing the cart returns to baseTier).
+  const tierKey = `pos_price_tier_${user?.shop_id}`
+  const [baseTier, setBaseTier] = useState(() => {
+    if (!wholesaleEnabled) return 'retail'
+    try { return normalizeTier(localStorage.getItem(tierKey)) } catch { return 'retail' }
+  })
+  const [priceTier, setPriceTier] = useState(baseTier)
+  const [tierNotice, setTierNotice] = useState('')
+  const activeTier = wholesaleEnabled ? priceTier : 'retail'
+  const isWholesale = activeTier === 'wholesale'
+  const tierPrice = (product) => getUnitPrice(product, activeTier).price
   const [customerId, setCustomerId] = useState('')
   const [walkInName, setWalkInName] = useState('')
   const [paymentType, setPaymentType] = useState('cash')
@@ -305,9 +321,11 @@ function POS() {
           name: si.product_name,
           qty: si.quantity,
           custom_price: si.unit_price,
-          cost_price: si.cost_price
+          cost_price: si.cost_price,
+          price_overridden: true
         }
       })
+      if (wholesaleEnabled) setPriceTier(normalizeTier(sale.price_tier))
       setCart(items)
       setCustomerId(sale.customer_id || '')
       setWalkInName(sale.customer_name || '')
@@ -487,14 +505,17 @@ function POS() {
     }
   }, [selectedBrand])
 
-  // Counter Keyboard Shortcuts (F2: search, F4: tender, F9 / Ctrl+Enter: complete sale, Esc: clear/dismiss)
+  // Counter Keyboard Shortcuts (F2: search, F4: tender, F8: retail/wholesale, F9 / Ctrl+Enter: complete sale, Esc: clear/dismiss)
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Don't intercept when typing in active text inputs except for function keys & Ctrl+Enter
       const activeEl = document.activeElement
       const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')
 
-      if (e.key === 'F2') {
+      if (e.key === 'F8') {
+        e.preventDefault()
+        if (wholesaleEnabled) applyTier(isWholesale ? 'retail' : 'wholesale', { manual: true })
+      } else if (e.key === 'F2') {
         e.preventDefault()
         searchInputRef.current?.focus()
         searchInputRef.current?.select()
@@ -528,7 +549,7 @@ function POS() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [total, cart, saving, showTenderSheet, showPaymentModal, showQuickView, showBrandDiscount, showSaveCustomer, showQuotationSearch, showHeldCarts, lastReceipt, search, receivedAmount])
+  }, [total, cart, saving, showTenderSheet, showPaymentModal, showQuickView, showBrandDiscount, showSaveCustomer, showQuotationSearch, showHeldCarts, lastReceipt, search, receivedAmount, wholesaleEnabled, isWholesale, priceTier, products])
 
   const categoryNameMap = categories.reduce((acc, c) => {
     acc[String(c.id)] = c.name
@@ -565,7 +586,8 @@ function POS() {
         return prev.map(i => i.id === product.id ? { ...i, qty: newQty } : i)
       }
       const clampedQty = Math.min(addQty, product.stock_quantity)
-      return [{ ...product, qty: clampedQty, custom_price: product.sale_price }, ...prev]
+      const { price, fallback } = getUnitPrice(product, activeTier)
+      return [{ ...product, qty: clampedQty, custom_price: price, price_fallback: fallback, price_overridden: false }, ...prev]
     })
   }
 
@@ -580,7 +602,37 @@ function POS() {
   const updatePrice = (id, price) => {
     const num = parseFloat(price)
     if (isNaN(num) || num < 0) return
-    setCart(prev => prev.map(i => i.id === id ? { ...i, custom_price: num } : i))
+    setCart(prev => prev.map(i => i.id === id ? { ...i, custom_price: num, price_overridden: true } : i))
+  }
+
+  // Switch the bill between Retail and Wholesale. Lines whose price was edited by hand
+  // (or set by a brand discount / loaded quotation) keep their price.
+  const applyTier = (newTier, { manual = false } = {}) => {
+    if (!wholesaleEnabled) return
+    const tier = normalizeTier(newTier)
+    if (manual) {
+      setBaseTier(tier)
+      try { localStorage.setItem(tierKey, tier) } catch { /* storage unavailable */ }
+    }
+    if (tier === priceTier) return
+    setPriceTier(tier)
+    const kept = cart.filter(i => i.price_overridden).length
+    setCart(prev => prev.map(i => {
+      if (i.price_overridden) return i
+      const source = products.find(p => p.id === i.id) || i
+      const { price, fallback } = getUnitPrice(source, tier)
+      return { ...i, custom_price: price, price_fallback: fallback }
+    }))
+    const label = tier === 'wholesale' ? 'Wholesale' : 'Retail'
+    setTierNotice(kept > 0 ? `${label} prices applied · ${kept} manually priced item(s) kept` : `${label} prices applied`)
+    setTimeout(() => setTierNotice(''), 3000)
+  }
+
+  const handleCustomerChange = (id) => {
+    setCustomerId(id)
+    if (!wholesaleEnabled || !id) return
+    const c = customers.find(c => String(c.id) === String(id))
+    if (c?.price_tier === 'wholesale') applyTier('wholesale')
   }
 
   const handleFixedDiscountChange = (val) => {
@@ -608,6 +660,7 @@ function POS() {
 
   const clearCart = () => {
     setCart([]); setCustomerId(''); setWalkInName(''); setPaymentType('cash'); setReceivedAmount(''); setPayments([]); setDiscount(0); setDiscountPercent(''); setDiscountMode('fixed')
+    setPriceTier(baseTier)
   }
 
   const handleSaveCustomer = async () => {
@@ -661,6 +714,7 @@ function POS() {
       customer_name: customerId ? null : walkInName,
       items: cart,
       total,
+      price_tier: activeTier,
       saved_at: new Date().toISOString()
     }
 
@@ -679,6 +733,7 @@ function POS() {
       if (!confirm('Current cart replace ho jayegi. Continue?')) return
     }
     setCart(held.items)
+    if (wholesaleEnabled) setPriceTier(normalizeTier(held.price_tier))
     setCustomerId(held.customer_id || '')
     setWalkInName(held.customer_name || '')
     db.held_carts.delete(held.id).then(fetchHeldCarts)
@@ -698,14 +753,14 @@ function POS() {
       const cRate = parseFloat(product.c_rate) || 0
       let discountedPrice
       if (brandDiscountType === 'percent' && cRate > 0) {
-        const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+        const currentPrice = isInCart ? isInCart.custom_price : tierPrice(product)
         const currentDiscPct = (1 - currentPrice / cRate) * 100
         discountedPrice = cRate * (1 - (currentDiscPct + val) / 100)
       } else if (brandDiscountType === 'percent') {
-        const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+        const currentPrice = isInCart ? isInCart.custom_price : tierPrice(product)
         discountedPrice = currentPrice - (currentPrice * val / 100)
       } else {
-        const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+        const currentPrice = isInCart ? isInCart.custom_price : tierPrice(product)
         discountedPrice = currentPrice - val
       }
       discountedPrice = Math.max(0, parseFloat(discountedPrice.toFixed(2)))
@@ -738,7 +793,7 @@ function POS() {
         if (brandDiscountType === 'percent' && cRate > 0) {
           // c_rate-based calculation:
           // 1. Find current discount% from c_rate that custom_price (or sale_price) represents
-          const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+          const currentPrice = isInCart ? isInCart.custom_price : tierPrice(product)
           const currentDiscPct = (1 - currentPrice / cRate) * 100
           // 2. Add the brand discount %
           const newDiscPct = currentDiscPct + val
@@ -746,20 +801,20 @@ function POS() {
           discountedPrice = cRate * (1 - newDiscPct / 100)
         } else if (brandDiscountType === 'percent') {
           // Fallback if c_rate is 0: apply % on sale_price
-          const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+          const currentPrice = isInCart ? isInCart.custom_price : tierPrice(product)
           discountedPrice = currentPrice - (currentPrice * val / 100)
         } else {
           // Fixed amount discount
-          const currentPrice = isInCart ? isInCart.custom_price : product.sale_price
+          const currentPrice = isInCart ? isInCart.custom_price : tierPrice(product)
           discountedPrice = currentPrice - val
         }
         discountedPrice = Math.max(0, parseFloat(discountedPrice.toFixed(2)))
 
         if (isInCart) {
-          updated = updated.map(i => i.id === product.id ? { ...i, custom_price: discountedPrice } : i)
+          updated = updated.map(i => i.id === product.id ? { ...i, custom_price: discountedPrice, price_overridden: true } : i)
         } else {
           // Only reached in 'add_all' mode
-          updated = [...updated, { ...product, qty: 1, custom_price: discountedPrice }]
+          updated = [...updated, { ...product, qty: 1, custom_price: discountedPrice, price_overridden: true }]
         }
       })
       return updated
@@ -812,7 +867,8 @@ function POS() {
       sale_type: saleType,
       status: 'completed',
       created_by: user.username,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      ...(wholesaleEnabled ? { price_tier: activeTier } : {})
     }
 
     // Include payment_details for split or online/ref metadata
@@ -842,6 +898,7 @@ function POS() {
         const fallbackSaleData = { ...saleData }
         delete fallbackSaleData.online_provider
         delete fallbackSaleData.transaction_ref
+        delete fallbackSaleData.price_tier
         const retryRes = await supabase.from('sales').insert([fallbackSaleData]).select().single()
         sale = retryRes.data
         saleError = retryRes.error
@@ -999,9 +1056,11 @@ function POS() {
           name: si.product_name,
           qty: si.quantity,
           custom_price: si.unit_price,
-          cost_price: si.cost_price
+          cost_price: si.cost_price,
+          price_overridden: true
         }
       })
+      if (wholesaleEnabled) setPriceTier(normalizeTier(sale.price_tier))
 
       setCart(items)
       setCustomerId(sale.customer_id || '')
@@ -1215,8 +1274,9 @@ function POS() {
 
                 {/* Row 2: Separate Price Line & Category / Brand / Stock Status Badges */}
                 <div className="flex items-center justify-between gap-1 mb-1.5 pt-1 border-t border-gray-100/70">
-                  <span className="font-black text-sm sm:text-base text-blue-600 tracking-tight">
-                    Rs. {Number(p.sale_price).toLocaleString()}
+                  <span className={`font-black text-sm sm:text-base tracking-tight ${isWholesale ? 'text-amber-600' : 'text-blue-600'}`}>
+                    Rs. {Number(tierPrice(p)).toLocaleString()}
+                    {isWholesale && getUnitPrice(p, 'wholesale').fallback && <span className="ml-1 text-[9px] font-bold text-amber-700 align-middle">(R)</span>}
                   </span>
 
                   <div className="flex items-center gap-1 shrink-0">
@@ -1370,18 +1430,49 @@ function POS() {
           </div>
         </div>
 
+        {/* Retail ⇄ Wholesale one-click switch (F8) */}
+        {wholesaleEnabled && (
+          <div className={`shrink-0 rounded-xl border p-1.5 ${isWholesale ? 'bg-amber-50 border-amber-300' : 'bg-white/95 border-blue-200/90'}`}>
+            <div className="flex items-center gap-2">
+              <div role="group" aria-label="Price tier" className="flex flex-1 rounded-lg bg-slate-100 p-0.5 text-xs font-black">
+                <button
+                  type="button"
+                  aria-pressed={!isWholesale}
+                  onClick={() => applyTier('retail', { manual: true })}
+                  className={`flex-1 min-h-9 rounded-md px-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${!isWholesale ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-blue-900'}`}
+                >
+                  Retail
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={isWholesale}
+                  onClick={() => applyTier('wholesale', { manual: true })}
+                  className={`flex-1 min-h-9 rounded-md px-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${isWholesale ? 'bg-amber-500 text-white shadow-2xs' : 'text-slate-600 hover:text-amber-800'}`}
+                >
+                  Wholesale
+                </button>
+              </div>
+              <kbd className="hidden sm:inline text-[10px] font-bold text-slate-400 border border-slate-200 rounded px-1">F8</kbd>
+            </div>
+            {isWholesale && (
+              <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-amber-700">● Wholesale prices active</p>
+            )}
+            {tierNotice && <p role="status" className="mt-1 text-[10px] font-semibold text-slate-600">{tierNotice}</p>}
+          </div>
+        )}
+
         {/* Compact Customer Selector with Real-Time Credit Badge */}
         <div className="flex flex-col gap-1 shrink-0 bg-white/95 p-1.5 rounded-xl border border-blue-200/90 shadow-2xs">
           <div className="flex items-center gap-1.5">
             <select
               value={customerId}
-              onChange={e => setCustomerId(e.target.value)}
+              onChange={e => handleCustomerChange(e.target.value)}
               className="flex-1 min-w-0 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs truncate"
             >
               <option value="">👤 Walk-in Customer</option>
               {customers.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.name} {c.outstanding_balance > 0 ? `(Rs.${c.outstanding_balance} credit)` : ''}
+                  {c.name}{wholesaleEnabled && c.price_tier === 'wholesale' ? ' [W]' : ''} {c.outstanding_balance > 0 ? `(Rs.${c.outstanding_balance} credit)` : ''}
                 </option>
               ))}
             </select>
@@ -1463,6 +1554,9 @@ function POS() {
                         />
                       </div>
 
+                      {isWholesale && item.price_fallback && !item.price_overridden && (
+                        <span className="font-bold px-1 py-0.2 rounded bg-amber-100 text-amber-800" title="No wholesale price set — retail price used">No W.price</span>
+                      )}
                       {isAdminOrManager && itemProfit !== 0 && (
                         <span className={`font-bold px-1 py-0.2 rounded ${itemProfit < 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
                           {itemProfit < 0 ? '⚠️ -' : '+'}{Math.abs(itemProfit).toFixed(0)}
@@ -1982,7 +2076,7 @@ function POS() {
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-200'
                 }`}
               >
-                {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Print Quote' : '✅ Complete Sale'}
+                {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Print Quote' : (isWholesale ? '✅ Complete Wholesale' : '✅ Complete Sale')}
               </button>
               {saleType === 'quotation' && cart.length > 0 && (
                 <button
@@ -2229,7 +2323,7 @@ function POS() {
                     : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-blue-200'
                 }`}
               >
-                {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Quote' : '✅ Complete Sale'}
+                {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Quote' : (isWholesale ? '✅ Complete Wholesale' : '✅ Complete Sale')}
               </button>
             </div>
           </div>
@@ -2470,7 +2564,7 @@ function POS() {
                 disabled={saving || cart.length === 0}
                 className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm rounded-xl transition shadow-lg shadow-emerald-200 active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {saving ? 'Processing...' : `✅ Complete Sale (Rs. ${total.toFixed(0)})`}
+                {saving ? 'Processing...' : `✅ Complete ${isWholesale ? 'Wholesale ' : ''}Sale (Rs. ${total.toFixed(0)})`}
               </button>
             </div>
           </div>

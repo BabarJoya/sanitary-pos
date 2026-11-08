@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { hasFeature } from '../utils/featureGate'
+import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -7,6 +8,7 @@ import { db, addToSyncQueue } from '../services/db'
 
 function Purchases() {
   const { user } = useAuth()
+  const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const [products, setProducts] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [brands, setBrands] = useState([])
@@ -622,6 +624,12 @@ function Purchases() {
                   <p className="text-[10px] text-green-500 uppercase font-bold">Sale Price</p>
                   <p className="font-bold text-green-700 text-lg">Rs. {quickViewProduct.sale_price || 0}</p>
                 </div>
+                {wholesaleEnabled && (
+                  <div className="bg-amber-50 rounded-lg p-2 text-center sm:col-span-2">
+                    <p className="text-[10px] text-amber-600 uppercase font-bold">Wholesale Price</p>
+                    <p className="font-bold text-amber-700 text-lg">{Number(quickViewProduct.wholesale_price) > 0 ? `Rs. ${quickViewProduct.wholesale_price}` : '—'}</p>
+                  </div>
+                )}
               </div>
 
               {/* Purchase Price History */}

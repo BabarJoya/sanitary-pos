@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue } from '../services/db'
 import { recordAuditLog } from '../services/auditService'
-import { getShopPreset, getPricingConfig } from '../utils/businessPresets'
+import { getShopPreset, getPricingConfig, isWholesaleEnabled } from '../utils/businessPresets'
 
 function AddProduct() {
   const { user } = useAuth()
@@ -18,6 +18,8 @@ function AddProduct() {
   })()
   const preset = getShopPreset(shopSettings)
   const pricingConfig = getPricingConfig(shopSettings)
+  const wholesaleEnabled = isWholesaleEnabled(shopSettings)
+  const priceFieldCount = 2 + (pricingConfig.enabled ? 1 : 0) + (wholesaleEnabled ? 1 : 0)
 
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -36,6 +38,7 @@ function AddProduct() {
     unit_id: '',
     c_rate: '',
     cost_price: '',
+    wholesale_price: '',
     sale_price: '',
     stock_quantity: '',
     low_stock_threshold: '10',
@@ -214,6 +217,9 @@ function AddProduct() {
     // Ensure numeric fields are parsed correctly, treating empty strings as null/0 based on DB defaults
     if (productData.supplier_id === '') productData.supplier_id = null;
     if (productData.c_rate === '') productData.c_rate = 0;
+    // Only send wholesale_price when the shop uses Wholesale Mode (keeps un-migrated DBs working)
+    if (wholesaleEnabled) productData.wholesale_price = Number(productData.wholesale_price) || 0
+    else delete productData.wholesale_price
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
@@ -397,7 +403,7 @@ function AddProduct() {
           {/* Pricing */}
           <h2 className="font-semibold text-gray-700 border-b pb-2 pt-2">Pricing</h2>
 
-          <div className={`grid ${pricingConfig.enabled ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'} gap-4`}>
+          <div className={`grid gap-4 grid-cols-1 ${priceFieldCount === 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : priceFieldCount === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
             {pricingConfig.enabled && (
               <div>
                 <label className="block text-gray-700 font-medium mb-1">{pricingConfig.label}</label>
@@ -423,8 +429,21 @@ function AddProduct() {
                 placeholder="0"
               />
             </div>
+            {wholesaleEnabled && (
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Wholesale Price</label>
+                <input
+                  type="number"
+                  name="wholesale_price"
+                  value={form.wholesale_price}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="0 = use retail"
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Sale / Selling Price *</label>
+              <label className="block text-gray-700 font-medium mb-1">{wholesaleEnabled ? 'Retail Price *' : 'Sale / Selling Price *'}</label>
               <input
                 type="number"
                 name="sale_price"
@@ -446,6 +465,13 @@ function AddProduct() {
                   ({(((parseFloat(form.sale_price) - parseFloat(form.cost_price)) / parseFloat(form.cost_price)) * 100).toFixed(1)}%)
                 </span>
               </p>
+            </div>
+          )}
+          {wholesaleEnabled && form.cost_price && Number(form.wholesale_price) > 0 && (
+            <div className={`${Number(form.wholesale_price) < Number(form.cost_price) ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'} border rounded-lg p-3 font-medium`}>
+              {Number(form.wholesale_price) < Number(form.cost_price)
+                ? `⚠️ Wholesale price is below cost — loss of Rs. ${(Number(form.cost_price) - Number(form.wholesale_price)).toFixed(2)} per unit`
+                : `🏷️ Wholesale profit per unit: Rs. ${(Number(form.wholesale_price) - Number(form.cost_price)).toFixed(2)}`}
             </div>
           )}
 

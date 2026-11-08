@@ -7,9 +7,11 @@ import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
 import { buildBillHTML } from '../utils/billTemplates'
+import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 
 function Sales() {
   const { user } = useAuth()
+  const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const navigate = useNavigate()
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,6 +25,7 @@ function Sales() {
   const [filterType, setFilterType] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [paymentFilter, setPaymentFilter] = useState('all')
+  const [tierFilter, setTierFilter] = useState('all') // 'all' | 'retail' | 'wholesale'
   const [dateFilter, setDateFilter] = useState('')
   const [refundType, setRefundType] = useState('cash') // 'cash' or 'credit'
   const [selected, setSelected] = useState([])
@@ -333,7 +336,8 @@ function Sales() {
         created_at: sale.created_at,
         paid_amount: sale.amount_paid,
         created_by: sale.users?.username || 'Staff',
-        payment_type: sale.payment_type || sale.payment_method
+        payment_type: sale.payment_type || sale.payment_method,
+        price_tier: sale.price_tier
       },
       customer,
       walkInName: !customer ? (sale.customer_name || 'Walk-in') : null,
@@ -376,7 +380,9 @@ function Sales() {
       sPay === paymentFilter
     ) : true
     const matchDate = dateFilter ? s.created_at?.startsWith(dateFilter) : true
-    return matchSearch && matchType && matchPayment && matchDate
+    const sTier = s.price_tier === 'wholesale' ? 'wholesale' : 'retail'
+    const matchTier = wholesaleEnabled && tierFilter !== 'all' ? sTier === tierFilter : true
+    return matchSearch && matchType && matchPayment && matchDate && matchTier
   })
 
   const requestDelete = (ids) => {
@@ -485,6 +491,13 @@ function Sales() {
               <option value="credit">📒 Credit Only</option>
               <option value="split">🔀 Split Payment</option>
             </select>
+            {wholesaleEnabled && (
+              <select aria-label="Price tier" className="px-4 py-2 border rounded-lg outline-none flex-shrink-0 bg-white text-sm" value={tierFilter} onChange={e => setTierFilter(e.target.value)}>
+                <option value="all">Retail + Wholesale</option>
+                <option value="retail">Retail Only</option>
+                <option value="wholesale">Wholesale Only</option>
+              </select>
+            )}
             <input
               type="date"
               className="px-4 py-2 border rounded-lg outline-none w-[140px] flex-shrink-0"
@@ -526,6 +539,7 @@ function Sales() {
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                           {sale.sale_type === 'quotation' ? '📄 Quotation' : '🧾 Sale'}
                         </span>
+                        {sale.price_tier === 'wholesale' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Wholesale</span>}
                         {renderPaymentBadge(sale)}
                       </div>
                     </div>
@@ -569,6 +583,7 @@ function Sales() {
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium w-fit ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                             {sale.sale_type === 'quotation' ? '📄 Quotation' : '🧾 Sale'}
                           </span>
+                          {sale.price_tier === 'wholesale' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold w-fit bg-amber-100 text-amber-800">Wholesale</span>}
                           {renderPaymentBadge(sale)}
                         </div>
                       </td>

@@ -32,6 +32,7 @@ Standalone admin: `cd superadmin`, then the same npm scripts.
 - Modals should fit phones: `w-full max-w-*`, bounded `max-h-[90dvh]`, internal scroll, visible close affordance, and stacked actions. For data-heavy mobile workflows prefer compact card/list views over horizontal-only tables.
 - POS is the primary repeated-action workflow: keep barcode/search, quantity, cart/totals, customer, tender, and completion reachable with touch and keyboard. Use semantic controls, explicit labels, visible focus, and generous tap targets; do not nest interactive controls.
 - Keep changes scoped because business rules are often embedded in page components. Document genuinely new shared patterns here.
+- Price tiers: products carry `cost_price`, `c_rate`, `sale_price` (retail) and optional `wholesale_price`. Resolve selling prices with `getUnitPrice(product, tier)` from `src/utils/businessPresets.js`; gate wholesale UI/data with `isWholesaleEnabled(getShopSettings(shopId))` (plan feature `wholesale` AND shop setting `wholesale_enabled`; `hasFeature` alone defaults to allowed). Only send `wholesale_price`/`price_tier` columns when enabled so un-migrated databases keep working. Schema: `sql/wholesale_mode_migration.sql`.
 
 ## Operational Guardrails
 

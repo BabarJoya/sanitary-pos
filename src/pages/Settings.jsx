@@ -40,6 +40,7 @@ function Settings() {
       business_preset: 'general',
       pricing_mode: 'hidden',
       custom_price_label: '',
+      wholesale_enabled: false,
       tax_number: '',
       pos_layout: 'two_stage'
     }
@@ -219,6 +220,7 @@ function Settings() {
         pricing_mode:         data.pricing_mode         || saved.pricing_mode         || prev.pricing_mode         || 'hidden',
         custom_price_label:   data.custom_price_label   || saved.custom_price_label   || prev.custom_price_label   || '',
         tax_number:           data.tax_number           || saved.tax_number           || prev.tax_number           || '',
+        wholesale_enabled:    typeof data.wholesale_enabled === 'boolean' ? data.wholesale_enabled : (saved.wholesale_enabled ?? prev.wholesale_enabled ?? false),
       }
 
       // Sync immediately to localStorage to ensure consistent branding/printing across pages
@@ -305,7 +307,7 @@ function Settings() {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
 
       // Use RPC to bypass RLS (direct table UPDATE is silently blocked)
-      const { data: rpcResult, error } = await supabase.rpc('update_shop_settings', {
+      const baseParams = {
         p_shop_id: sid,
         p_name: form.name,
         p_phone: form.phone,
@@ -319,7 +321,30 @@ function Settings() {
         p_wa_bill_template: form.wa_bill_template,
         p_wa_reorder_template: form.wa_reorder_template,
         p_invoice_prefix: form.invoice_prefix,
-      })
+      }
+      const pricingParams = {
+        p_business_preset: form.business_preset || null,
+        p_pricing_mode: form.pricing_mode || null,
+        p_custom_price_label: form.custom_price_label || null,
+        p_wholesale_enabled: !!form.wholesale_enabled,
+      }
+      let { data: rpcResult, error } = await supabase.rpc('update_shop_settings', { ...baseParams, ...pricingParams })
+      // Backward compatibility: database not yet migrated (sql/wholesale_mode_migration.sql).
+      // PostgREST returns PGRST202 when no function matches the named params.
+      if (error && error.code === 'PGRST202') {
+        console.warn('update_shop_settings: pricing params not supported yet — run sql/wholesale_mode_migration.sql')
+        ;({ data: rpcResult, error } = await supabase.rpc('update_shop_settings', baseParams))
+        if (!error && form.wholesale_enabled) {
+          // Wholesale needs the new DB columns (sales.price_tier, products.wholesale_price) — keep it off until migrated.
+          const safeSettings = { ...fullSettings, wholesale_enabled: false }
+          localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(safeSettings))
+          setForm(prev => ({ ...prev, wholesale_enabled: false }))
+          alert('Wholesale Mode needs a database update first (sql/wholesale_mode_migration.sql). Other settings were saved.')
+          await db.shops.put({ ...safeSettings, id: sid })
+          window.dispatchEvent(new Event('storage'))
+          return
+        }
+      }
       if (error) throw error
       if (rpcResult && !rpcResult.success) throw new Error(rpcResult.error || 'Update failed')
 
@@ -657,6 +682,27 @@ function Settings() {
               <p className="text-[11px] text-gray-400 mt-1">Printed at the top of customer receipts & invoices</p>
             </div>
           </div>
+
+          {/* Wholesale Mode (opt-in per shop, plan must allow it) */}
+          {hasFeature('wholesale') && (
+            <div className="pt-5 border-t">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!form.wholesale_enabled}
+                  onChange={e => setForm(prev => ({ ...prev, wholesale_enabled: e.target.checked }))}
+                  className="mt-1 h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-2 focus:ring-amber-500"
+                />
+                <span>
+                  <span className="block text-sm font-black text-gray-800 uppercase tracking-wider">Wholesale Mode</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    Adds a Wholesale Price to products, a one-click Retail ⇄ Wholesale switch on POS (F8),
+                    and a Retail/Wholesale type on customers. Each sale records which price tier was used.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           {/* POS Layout Preference */}
           <div className="pt-5 border-t">

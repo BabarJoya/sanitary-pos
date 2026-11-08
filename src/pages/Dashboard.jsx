@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { printHTML, getShopBranding } from '../utils/printUtils'
+import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 
 const StatCard = ({ title, value, icon, color, subValue }) => (
   <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
@@ -22,6 +23,7 @@ const StatCard = ({ title, value, icon, color, subValue }) => (
 
 function Dashboard() {
   const { user, logout } = useAuth()
+  const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
@@ -29,6 +31,7 @@ function Dashboard() {
     todayProfit: 0,
     todayCashSales: 0,
     todayCreditSales: 0,
+    todayWholesaleSales: 0,
     monthlySales: 0,
     totalReceivables: 0,
     lowStockCount: 0,
@@ -56,7 +59,7 @@ function Dashboard() {
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
       const fetchPromise = Promise.all([
-        supabase.from('sales').select('total_amount, discount, payment_type, sale_items(cost_price, quantity, returned_qty)').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', today.toISOString()),
+        supabase.from('sales').select(`total_amount, discount, payment_type${wholesaleEnabled ? ', price_tier' : ''}, sale_items(cost_price, quantity, returned_qty)`).eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', today.toISOString()),
         supabase.from('sales').select('total_amount, discount').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', firstDayOfMonth.toISOString()),
         supabase.from('customers').select('id, name, outstanding_balance').eq('shop_id', user.shop_id),
         supabase.from('products').select('id, stock_quantity, low_stock_threshold').eq('shop_id', user.shop_id),
@@ -105,6 +108,7 @@ function Dashboard() {
         todayProfit: todayTotal - todayCOGS,
         todayCashSales,
         todayCreditSales,
+        todayWholesaleSales: todaySalesList.filter(s => s.price_tier === 'wholesale').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
         monthlySales: monthlyTotal,
         totalReceivables,
         lowStockCount: productList.filter(p => Number(p.stock_quantity) <= Number(p.low_stock_threshold || 10)).length,
@@ -150,6 +154,7 @@ function Dashboard() {
           todayProfit: tTotalSales - todayCOGSOffline,
           todayCashSales: tSales.filter(s => s.payment_type === 'cash').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
           todayCreditSales: tSales.filter(s => s.payment_type !== 'cash').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
+          todayWholesaleSales: tSales.filter(s => s.price_tier === 'wholesale').reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
           monthlySales: mSales.reduce((sum, s) => sum + (Number(s.total_amount) - Number(s.discount || 0)), 0),
           totalReceivables: myCustomers.reduce((sum, c) => sum + Number(c.outstanding_balance || 0), 0),
           lowStockCount: myProducts.filter(p => Number(p.stock_quantity) <= Number(p.low_stock_threshold || 10)).length,
@@ -380,6 +385,12 @@ function Dashboard() {
             <span className="text-sm font-medium text-orange-700">📒 Credit</span>
             <span className="font-bold text-orange-700">Rs. {stats.todayCreditSales.toLocaleString()}</span>
           </div>
+        </div>
+      )}
+      {!loading && wholesaleEnabled && stats.todayWholesaleSales > 0 && (
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex justify-between items-center">
+          <span className="text-sm font-medium text-amber-800">🏷️ Wholesale Sales Today</span>
+          <span className="font-bold text-amber-800">Rs. {stats.todayWholesaleSales.toLocaleString()}</span>
         </div>
       )}
 

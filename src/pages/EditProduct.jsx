@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, useParams } from 'react-router-dom'
 import { db, addToSyncQueue } from '../services/db'
-import { getShopPreset, getPricingConfig } from '../utils/businessPresets'
+import { getShopPreset, getPricingConfig, isWholesaleEnabled } from '../utils/businessPresets'
 
 function EditProduct() {
   const { id } = useParams()
@@ -18,6 +18,8 @@ function EditProduct() {
   })()
   const preset = getShopPreset(shopSettings)
   const pricingConfig = getPricingConfig(shopSettings)
+  const wholesaleEnabled = isWholesaleEnabled(shopSettings)
+  const priceFieldCount = 2 + (pricingConfig.enabled ? 1 : 0) + (wholesaleEnabled ? 1 : 0)
 
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -37,6 +39,7 @@ function EditProduct() {
     unit_id: '',
     c_rate: '',
     cost_price: '',
+    wholesale_price: '',
     sale_price: '',
     stock_quantity: '',
     low_stock_threshold: '10',
@@ -76,6 +79,7 @@ function EditProduct() {
         unit_id: product.unit_id || '',
         c_rate: product.c_rate || '',
         cost_price: product.cost_price || '',
+        wholesale_price: product.wholesale_price || '',
         sale_price: product.sale_price || '',
         stock_quantity: product.stock_quantity || '',
         low_stock_threshold: product.low_stock_threshold || '10',
@@ -122,6 +126,7 @@ function EditProduct() {
                 unit_id: localProd.unit_id || '',
                 c_rate: localProd.c_rate || '',
                 cost_price: localProd.cost_price || '',
+                wholesale_price: localProd.wholesale_price || '',
                 sale_price: localProd.sale_price || '',
                 stock_quantity: localProd.stock_quantity || '',
                 low_stock_threshold: localProd.low_stock_threshold || '10',
@@ -220,6 +225,9 @@ function EditProduct() {
     
     // Ensure numeric fields are parsed correctly, treating empty strings as null/0 based on DB defaults
     if(updatedProductData.c_rate === '') updatedProductData.c_rate = 0;
+    // Only send wholesale_price when the shop uses Wholesale Mode (keeps un-migrated DBs working)
+    if (wholesaleEnabled) updatedProductData.wholesale_price = Number(updatedProductData.wholesale_price) || 0
+    else delete updatedProductData.wholesale_price
 
     // Sanitize integer FK fields — offline-created records have UUID ids which
     // Supabase cannot cast to INTEGER. Parse to int; if it fails (UUID), set null.
@@ -386,7 +394,7 @@ function EditProduct() {
           {/* Pricing */}
           <h2 className="font-semibold text-gray-700 border-b pb-2 pt-2">Pricing</h2>
 
-          <div className={`grid ${pricingConfig.enabled ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'} gap-4`}>
+          <div className={`grid gap-4 grid-cols-1 ${priceFieldCount === 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : priceFieldCount === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
             {pricingConfig.enabled && (
               <div>
                 <label className="block text-gray-700 font-medium mb-1">{pricingConfig.label}</label>
@@ -412,8 +420,21 @@ function EditProduct() {
                 placeholder="0"
               />
             </div>
+            {wholesaleEnabled && (
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Wholesale Price</label>
+                <input
+                  type="number"
+                  name="wholesale_price"
+                  value={form.wholesale_price}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="0 = use retail"
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Sale / Selling Price *</label>
+              <label className="block text-gray-700 font-medium mb-1">{wholesaleEnabled ? 'Retail Price *' : 'Sale / Selling Price *'}</label>
               <input
                 type="number"
                 name="sale_price"
@@ -435,6 +456,13 @@ function EditProduct() {
                   ({(((parseFloat(form.sale_price) - parseFloat(form.cost_price)) / parseFloat(form.cost_price)) * 100).toFixed(1)}%)
                 </span>
               </p>
+            </div>
+          )}
+          {wholesaleEnabled && form.cost_price && Number(form.wholesale_price) > 0 && (
+            <div className={`${Number(form.wholesale_price) < Number(form.cost_price) ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'} border rounded-lg p-3 font-medium`}>
+              {Number(form.wholesale_price) < Number(form.cost_price)
+                ? `⚠️ Wholesale price is below cost — loss of Rs. ${(Number(form.cost_price) - Number(form.wholesale_price)).toFixed(2)} per unit`
+                : `🏷️ Wholesale profit per unit: Rs. ${(Number(form.wholesale_price) - Number(form.cost_price)).toFixed(2)}`}
             </div>
           )}
 

@@ -5,10 +5,34 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { db } from '../services/db'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
+
+// Net sales and gross profit split by price tier (sales.price_tier; missing = retail)
+function computeTierSplit(sales, items) {
+  const split = { retail: { count: 0, sales: 0, profit: 0 }, wholesale: { count: 0, sales: 0, profit: 0 } }
+  const tierBySale = {}
+  sales.forEach(s => {
+    const tier = s.price_tier === 'wholesale' ? 'wholesale' : 'retail'
+    tierBySale[s.id] = tier
+    const net = Number(s.total_amount || 0) - Number(s.discount || 0)
+    split[tier].count += 1
+    split[tier].sales += net
+    split[tier].profit += net
+  })
+  items.forEach(i => {
+    const tier = tierBySale[i.sale_id]
+    if (!tier) return
+    const qty = Number(i.quantity) - Number(i.returned_qty || 0)
+    split[tier].profit -= Number(i.cost_price || 0) * qty
+  })
+  return split
+}
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 
 function Reports() {
   const { user } = useAuth()
+  const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
+  const [tierSplit, setTierSplit] = useState(null)
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState('month') // today, week, month, all
 
@@ -88,6 +112,7 @@ function Reports() {
       const grossProfit = netSalesValue - costOfSales
       const netProfit = grossProfit - totalExpenses
 
+      setTierSplit(computeTierSplit(sales, items))
       setStats({
         grossSales,
         costOfSales,
@@ -161,6 +186,7 @@ function Reports() {
         const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
         const totalPurchases = purchases.reduce((sum, p) => sum + Number(p.total_amount), 0)
 
+        setTierSplit(computeTierSplit(sales, items))
         setStats({
           grossSales, costOfSales, grossProfit: netSalesValue - costOfSales,
           expenses: totalExpenses, netProfit: (netSalesValue - costOfSales) - totalExpenses,
@@ -312,6 +338,25 @@ function Reports() {
             <StatCard title="Gross Profit" value={stats.grossProfit} sub="Sales - Cost of Goods" color="emerald" />
             <StatCard title="Net Profit" value={stats.netProfit} sub="Gross Profit - Expenses" color="indigo" highlight />
           </div>
+
+          {/* Retail vs Wholesale split */}
+          {wholesaleEnabled && tierSplit && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[['retail', 'Retail', 'border-blue-200 bg-blue-50/50 text-blue-800'], ['wholesale', 'Wholesale', 'border-amber-200 bg-amber-50/60 text-amber-800']].map(([key, label, cls]) => {
+                const t = tierSplit[key]
+                const margin = t.sales > 0 ? (t.profit / t.sales) * 100 : 0
+                return (
+                  <div key={key} className={`rounded-2xl border p-4 ${cls}`}>
+                    <p className="text-xs font-black uppercase tracking-wider">{label} Sales · {t.count} bill(s)</p>
+                    <p className="mt-1 text-2xl font-black text-gray-900">Rs. {Math.round(t.sales).toLocaleString()}</p>
+                    <p className="mt-0.5 text-sm font-semibold">
+                      Gross profit Rs. {Math.round(t.profit).toLocaleString()} · {margin.toFixed(1)}% margin
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sales Trend Chart */}

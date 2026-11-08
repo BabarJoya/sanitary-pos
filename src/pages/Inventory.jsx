@@ -7,9 +7,11 @@ import * as XLSX from 'xlsx'
 import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
+import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 
 function Inventory() {
   const { user } = useAuth()
+  const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [brands, setBrands] = useState([])
@@ -44,6 +46,7 @@ function Inventory() {
       'Category': p.categories?.name || '-',
       'Brand': p.brand || '-',
       'Sale Price': p.sale_price,
+      ...(wholesaleEnabled ? { 'Wholesale Price': p.wholesale_price || 0 } : {}),
       'Cost Price': user.role === 'admin' ? p.cost_price : 'HIDDEN',
       'Stock': p.stock_quantity,
       'Status': p.stock_quantity <= (p.low_stock_threshold || 10) ? 'LOW' : 'In Stock'
@@ -489,34 +492,35 @@ function Inventory() {
 
   const openBulkEditor = () => {
     const brandProds = bulkBrand ? products.filter(p => p.brand === bulkBrand) : products;
-    setEditingProducts(brandProds.map(p => ({ ...p, original_c_rate: p.c_rate || 0, original_cost: p.cost_price, original_sale: p.sale_price })));
+    setEditingProducts(brandProds.map(p => ({ ...p, original_c_rate: p.c_rate || 0, original_cost: p.cost_price, original_sale: p.sale_price, original_wholesale: Number(p.wholesale_price) || 0, wholesale_price: Number(p.wholesale_price) || 0 })));
     setShowBulkEditor(true);
   }
 
   const handleBulkEditorSave = async () => {
     setSaving(true)
-    const modified = editingProducts.filter(p => p.c_rate !== p.original_c_rate || p.cost_price !== p.original_cost || p.sale_price !== p.original_sale);
+    const modified = editingProducts.filter(p => p.c_rate !== p.original_c_rate || p.cost_price !== p.original_cost || p.sale_price !== p.original_sale || (wholesaleEnabled && p.wholesale_price !== p.original_wholesale));
+    const priceFields = (p) => ({ c_rate: p.c_rate, cost_price: p.cost_price, sale_price: p.sale_price, ...(wholesaleEnabled ? { wholesale_price: p.wholesale_price } : {}) });
 
     try {
       if (navigator.onLine) {
         for (const p of modified) {
-          const { error } = await supabase.from('products').update({ c_rate: p.c_rate, cost_price: p.cost_price, sale_price: p.sale_price }).eq('id', p.id);
+          const { error } = await supabase.from('products').update(priceFields(p)).eq('id', p.id);
           if (error) throw error;
 
           await recordAuditLog('PRICE_CHANGE', 'products', p.id, {
-            old: { c_rate: p.original_c_rate, cost: p.original_cost, sale: p.original_sale },
-            new: { c_rate: p.c_rate, cost: p.cost_price, sale: p.sale_price }
+            old: { c_rate: p.original_c_rate, cost: p.original_cost, sale: p.original_sale, ...(wholesaleEnabled ? { wholesale: p.original_wholesale } : {}) },
+            new: { c_rate: p.c_rate, cost: p.cost_price, sale: p.sale_price, ...(wholesaleEnabled ? { wholesale: p.wholesale_price } : {}) }
           }, user.id, user.shop_id);
         }
       } else {
         for (const p of modified) {
-          await addToSyncQueue('products', 'UPDATE', { id: p.id, c_rate: p.c_rate, cost_price: p.cost_price, sale_price: p.sale_price });
+          await addToSyncQueue('products', 'UPDATE', { id: p.id, ...priceFields(p) });
         }
       }
 
       // Update local storage
       for (const p of modified) {
-        await db.products.update(p.id, { c_rate: p.c_rate, cost_price: p.cost_price, sale_price: p.sale_price });
+        await db.products.update(p.id, priceFields(p));
       }
 
       alert('Prices updated and logged!');
@@ -536,38 +540,40 @@ function Inventory() {
     setSaving(true)
     const factor = bulkAction === 'increase' ? (1 + parseFloat(bulkPercent) / 100) : (1 - parseFloat(bulkPercent) / 100)
 
+    // Scaled prices for one product (wholesale included only when the shop uses Wholesale Mode)
+    const scaled = (p) => {
+      const out = { cost_price: Math.round((p.cost_price || 0) * factor), sale_price: Math.round((p.sale_price || 0) * factor) }
+      if (wholesaleEnabled && Number(p.wholesale_price) > 0) out.wholesale_price = Math.round(Number(p.wholesale_price) * factor)
+      return out
+    }
+
     try {
       const affected = products.filter(p => p.brand === bulkBrand)
       if (affected.length === 0) throw new Error('No products found for this brand.')
 
       if (navigator.onLine) {
         for (const p of affected) {
-          const newCost = Math.round((p.cost_price || 0) * factor)
-          const newSale = Math.round((p.sale_price || 0) * factor)
+          const upd = scaled(p)
 
-          const { error } = await supabase.from('products').update({ cost_price: newCost, sale_price: newSale }).eq('id', p.id)
+          const { error } = await supabase.from('products').update(upd).eq('id', p.id)
           if (error) throw error
 
           await recordAuditLog('PRICE_CHANGE_BULK', 'products', p.id, {
-            old: { cost: p.cost_price, sale: p.sale_price },
-            new: { cost: newCost, sale: newSale },
+            old: { cost: p.cost_price, sale: p.sale_price, ...(upd.wholesale_price != null ? { wholesale: p.wholesale_price } : {}) },
+            new: { cost: upd.cost_price, sale: upd.sale_price, ...(upd.wholesale_price != null ? { wholesale: upd.wholesale_price } : {}) },
             percent: bulkPercent,
             action: bulkAction
           }, user.id, user.shop_id)
         }
       } else {
         for (const p of affected) {
-          const newCost = Math.round((p.cost_price || 0) * factor)
-          const newSale = Math.round((p.sale_price || 0) * factor)
-          await addToSyncQueue('products', 'UPDATE', { id: p.id, cost_price: newCost, sale_price: newSale })
+          await addToSyncQueue('products', 'UPDATE', { id: p.id, ...scaled(p) })
         }
       }
 
       // Local update
       for (const p of affected) {
-        const newCost = Math.round((p.cost_price || 0) * factor)
-        const newSale = Math.round((p.sale_price || 0) * factor)
-        await db.products.update(p.id, { cost_price: newCost, sale_price: newSale })
+        await db.products.update(p.id, scaled(p))
       }
 
       alert(`Successfully updated ${affected.length} products of brand ${bulkBrand} by ${bulkPercent}%`)
@@ -601,6 +607,10 @@ function Inventory() {
         const updates = {}
         if (arTarget === 'sale_price' || arTarget === 'both') updates.sale_price = Math.round((p.sale_price || 0) * factor)
         if (arTarget === 'cost_price' || arTarget === 'both') updates.cost_price = Math.round((p.cost_price || 0) * factor)
+        if (wholesaleEnabled && (arTarget === 'wholesale_price' || arTarget === 'both') && Number(p.wholesale_price) > 0) {
+          updates.wholesale_price = Math.round(Number(p.wholesale_price) * factor)
+        }
+        if (Object.keys(updates).length === 0) continue
         if (navigator.onLine) {
           const { error } = await supabase.from('products').update(updates).eq('id', p.id)
           if (error) throw error
@@ -809,8 +819,9 @@ function Inventory() {
                     </div>
                   )}
                   <div>
-                    <p className="text-[10px] font-bold uppercase text-gray-400">Sale</p>
+                    <p className="text-[10px] font-bold uppercase text-gray-400">{wholesaleEnabled ? 'Retail' : 'Sale'}</p>
                     <p className="font-black text-gray-900">Rs. {p.sale_price}</p>
+                    {wholesaleEnabled && <p className="text-[11px] font-bold text-amber-700">W: {Number(p.wholesale_price) > 0 ? `Rs. ${p.wholesale_price}` : '—'}</p>}
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-2">
@@ -863,7 +874,10 @@ function Inventory() {
                       </span>
                     </td>
                     {(user.role === 'admin' || user.role === 'manager') && <td className="px-6 py-4 text-gray-600">Rs. {p.cost_price}</td>}
-                    <td className="px-6 py-4 text-blue-600 font-bold text-lg">Rs. {p.sale_price}</td>
+                    <td className="px-6 py-4 text-blue-600 font-bold text-lg">
+                      Rs. {p.sale_price}
+                      {wholesaleEnabled && <div className="text-xs font-bold text-amber-700">W: {Number(p.wholesale_price) > 0 ? `Rs. ${p.wholesale_price}` : '—'}</div>}
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-4 py-1.5 rounded-full font-bold text-lg ${isZero ? 'bg-black text-white' : isCritical ? 'bg-red-100 text-red-700 border border-red-200' : isLow ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-green-100 text-green-700 border border-green-200'}`}>
                         {p.stock_quantity}
@@ -1165,7 +1179,8 @@ function Inventory() {
                     <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Product</th>
                     <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">C. Rate</th>
                     <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Cost Price</th>
-                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Sale Price</th>
+                    {wholesaleEnabled && <th className="px-4 py-2 text-right text-xs font-bold text-amber-700 uppercase">Wholesale</th>}
+                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">{wholesaleEnabled ? 'Retail Price' : 'Sale Price'}</th>
                     <th className="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase">Margin</th>
                   </tr>
                 </thead>
@@ -1198,6 +1213,20 @@ function Inventory() {
                             className={`w-24 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-purple-500 outline-none ${p.cost_price !== p.original_cost ? 'bg-yellow-50 border-yellow-400' : ''}`}
                           />
                         </td>
+                        {wholesaleEnabled && (
+                          <td className="px-4 py-2">
+                            <input type="number"
+                              aria-label={`Wholesale price for ${p.name}`}
+                              value={p.wholesale_price || 0}
+                              onChange={e => {
+                                const newProds = [...editingProducts];
+                                newProds[idx].wholesale_price = Number(e.target.value);
+                                setEditingProducts(newProds);
+                              }}
+                              className={`w-24 px-2 py-1 border border-amber-300 rounded text-right focus:ring-2 focus:ring-amber-500 outline-none ${p.wholesale_price !== p.original_wholesale ? 'bg-yellow-50 border-yellow-400' : ''}`}
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-2">
                           <input type="number"
                             value={p.sale_price}
@@ -1278,7 +1307,8 @@ function Inventory() {
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm">
                     <option value="sale_price">Sale Price sirf</option>
                     <option value="cost_price">Cost Price sirf</option>
-                    <option value="both">Dono (Sale + Cost)</option>
+                    {wholesaleEnabled && <option value="wholesale_price">Wholesale Price sirf</option>}
+                    <option value="both">{wholesaleEnabled ? 'Sab (Sale + Wholesale + Cost)' : 'Dono (Sale + Cost)'}</option>
                   </select>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

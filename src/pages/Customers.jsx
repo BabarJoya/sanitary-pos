@@ -6,9 +6,11 @@ import * as XLSX from 'xlsx'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
+import { getShopSettings, isWholesaleEnabled, normalizeTier } from '../utils/businessPresets'
 
 function Customers() {
   const { user } = useAuth()
+  const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -146,7 +148,7 @@ function Customers() {
   }
 
   const handleEdit = (c) => {
-    setForm({ name: c.name, phone: c.phone || '', address: c.address || '' })
+    setForm({ name: c.name, phone: c.phone || '', address: c.address || '', price_tier: normalizeTier(c.price_tier) })
     setEditingId(c.id)
     setShowForm(true)
   }
@@ -154,7 +156,9 @@ function Customers() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
-    const payload = { ...form, shop_id: user.shop_id }
+    const { price_tier, ...formFields } = form
+    // price_tier is only sent when the shop uses Wholesale Mode (keeps un-migrated DBs working)
+    const payload = { ...formFields, shop_id: user.shop_id, ...(wholesaleEnabled ? { price_tier: normalizeTier(price_tier) } : {}) }
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
@@ -411,6 +415,16 @@ function Customers() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="City, Pakistan" />
             </div>
+            {wholesaleEnabled && (
+              <div>
+                <label htmlFor="customer-price-tier" className="block text-gray-700 font-medium mb-1">Customer Type</label>
+                <select id="customer-price-tier" value={normalizeTier(form.price_tier)} onChange={(e) => setForm({ ...form, price_tier: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  <option value="retail">Retail customer</option>
+                  <option value="wholesale">Wholesale customer (POS switches to wholesale prices)</option>
+                </select>
+              </div>
+            )}
             <div className="flex gap-3">
               <button type="submit" disabled={saving}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
@@ -466,6 +480,9 @@ function Customers() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-800">{c.name}</span>
+                        {wholesaleEnabled && c.price_tier === 'wholesale' && (
+                          <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-800">Wholesale</span>
+                        )}
                         {(() => { const seg = getSegment(c); return seg ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${seg.bg}`}>{seg.label}</span> : null })()}
                       </div>
                     </td>

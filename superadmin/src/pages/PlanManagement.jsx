@@ -34,6 +34,7 @@ export default function PlanManagement() {
         barcode_labels:   'Barcode Sticker Generator',
         whatsapp:         'WhatsApp Messaging',
         api_access:       'API / Integrations',
+        wholesale:        'Wholesale Mode (Retail ⇄ Wholesale prices)',
     }
 
     const DEFAULT_FEATURES = Object.fromEntries(Object.keys(FEATURE_LABELS).map(k => [k, false]))

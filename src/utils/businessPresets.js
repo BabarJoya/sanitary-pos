@@ -1,3 +1,5 @@
+import { hasFeature } from './featureGate'
+
 // ============================================================
 // Business Presets & Multi-Store Configuration Helper
 // Adapts placeholders, default units, and pricing terms
@@ -176,4 +178,40 @@ export function getPricingConfig(shopSettings) {
     mode,
     label
   }
+}
+
+// ============================================================
+// Price Tiers (Retail / Wholesale)
+// Wholesale is opt-in per shop: the plan must allow it AND the
+// shop owner must switch it on in Settings (wholesale_enabled).
+// hasFeature() returns true for unknown keys, so the shop setting
+// is the real default-off switch.
+// ============================================================
+
+export function getShopSettings(shopId) {
+  try {
+    if (!shopId) return {}
+    return JSON.parse(localStorage.getItem(`shop_settings_${shopId}`) || '{}') || {}
+  } catch {
+    return {}
+  }
+}
+
+export function isWholesaleEnabled(shopSettings) {
+  return hasFeature('wholesale') && shopSettings?.wholesale_enabled === true
+}
+
+export function normalizeTier(tier) {
+  return tier === 'wholesale' ? 'wholesale' : 'retail'
+}
+
+// Returns the unit price for a product at the given tier.
+// `fallback` is true when wholesale was requested but the product has
+// no wholesale price, so the retail price was used instead.
+export function getUnitPrice(product, tier = 'retail') {
+  const retail = Number(product?.sale_price) || 0
+  if (normalizeTier(tier) !== 'wholesale') return { price: retail, fallback: false }
+  const wholesale = Number(product?.wholesale_price) || 0
+  if (wholesale > 0) return { price: wholesale, fallback: false }
+  return { price: retail, fallback: true }
 }
