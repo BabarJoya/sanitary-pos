@@ -5,6 +5,7 @@ import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
+import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance } from '../services/integrity'
 
 function Purchases() {
   const { user } = useAuth()
@@ -232,124 +233,124 @@ function Purchases() {
     if (!supplierId) return alert('Pehle supplier select karein!')
 
     setSaving(true)
-    // Sanitize integer FK — offline-created suppliers have UUID ids
-    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
-    const purchaseData = {
-      shop_id: user.shop_id,
-      supplier_id: toIntOrNull(supplierId),
-      total_amount: total,
-      paid_amount: paymentType === 'cash' ? total : 0,
-      payment_type: paymentType,
-      status: 'completed'
-    }
-
     try {
-      if (!navigator.onLine) throw new TypeError('Failed to fetch')
+      const clientRef = crypto.randomUUID() // idempotency key — a replay can never duplicate the purchase
+      const supplierIsTemp = isTempId(String(supplierId))
+      const hasUnsyncedRef = supplierIsTemp || cart.some(i => isTempId(String(i.id)))
+      const purchaseData = {
+        shop_id: user.shop_id,
+        supplier_id: toIntId(supplierId),
+        total_amount: total,
+        paid_amount: paymentType === 'cash' ? total : 0,
+        payment_type: paymentType,
+        status: 'completed',
+        client_ref: clientRef
+      }
 
-      // 1. Save Purchase
-      const { data: purchase, error: pError } = await supabase.from('purchases').insert([purchaseData]).select().single()
-      if (pError) throw pError
+      // ── 1. Purchase header ──
+      let purchase = null
+      let savedOnline = false
+      try {
+        if (!navigator.onLine || hasUnsyncedRef) throw new TypeError('Failed to fetch')
+        let { data, error: pError } = await supabase.from('purchases').insert([purchaseData]).select().single()
+        if (pError && isMissingColumn(pError)) {
+          const { client_ref: _omit, ...withoutRef } = purchaseData
+          ;({ data, error: pError } = await supabase.from('purchases').insert([withoutRef]).select().single())
+        }
+        if (pError) throw pError
+        purchase = data
+        savedOnline = true
+        await db.purchases.put(purchase)
+      } catch (err) {
+        if (!hasUnsyncedRef && !isNetworkError(err)) throw err
+        const offlineId = crypto.randomUUID()
+        purchase = { ...purchaseData, id: offlineId, supplier_id: supplierIsTemp ? supplierId : purchaseData.supplier_id }
+        await db.purchases.add(purchase)
+        await addToSyncQueue('purchases', 'INSERT', purchase)
+      }
 
-      // 2. Save Purchase Items
+      // ── 2. Purchase items (a failure here never creates a second purchase) ──
       const items = cart.map(i => ({
         purchase_id: purchase.id,
-        product_id: toIntOrNull(i.id),
+        product_id: savedOnline ? toIntId(i.id) : i.id,
         product_name: i.name,
         quantity: i.qty,
         unit_price: i.purchase_price,
         total_price: i.purchase_price * i.qty
       }))
-      const { data: resItems, error: itemsError } = await supabase.from('purchase_items').insert(items).select()
-      if (itemsError) throw itemsError
-
-      // Mirror to local DB so Purchase History shows up immediately without reload
-      await db.purchases.put(purchase)
-      await db.purchase_items.bulkPut(resItems)
-
-      // 3. Update Product Stock and Cost Price (online + local cache)
-      for (const item of cart) {
-        const newStock = item.stock_quantity + item.qty
-        await supabase.from('products')
-          .update({
-            stock_quantity: newStock,
-            cost_price: item.purchase_price
-          })
-          .eq('id', item.id)
-        // Mirror to local DB so Inventory shows accurate stock immediately
-        await db.products.update(item.id, { stock_quantity: newStock, cost_price: item.purchase_price })
+      let itemsSaved = false
+      if (savedOnline) {
+        const { data: resItems, error: itemsError } = await supabase.from('purchase_items').insert(items).select()
+        if (!itemsError) {
+          await db.purchase_items.bulkPut(resItems)
+          itemsSaved = true
+        } else if (!isNetworkError(itemsError)) {
+          await supabase.from('purchases').delete().eq('id', purchase.id)
+          await db.purchases.delete(purchase.id).catch(() => {})
+          throw new Error(`${itemsError.message} — purchase was NOT saved, please try again.`)
+        }
+      }
+      if (!itemsSaved) {
+        // local rows need their own id (IndexedDB key)
+        const localItems = items.map(it => ({ ...it, id: crypto.randomUUID() }))
+        await db.purchase_items.bulkPut(localItems)
+        await addToSyncQueue('purchase_items', 'INSERT', localItems)
       }
 
-      // 4. Update Supplier Balance if Credit
+      // ── 3. Stock (+qty) as atomic changes, cost price as latest purchase price ──
+      const failed = []
+      for (const item of cart) {
+        const r = await adjustStock(item.id, Number(item.qty))
+        if (!r.ok) failed.push(item.name)
+        const costUpdate = { cost_price: item.purchase_price }
+        if (navigator.onLine && !isTempId(String(item.id))) {
+          const { error: cErr } = await supabase.from('products').update(costUpdate).eq('id', item.id)
+          if (cErr) {
+            if (isNetworkError(cErr)) await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
+            else failed.push(`${item.name} (cost)`)
+          }
+        } else {
+          await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
+        }
+        await db.products.update(item.id, costUpdate).catch(() => {})
+      }
+
+      // ── 4. Supplier balance (credit) or recorded cash payment ──
       if (paymentType === 'credit') {
-        const supplier = suppliers.find(s => String(s.id) === String(supplierId))
-        const newBalance = (supplier?.outstanding_balance || 0) + total
-        await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', supplierId)
-        // Mirror to local DB
-        await db.suppliers.update(supplierId, { outstanding_balance: newBalance })
+        const r = await adjustSupplierBalance(supplierId, total)
+        if (!r.ok) failed.push('supplier balance')
       } else if (paymentType === 'cash' && total > 0) {
-        // Record the cash payment explicitly
         const paymentData = {
           shop_id: user.shop_id,
-          supplier_id: supplierId,
+          supplier_id: savedOnline ? toIntId(supplierId) : supplierId,
           amount: total,
           payment_type: 'payment',
           note: `Cash Paid for Purchase PR-${String(purchase.id).slice(-6)}`
         }
-        await supabase.from('supplier_payments').insert([paymentData])
+        let paid = false
+        if (savedOnline) {
+          const { error: payErr } = await supabase.from('supplier_payments').insert([paymentData])
+          if (!payErr) paid = true
+          else if (!isNetworkError(payErr)) failed.push('supplier payment record')
+        }
+        if (!paid && !failed.includes('supplier payment record')) {
+          const localPayment = { ...paymentData, id: crypto.randomUUID() }
+          await db.supplier_payments.add(localPayment)
+          await addToSyncQueue('supplier_payments', 'INSERT', localPayment)
+        }
       }
 
-      alert('Purchase complete! Stock and supplier balance updated.')
+      if (failed.length > 0) {
+        alert(`Purchase saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / supplier balance.`)
+      } else if (!savedOnline || !itemsSaved) {
+        alert('Offline mode: Purchase saved locally. Will sync automatically when online. 🔄')
+      } else {
+        alert('Purchase complete! Stock and supplier balance updated.')
+      }
       clearCart()
       fetchData()
     } catch (err) {
-      const errMsg = err?.message || String(err)
-      if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-        console.log('Purchases: Intercepted offline failure, routing to local queue...')
-        const offlineId = crypto.randomUUID()
-        const offlinePurchaseData = { ...purchaseData, id: offlineId }
-        await db.purchases.add(offlinePurchaseData)
-        await addToSyncQueue('purchases', 'INSERT', offlinePurchaseData)
-
-        const items = cart.map(i => ({
-          purchase_id: offlineId,
-          product_id: i.id,
-          product_name: i.name,
-          quantity: i.qty,
-          unit_price: i.purchase_price,
-          total_price: i.purchase_price * i.qty
-        }))
-        await db.purchase_items.bulkPut(items)
-        await addToSyncQueue('purchase_items', 'INSERT', items)
-
-        for (const item of cart) {
-          const newStock = item.stock_quantity + item.qty
-          await db.products.update(item.id, { stock_quantity: newStock, cost_price: item.purchase_price })
-          await addToSyncQueue('products', 'UPDATE', { id: item.id, stock_quantity: newStock, cost_price: item.purchase_price })
-        }
-
-        if (paymentType === 'credit') {
-          const supplier = suppliers.find(s => String(s.id) === String(supplierId))
-          const newBalance = (supplier?.outstanding_balance || 0) + total
-          await db.suppliers.update(supplierId, { outstanding_balance: newBalance })
-          await addToSyncQueue('suppliers', 'UPDATE', { id: supplierId, outstanding_balance: newBalance })
-        } else if (paymentType === 'cash' && total > 0) {
-          const paymentData = {
-            shop_id: user.shop_id,
-            supplier_id: supplierId,
-            amount: total,
-            payment_type: 'payment',
-            note: `Cash Paid for Purchase PR-${String(offlineId).slice(-6)}`
-          }
-          await db.supplier_payments.add(paymentData)
-          await addToSyncQueue('supplier_payments', 'INSERT', paymentData)
-        }
-
-        alert('Offline mode: Purchase saved locally. Will sync automatically when online. 🔄')
-        clearCart()
-        fetchData()
-      } else {
-        alert('Error: ' + err.message)
-      }
+      alert('Error: ' + (err?.message || String(err)))
     } finally {
       setSaving(false)
     }

@@ -5,6 +5,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { printHTML, getShopBranding } from '../utils/printUtils'
 import { db } from '../services/db'
+import { adjustCustomerBalance } from '../services/integrity'
 import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 
 function CustomerLedger() {
@@ -300,20 +301,17 @@ function CustomerLedger() {
             if (navigator.onLine) {
                 const { error } = await supabase.from('customer_payments').insert(insertRows)
                 if (error) throw error
-                const newBal = Math.max(0, (customer?.outstanding_balance || 0) + balanceDelta)
-                try {
-                    await supabase.from('customers').update({ outstanding_balance: newBal }).eq('id', id)
-                    setCustomer(c => c ? { ...c, outstanding_balance: newBal } : c)
-                } catch (_) {}
+                const r = await adjustCustomerBalance(id, balanceDelta)
+                if (r.ok) setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + balanceDelta } : c)
+                else alert('Entries saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
             } else {
                 for (const row of insertRows) {
                     const rec = { ...row, id: crypto.randomUUID() }
                     await db.customer_payments.add(rec)
                     await db.sync_queue.add({ table: 'customer_payments', action: 'INSERT', data: rec, timestamp: rec.created_at })
                 }
-                const newBal = Math.max(0, (customer?.outstanding_balance || 0) + balanceDelta)
-                await db.customers.update(parseInt(id), { outstanding_balance: newBal })
-                setCustomer(c => c ? { ...c, outstanding_balance: newBal } : c)
+                await adjustCustomerBalance(id, balanceDelta) // queued while offline
+                setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + balanceDelta } : c)
             }
 
             alert(`${insertRows.length} entries import ho gayi! ✅`)
@@ -353,11 +351,10 @@ function CustomerLedger() {
             if (!navigator.onLine) throw new TypeError('Failed to fetch')
             const { error } = await supabase.from('customer_payments').insert(insertRows)
             if (error) throw error
-            const newBalance = Math.max(0, (customer.outstanding_balance || 0) + saleAmt - payAmt)
-            try {
-                await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id)
-                setCustomer(c => c ? { ...c, outstanding_balance: newBalance } : c)
-            } catch (_) {}
+            const delta = saleAmt - payAmt
+            const r = await adjustCustomerBalance(id, delta)
+            if (r.ok) setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + delta } : c)
+            else alert('Entry saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
             if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: now })
             resetTxForm()
             fetchCustomerData()
@@ -370,10 +367,9 @@ function CustomerLedger() {
                     await db.customer_payments.add(rec)
                     await db.sync_queue.add({ table: 'customer_payments', action: 'INSERT', data: rec, timestamp: ts })
                 }
-                const newBal = Math.max(0, (customer.outstanding_balance || 0) + saleAmt - payAmt)
-                await db.customers.update(parseInt(id), { outstanding_balance: newBal })
-                await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: newBal }, timestamp: ts })
-                setCustomer(c => c ? { ...c, outstanding_balance: newBal } : c)
+                const delta = saleAmt - payAmt
+                await adjustCustomerBalance(id, delta) // queued as an atomic change
+                setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + delta } : c)
                 if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: ts })
                 resetTxForm()
                 fetchCustomerData()

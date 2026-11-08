@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
+import { adjustSupplierBalance } from '../services/integrity'
 import PasswordModal from '../components/PasswordModal'
 
 function Suppliers() {
@@ -139,11 +140,11 @@ function Suppliers() {
       const { error } = await supabase.from('supplier_payments').insert([payload])
       if (error) throw error
 
-      // Update supplier outstanding_balance
-      const newBal = isDebit
-        ? (txSup.outstanding_balance || 0) + amount
-        : Math.max(0, (txSup.outstanding_balance || 0) - amount)
-      await supabase.from('suppliers').update({ outstanding_balance: newBal }).eq('id', txSup.id)
+      // Update supplier outstanding_balance as an atomic change
+      const delta = isDebit ? amount : -amount
+      const newBal = (Number(txSup.outstanding_balance) || 0) + delta
+      const r = await adjustSupplierBalance(txSup.id, delta)
+      if (!r.ok) alert('Entry saved, but supplier balance update failed: ' + (r.error?.message || 'unknown error'))
       setTxSup({ ...txSup, outstanding_balance: newBal })
       setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
 
@@ -156,10 +157,9 @@ function Suppliers() {
         const offlinePayload = { ...payload, id: crypto.randomUUID() }
         await db.supplier_payments.add(offlinePayload)
         await addToSyncQueue('supplier_payments', 'INSERT', offlinePayload)
-        const newBal = isDebit
-          ? (txSup.outstanding_balance || 0) + amount
-          : Math.max(0, (txSup.outstanding_balance || 0) - amount)
-        await db.suppliers.update(txSup.id, { outstanding_balance: newBal })
+        const delta = isDebit ? amount : -amount
+        const newBal = (Number(txSup.outstanding_balance) || 0) + delta
+        await adjustSupplierBalance(txSup.id, delta) // queued (previously never synced)
         setTxSup({ ...txSup, outstanding_balance: newBal })
         setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
         setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', type: 'debit', amount: '', note: '' })

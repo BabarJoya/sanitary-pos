@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
+import { adjustStock, adjustCustomerBalance, isNetworkError } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
@@ -151,74 +152,81 @@ function Sales() {
 
   // Handle return
   const handleReturn = async () => {
-    const itemsToReturn = saleItems.filter(i => returnQtys[i.id] > 0)
+    // Number() (not parseInt) so fractional quantities like 0.5 kg can be returned
+    const qtyOf = (item) => Number(returnQtys[item.id]) || 0
+    const itemsToReturn = saleItems.filter(i => qtyOf(i) > 0)
     if (itemsToReturn.length === 0) { alert('Return karne ke liye qty enter karo!'); return }
 
     for (const item of itemsToReturn) {
-      const returnQty = parseInt(returnQtys[item.id]) || 0
-      const alreadyReturned = item.returned_qty || 0
-      const maxReturn = item.quantity - alreadyReturned
-      if (returnQty > maxReturn) { alert(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
+      const maxReturn = Number(item.quantity) - Number(item.returned_qty || 0)
+      if (qtyOf(item) > maxReturn) { alert(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
     }
 
     setReturning(true)
-    let totalReturnAmount = 0
+    const totalReturnAmount = itemsToReturn.reduce((sum, item) => sum + Number(item.unit_price) * qtyOf(item), 0)
+    const newSaleTotal = Math.max(0, Number(selectedSale.total_amount || 0) - totalReturnAmount)
+    const refundRow = refundType === 'credit' && selectedSale.customer_id
+      ? { shop_id: user.shop_id, customer_id: selectedSale.customer_id, amount: -totalReturnAmount, payment_type: 'return', note: `Return from Invoice #${String(selectedSale.id).slice(-6)} (Credited to Balance)` }
+      : { shop_id: user.shop_id, customer_id: selectedSale.customer_id || null, amount: -totalReturnAmount, payment_type: 'refund', note: `Cash Refund from Invoice #${String(selectedSale.id).slice(-6)}` }
+
+    // Each step is recorded once — if the network drops halfway, the remaining
+    // steps are queued instead of re-applying the ones that already succeeded.
+    const done = { items: new Set(), saleTotal: false, refund: false }
+    let wentOffline = false
+
+    const applyItemLocally = async (item) => {
+      const newRetQty = Number(item.returned_qty || 0) + qtyOf(item)
+      await db.sale_items.update(item.id, { returned_qty: newRetQty }).catch(() => {})
+      await addToSyncQueue('sale_items', 'UPDATE', { id: item.id, returned_qty: newRetQty })
+    }
 
     try {
-      if (!navigator.onLine) throw new TypeError('Failed to fetch')
-
       for (const item of itemsToReturn) {
-        const returnQty = parseInt(returnQtys[item.id]) || 0
-        const returnAmount = item.unit_price * returnQty
-        totalReturnAmount += returnAmount
-
-        // Update returned_qty on sale_item
-        await supabase.from('sale_items')
-          .update({ returned_qty: (item.returned_qty || 0) + returnQty })
-          .eq('id', item.id)
-
-        // Restore stock — fetch live stock first to avoid undefined/stale value
-        const { data: liveProduct } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).maybeSingle()
-        const currentStock = liveProduct?.stock_quantity ?? 0
-        const newStock = currentStock + returnQty
-        await supabase.from('products')
-          .update({ stock_quantity: newStock })
-          .eq('id', item.product_id)
-        // Keep local DB in sync
-        await db.products.update(item.product_id, { stock_quantity: newStock })
+        const newRetQty = Number(item.returned_qty || 0) + qtyOf(item)
+        if (!wentOffline && navigator.onLine) {
+          const { error } = await supabase.from('sale_items').update({ returned_qty: newRetQty }).eq('id', item.id)
+          if (error && !isNetworkError(error)) throw error
+          if (error) wentOffline = true
+          else await db.sale_items.update(item.id, { returned_qty: newRetQty }).catch(() => {})
+        } else {
+          wentOffline = true
+        }
+        if (wentOffline) await applyItemLocally(item)
+        // Atomic +qty (queued automatically when offline)
+        const r = await adjustStock(item.product_id, qtyOf(item))
+        if (!r.ok) throw r.error || new Error(`Stock update failed for ${item.product_name}`)
+        done.items.add(item.id)
       }
 
-      // Update sale record total
-      const newSaleTotal = Math.max(0, (selectedSale.total_amount || 0) - totalReturnAmount)
-      await supabase.from('sales').update({ total_amount: newSaleTotal }).eq('id', selectedSale.id)
+      // Sale total
+      if (!wentOffline && navigator.onLine) {
+        const { error } = await supabase.from('sales').update({ total_amount: newSaleTotal }).eq('id', selectedSale.id)
+        if (error && !isNetworkError(error)) throw error
+        if (error) wentOffline = true
+      } else wentOffline = true
+      await db.sales.update(selectedSale.id, { total_amount: newSaleTotal }).catch(() => {})
+      if (wentOffline) await addToSyncQueue('sales', 'UPDATE', { id: selectedSale.id, total_amount: newSaleTotal })
+      done.saleTotal = true
 
-      // Process Refund
+      // Refund: credit note reduces the customer's balance; cash refund is just logged
       if (refundType === 'credit' && selectedSale.customer_id) {
-        const { data: cust } = await supabase.from('customers').select('outstanding_balance').eq('id', selectedSale.customer_id).maybeSingle()
-        const newBal = Math.max(0, (cust?.outstanding_balance || 0) - totalReturnAmount)
-        await supabase.from('customers').update({ outstanding_balance: newBal }).eq('id', selectedSale.customer_id)
-        await db.customers.update(selectedSale.customer_id, { outstanding_balance: newBal })
-
-        // Log payment return in customer_payments
-        await supabase.from('customer_payments').insert([{
-          shop_id: user.shop_id,
-          customer_id: selectedSale.customer_id,
-          amount: -totalReturnAmount,
-          payment_type: 'return',
-          note: `Return from Invoice #${String(selectedSale.id).slice(-6)} (Credited to Balance)`
-        }])
-      } else {
-        // Log as refund (Cash or Walk-in)
-        await supabase.from('customer_payments').insert([{
-          shop_id: user.shop_id,
-          customer_id: selectedSale.customer_id || null,
-          amount: -totalReturnAmount,
-          payment_type: 'refund',
-          note: `Cash Refund from Invoice #${String(selectedSale.id).slice(-6)}`
-        }])
+        const r = await adjustCustomerBalance(selectedSale.customer_id, -totalReturnAmount)
+        if (!r.ok) throw r.error || new Error('Customer balance update failed')
       }
+      let logged = false
+      if (!wentOffline && navigator.onLine) {
+        const { error } = await supabase.from('customer_payments').insert([refundRow])
+        if (error && !isNetworkError(error)) throw error
+        logged = !error
+      }
+      if (!logged) {
+        const localRow = { ...refundRow, id: crypto.randomUUID(), created_at: new Date().toISOString() }
+        await db.customer_payments.add(localRow).catch(() => {})
+        await addToSyncQueue('customer_payments', 'INSERT', localRow)
+        wentOffline = true
+      }
+      done.refund = true
 
-      // Audit Log
       await recordAuditLog(
         'SALE_RETURN',
         'sales',
@@ -226,65 +234,35 @@ function Sales() {
         {
           invoice: selectedSale.id,
           returned_amount: totalReturnAmount,
-          items: itemsToReturn.map(it => ({ name: it.product_name, qty: returnQtys[it.id] }))
+          items: itemsToReturn.map(it => ({ name: it.product_name, qty: qtyOf(it) }))
         },
         user.id,
         user.shop_id
       )
 
-      alert('Return successful! Invoice updated.')
-      setReturning(false)
       setReturnQtys({})
-
-      // Re-fetch updated sale + items to reflect new returned_qty in modal
-      const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
-      if (updatedSale) setSelectedSale(updatedSale)
-      const { data: updatedItems } = await supabase.from('sale_items').select('*, products(name, stock_quantity)').eq('sale_id', selectedSale.id)
-      if (updatedItems) {
-        const cleanItems = JSON.parse(JSON.stringify(updatedItems))
-        await db.sale_items.bulkPut(cleanItems)
-        setSaleItems(cleanItems)
+      if (wentOffline) {
+        alert('Offline mode: Return processed locally. Stock and Invoice updated! 🔄')
+        setSelectedSale({ ...selectedSale, total_amount: newSaleTotal })
+        const localUpdated = await db.sale_items.where({ sale_id: selectedSale.id }).toArray().catch(() => [])
+        if (localUpdated.length > 0) setSaleItems(localUpdated)
+      } else {
+        alert('Return successful! Invoice updated.')
+        const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
+        if (updatedSale) setSelectedSale(updatedSale)
+        const { data: updatedItems } = await supabase.from('sale_items').select('*, products(name, stock_quantity)').eq('sale_id', selectedSale.id)
+        if (updatedItems) {
+          const cleanItems = JSON.parse(JSON.stringify(updatedItems))
+          await db.sale_items.bulkPut(cleanItems)
+          setSaleItems(cleanItems)
+        }
       }
       fetchSales()
     } catch (err) {
-      const errMsg = err?.message || String(err)
-      if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-        // OFFLINE RETURN LOGIC
-        for (const item of itemsToReturn) {
-          const returnQty = parseInt(returnQtys[item.id]) || 0
-          totalReturnAmount += item.unit_price * returnQty
-
-          // 1. Update local sale_item
-          const newRetQty = (item.returned_qty || 0) + returnQty
-          await db.sale_items.update(item.id, { returned_qty: newRetQty })
-
-          // 2. Queue the update
-          await db.sync_queue.add({ table: 'sale_items', action: 'UPDATE', data: { id: item.id, returned_qty: newRetQty }, timestamp: new Date().toISOString() })
-
-          // 3. Update local stock
-          const localProd = await db.products.get(item.product_id)
-          const newStock = (localProd?.stock_quantity || 0) + returnQty
-          await db.products.update(item.product_id, { stock_quantity: newStock })
-          await db.sync_queue.add({ table: 'products', action: 'UPDATE', data: { id: item.product_id, stock_quantity: newStock }, timestamp: new Date().toISOString() })
-        }
-
-        // Update local Sale total
-        const newSaleTotal = Math.max(0, (selectedSale.total_amount || 0) - totalReturnAmount)
-        await db.sales.update(selectedSale.id, { total_amount: newSaleTotal })
-        await db.sync_queue.add({ table: 'sales', action: 'UPDATE', data: { id: selectedSale.id, total_amount: newSaleTotal }, timestamp: new Date().toISOString() })
-
-        alert('Offline mode: Return processed locally. Stock and Invoice updated! 🔄')
-        setReturning(false)
-        setReturnQtys({})
-        setSelectedSale({ ...selectedSale, total_amount: newSaleTotal })
-        // Reflect updated returned_qty in modal items
-        const localUpdated = await db.sale_items.where({ sale_id: selectedSale.id }).toArray().catch(() => [])
-        if (localUpdated.length > 0) setSaleItems(localUpdated)
-        fetchSales()
-      } else {
-        alert('Error processing return: ' + errMsg)
-        setReturning(false)
-      }
+      const finished = `${done.items.size}/${itemsToReturn.length} items${done.saleTotal ? ', invoice total' : ''}${done.refund ? ', refund' : ''}`
+      alert(`Error processing return: ${err?.message || err}\nCompleted before the error: ${finished}. Please review this invoice before retrying.`)
+    } finally {
+      setReturning(false)
     }
   }
 

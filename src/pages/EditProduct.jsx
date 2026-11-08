@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, useParams } from 'react-router-dom'
 import { db, addToSyncQueue } from '../services/db'
+import { toIntId } from '../services/integrity'
 import { getShopPreset, getPricingConfig, isWholesaleEnabled } from '../utils/businessPresets'
 
 function EditProduct() {
@@ -231,7 +232,7 @@ function EditProduct() {
 
     // Sanitize integer FK fields — offline-created records have UUID ids which
     // Supabase cannot cast to INTEGER. Parse to int; if it fails (UUID), set null.
-    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+    const toIntOrNull = toIntId // strict: never parseInt a UUID
     updatedProductData.category_id = updatedProductData.category_id ? toIntOrNull(updatedProductData.category_id) : null
     updatedProductData.supplier_id = updatedProductData.supplier_id ? toIntOrNull(updatedProductData.supplier_id) : null
     updatedProductData.unit_id = updatedProductData.unit_id ? toIntOrNull(updatedProductData.unit_id) : null

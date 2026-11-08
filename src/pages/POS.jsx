@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
+import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import { buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
@@ -846,7 +847,7 @@ function POS() {
     setSaving(true)
 
     // Sanitize integer FK — offline-created customers have UUID ids
-    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+    const toIntOrNull = toIntId // strict: never parseInt a UUID (parseInt('7c9e…') === 7)
 
     const primaryPaymentMethod = saleType === 'quotation'
       ? 'quotation'
@@ -877,123 +878,109 @@ function POS() {
     }
 
     let finalSale = null;
+    // Idempotency key: the database rejects a second row with the same client_ref,
+    // so a retry/offline replay after a lost response can never duplicate the sale.
+    const clientRef = crypto.randomUUID()
+    saleData.client_ref = clientRef
+    // Sales that reference a record not synced yet (offline-created customer/product)
+    // must go through the queue so syncService can swap in the real ids.
+    const hasUnsyncedRef = isTempId(String(customerId || '')) || cart.some(i => isTempId(String(i.id)))
+    const balanceIncrease = customerId ? total - Math.min(total, totalPaid) : 0
+    let savedOnline = false
 
+    // ── 1. Sale header ────────────────────────────────────────────
     try {
-      if (!navigator.onLine) throw new TypeError('Failed to fetch')
+      if (!navigator.onLine || hasUnsyncedRef) throw new TypeError('Failed to fetch')
 
-      let sale = null
-      let saleError = null
-      const res = await supabase.from('sales').insert([saleData]).select().single()
-      sale = res.data
-      saleError = res.error
+      let { data: sale, error: saleError } = await supabase.from('sales').insert([saleData]).select().single()
 
-      // Resilient fallback if user hasn't run the SQL migration query in Supabase yet
-      if (saleError && (
-        saleError.message?.includes('online_provider') ||
-        saleError.message?.includes('transaction_ref') ||
-        saleError.code === 'PGRST204' ||
-        saleError.code === '42703'
-      )) {
-        console.warn('POS: Top-level online_provider/transaction_ref columns not found in database yet. Falling back to JSONB payment_details storage.')
+      // Resilient fallback if optional columns are not migrated in Supabase yet
+      if (saleError && (isMissingColumn(saleError) || saleError.message?.includes('online_provider') || saleError.message?.includes('transaction_ref'))) {
+        console.warn('POS: optional sales columns not found in database yet. Retrying without them (payment details kept in payment_details JSONB).')
         const fallbackSaleData = { ...saleData }
         delete fallbackSaleData.online_provider
         delete fallbackSaleData.transaction_ref
         delete fallbackSaleData.price_tier
-        const retryRes = await supabase.from('sales').insert([fallbackSaleData]).select().single()
-        sale = retryRes.data
-        saleError = retryRes.error
+        delete fallbackSaleData.client_ref
+        ;({ data: sale, error: saleError } = await supabase.from('sales').insert([fallbackSaleData]).select().single())
       }
 
       if (saleError) throw saleError
-      finalSale = sale;
-
-      const items = cart.map(i => ({
-        sale_id: sale.id,
-        product_id: toIntOrNull(i.id),
-        product_name: i.name,
-        quantity: i.qty,
-        unit_price: i.custom_price,
-        cost_price: i.cost_price || 0,
-        line_total: i.custom_price * i.qty,
-        returned_qty: 0,
-      }))
-      const { data: resItems, error: itemsError } = await supabase.from('sale_items').insert(items).select()
-      if (itemsError) throw itemsError
-
+      finalSale = sale
+      savedOnline = true
       // Mirror to local DB so Sales history / ledger shows up immediately without reload
       await db.sales.put(sale)
-      await db.sale_items.bulkPut(resItems)
-
-      if (saleType === 'sale') {
-        for (const item of cart) {
-          const newStock = item.stock_quantity - item.qty
-          await supabase.from('products').update({ stock_quantity: newStock }).eq('id', item.id)
-          // Mirror to local DB so Inventory page shows accurate stock immediately
-          await db.products.update(item.id, { stock_quantity: newStock })
-        }
-        if (customerId) {
-          // CLAMPED to avoid deducting cash change returned from customer's long-term ledger!
-          const actualPaidToBill = Math.min(total, totalPaid)
-          const balanceIncrease = total - actualPaidToBill
-          if (balanceIncrease !== 0) {
-            const customer = customers.find(c => String(c.id) === String(customerId))
-            const newBalance = (customer?.outstanding_balance || 0) + balanceIncrease
-            await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', customerId)
-            await db.customers.update(customerId, { outstanding_balance: newBalance })
-          }
-        }
-      }
     } catch (error) {
-      const errMsg = error?.message || String(error)
-      if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-        console.log('POS: Intercepted offline failure, routing to local queue...')
-        // OFFLINE MODE
-        const offlineId = crypto.randomUUID();
-        const offlineSaleData = { ...saleData, id: offlineId };
-        finalSale = offlineSaleData;
-
-        await db.sales.add(offlineSaleData)
-        await addToSyncQueue('sales', 'INSERT', offlineSaleData)
-
-        const items = cart.map(i => ({
-          id: crypto.randomUUID(),
-          sale_id: offlineId,
-          product_id: i.id,
-          product_name: i.name,
-          quantity: i.qty,
-          unit_price: i.custom_price,
-          cost_price: i.cost_price || 0,
-          line_total: i.custom_price * i.qty,
-          returned_qty: 0,
-        }))
-        await db.sale_items.bulkPut(items)
-        await addToSyncQueue('sale_items', 'INSERT', items)
-
-        if (saleType === 'sale') {
-          // Update Local Stock
-          for (const item of cart) {
-            const newStock = item.stock_quantity - item.qty
-            await db.products.update(item.id, { stock_quantity: newStock })
-            await addToSyncQueue('products', 'UPDATE', { id: item.id, stock_quantity: newStock })
-          }
-          // Update Local Customer Balance (clamped)
-          if (customerId) {
-            const actualPaidToBill = Math.min(total, totalPaid)
-            const balanceIncrease = total - actualPaidToBill
-            if (balanceIncrease !== 0) {
-              const customer = customers.find(c => String(c.id) === String(customerId))
-              const newBalance = (customer?.outstanding_balance || 0) + balanceIncrease
-              await db.customers.update(customerId, { outstanding_balance: newBalance })
-              await addToSyncQueue('customers', 'UPDATE', { id: customerId, outstanding_balance: newBalance })
-            }
-          }
-        }
-        alert('Offline mode: Sale saved locally. Will sync automatically when online. 🔄')
-      } else {
-        alert('Error completing sale: ' + error.message)
+      if (!hasUnsyncedRef && !isNetworkError(error)) {
+        alert('Error completing sale: ' + (error?.message || String(error)))
         setSaving(false)
         return
       }
+      // OFFLINE: nothing reached the database (or the response was lost — client_ref
+      // makes the replay safe). Queue the whole sale.
+      console.log('POS: routing sale to local queue...')
+      const offlineId = crypto.randomUUID()
+      const offlineSaleData = {
+        ...saleData,
+        id: offlineId,
+        // keep an unsynced customer's temp id so the sync queue can map it to the real one
+        customer_id: isTempId(String(customerId || '')) ? customerId : saleData.customer_id
+      }
+      finalSale = offlineSaleData
+      await db.sales.add(offlineSaleData)
+      await addToSyncQueue('sales', 'INSERT', offlineSaleData)
+    }
+
+    // ── 2. Line items (never create a second sale if this step fails) ──
+    const items = cart.map(i => ({
+      sale_id: finalSale.id,
+      product_id: savedOnline ? toIntOrNull(i.id) : i.id,
+      product_name: i.name,
+      quantity: i.qty,
+      unit_price: i.custom_price,
+      cost_price: i.cost_price || 0,
+      line_total: i.custom_price * i.qty,
+      returned_qty: 0,
+    }))
+    let itemsSaved = false
+    if (savedOnline) {
+      const { data: resItems, error: itemsError } = await supabase.from('sale_items').insert(items).select()
+      if (!itemsError) {
+        await db.sale_items.bulkPut(resItems)
+        itemsSaved = true
+      } else if (!isNetworkError(itemsError)) {
+        // Hard failure: remove the header so we never keep a sale without its items
+        await supabase.from('sales').delete().eq('id', finalSale.id)
+        await db.sales.delete(finalSale.id).catch(() => {})
+        alert('Error completing sale (items): ' + itemsError.message + '\nSale was NOT saved — please try again.')
+        setSaving(false)
+        return
+      }
+    }
+    if (!itemsSaved) {
+      const localItems = items.map(it => ({ ...it, id: crypto.randomUUID() }))
+      await db.sale_items.bulkPut(localItems)
+      await addToSyncQueue('sale_items', 'INSERT', localItems)
+    }
+
+    // ── 3. Stock & customer balance as atomic changes (online, or queued) ──
+    if (saleType === 'sale') {
+      const failed = []
+      for (const item of cart) {
+        const r = await adjustStock(item.id, -Number(item.qty))
+        if (!r.ok) failed.push(item.name)
+      }
+      if (customerId && balanceIncrease !== 0) {
+        const r = await adjustCustomerBalance(customerId, balanceIncrease)
+        if (!r.ok) failed.push('customer balance')
+      }
+      if (failed.length > 0) {
+        alert(`Sale saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / customer balance.`)
+      }
+    }
+
+    if (!savedOnline || !itemsSaved) {
+      alert('Offline mode: Sale saved locally. Will sync automatically when online. 🔄')
     }
 
     const customer = customers.find(c => String(c.id) === String(customerId))

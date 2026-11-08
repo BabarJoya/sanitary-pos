@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
+import { adjustSupplierBalance } from '../services/integrity'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 
@@ -161,8 +162,9 @@ function SupplierLedger() {
             const { error: pErr } = await supabase.from('supplier_payments').insert(insertRows)
             if (pErr) throw pErr
 
-            const { error: sErr } = await supabase.from('suppliers').update({ outstanding_balance: newBalance }).eq('id', id)
-            if (sErr) throw sErr
+            // Atomic change in the database (never overwrite with a total computed from stale data)
+            const r = await adjustSupplierBalance(id, purchaseAmt - paidAmt)
+            if (!r.ok) alert('Entries saved, but supplier balance update failed: ' + (r.error?.message || 'unknown error'))
 
             alert('Transaction save ho gaya! ✅')
             resetForm()
@@ -182,9 +184,8 @@ function SupplierLedger() {
                     await db.supplier_payments.add(rec)
                     await db.sync_queue.add({ table: 'supplier_payments', action: 'INSERT', data: rec, timestamp: now })
                 }
-                await db.suppliers.update(id, { outstanding_balance: newBalance })
-                await db.sync_queue.add({ table: 'suppliers', action: 'UPDATE', data: { id, outstanding_balance: newBalance }, timestamp: now })
-                setSupplier(s => ({ ...s, outstanding_balance: newBalance }))
+                await adjustSupplierBalance(id, purchaseAmt - paidAmt) // queued as an atomic change
+                setSupplier(s => ({ ...s, outstanding_balance: (Number(s.outstanding_balance) || 0) + purchaseAmt - paidAmt }))
                 alert('Offline mode: Transaction locally save ho gaya. Online hone pr sync hoga! 🔄')
                 resetForm()
                 fetchSupplierData()

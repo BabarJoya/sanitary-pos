@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
+import { toIntId } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
@@ -415,7 +416,7 @@ function Products() {
   const handleInlineSave = async () => {
     if (!inlineForm.name?.trim()) return alert('Product Name is required')
     setInlineSaving(true)
-    const toIntOrNull = (v) => { const n = parseInt(v); return isNaN(n) ? null : n }
+    const toIntOrNull = toIntId // strict: never parseInt a UUID
     const updates = {
       name: inlineForm.name.trim(),
       brand: inlineForm.brand || '',

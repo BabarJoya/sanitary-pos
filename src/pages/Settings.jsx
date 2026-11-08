@@ -9,13 +9,38 @@ import { hasFeature } from '../utils/featureGate'
 import { printHTML } from '../utils/printUtils'
 import { syncOfflineData } from '../services/syncService'
 import { BUSINESS_PRESETS } from '../utils/businessPresets'
-import { Store, Tag, Receipt, ShieldCheck } from 'lucide-react'
+import { Store, Tag, Receipt, ShieldCheck, Printer, MessageCircle, Database, BarChart3, CreditCard, AlertTriangle } from 'lucide-react'
+
+// Sidebar sections. `form: true` sections share the single profile form and its Save button.
+const SETTINGS_SECTIONS = [
+  { id: 'profile',  label: 'Shop Profile',      icon: Store,         form: true, desc: 'Name, contact details and logo shown on prints and invoices.' },
+  { id: 'business', label: 'Business & Pricing', icon: Tag,          form: true, desc: 'Store type, price fields, tax number and Wholesale Mode.' },
+  { id: 'pos',      label: 'POS & Receipts',    icon: Printer,       form: true, desc: 'POS screen layout, receipt footers, invoice prefix, print size and bill template.' },
+  { id: 'whatsapp', label: 'WhatsApp',          icon: MessageCircle, form: true, desc: 'Message templates for reminders, bills and supplier reorders.' },
+  { id: 'data',     label: 'Data & Backup',     icon: Database,      desc: 'Sync, import, export or back up your store data.' },
+  { id: 'reports',  label: 'Sales Reports',     icon: BarChart3,     desc: 'Print a daily, weekly or monthly sales summary.' },
+  { id: 'plan',     label: 'Plan & Updates',    icon: CreditCard,    desc: 'Your subscription tier, limits and software version.' },
+  { id: 'danger',   label: 'Danger Zone',       icon: AlertTriangle, desc: 'Irreversible actions — proceed with extreme caution.' },
+]
+const SECTION_IDS = SETTINGS_SECTIONS.map(x => x.id)
+// Hides the top divider of the first block in a section so each section starts cleanly
+const SECTION_GROUP = 'space-y-4 [&>*:first-child]:border-t-0 [&>*:first-child]:pt-0'
 
 function Settings() {
   const { user } = useAuth()
   const [shop, setShop] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [activeSection, setActiveSection] = useState(() => {
+    const h = (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '')
+    return SECTION_IDS.includes(h) ? h : 'profile'
+  })
+  const currentSection = SETTINGS_SECTIONS.find(x => x.id === activeSection) || SETTINGS_SECTIONS[0]
+  const goToSection = (id) => {
+    setActiveSection(id)
+    try { window.history.replaceState(null, '', `#${id}`) } catch { /* ignore */ }
+    document.querySelector('main')?.scrollTo?.({ top: 0, behavior: 'smooth' })
+  }
   const [form, setForm] = useState(() => {
     const sid = user?.shop_id
     const saved = sid ? localStorage.getItem(`shop_settings_${sid}`) : null
@@ -275,6 +300,11 @@ function Settings() {
 
   const handleUpdate = async (e) => {
     e.preventDefault()
+    if (!String(form.name || '').trim()) {
+      goToSection('profile')
+      alert('Store / Shop Name is required')
+      return
+    }
     setSaving(true)
 
     const sid = Number(user.shop_id)
@@ -494,20 +524,53 @@ function Settings() {
   if (loading) return <div className="p-8">Loading settings...</div>
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-2">
+    <div className="max-w-6xl mx-auto">
+      <div className="flex items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold text-gray-800">⚙️ Settings</h1>
         <span className="px-2 py-1 bg-gray-100 text-gray-400 text-[10px] font-bold uppercase rounded tracking-widest italic tracking-tighter">Shop ID: {user.shop_id}</span>
       </div>
 
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-gray-50 px-6 py-4 border-b">
-          <h2 className="font-bold text-gray-700">Shop Profile</h2>
-          <p className="text-xs text-gray-400">This information will appear on your prints and invoices</p>
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        {/* Section navigation: horizontal chips on phones, sticky sidebar on md+ */}
+        <nav aria-label="Settings sections" className="w-full md:w-56 shrink-0 md:sticky md:top-0">
+          <ul className="flex md:flex-col gap-1.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 bg-white md:p-2 md:rounded-2xl md:border md:border-gray-100 md:shadow-sm">
+            {SETTINGS_SECTIONS.map(sec => {
+              const Icon = sec.icon
+              const active = sec.id === activeSection
+              const danger = sec.id === 'danger'
+              return (
+                <li key={sec.id} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => goToSection(sec.id)}
+                    aria-current={active ? 'page' : undefined}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 border md:border-0 ${
+                      active
+                        ? (danger ? 'bg-red-50 text-red-700 border-red-200' : 'bg-blue-50 text-blue-700 border-blue-200')
+                        : (danger ? 'text-red-600 hover:bg-red-50 border-gray-200' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-gray-200')
+                    }`}
+                  >
+                    <Icon size={17} className="shrink-0" aria-hidden="true" />
+                    <span>{sec.label}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
+
+        <div className="flex-1 min-w-0 w-full space-y-6">
+      {currentSection.form && (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div className="bg-gray-50 px-6 py-4 border-b rounded-t-2xl">
+          <h2 className="font-bold text-gray-700">{currentSection.label}</h2>
+          <p className="text-xs text-gray-400">{currentSection.desc}</p>
         </div>
 
         <form onSubmit={handleUpdate} className="p-6 space-y-4">
+          {activeSection === 'profile' && (
+          <div className={SECTION_GROUP}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-bold text-gray-600 mb-1">Store / Shop Name</label>
@@ -590,6 +653,11 @@ function Settings() {
             </div>
           </div>
 
+          </div>
+          )}
+
+          {activeSection === 'business' && (
+          <div className={SECTION_GROUP}>
           {/* Industry Preset & Business Type */}
           <div className="pt-5 border-t">
             <div className="flex items-center gap-2 mb-1.5">
@@ -704,6 +772,11 @@ function Settings() {
             </div>
           )}
 
+          </div>
+          )}
+
+          {activeSection === 'pos' && (
+          <div className={SECTION_GROUP}>
           {/* POS Layout Preference */}
           <div className="pt-5 border-t">
             <div className="flex items-center gap-2 mb-1.5">
@@ -845,6 +918,11 @@ function Settings() {
             </div>
           </div>
 
+          </div>
+          )}
+
+          {activeSection === 'whatsapp' && (
+          <div className={SECTION_GROUP}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
             <div className="md:col-span-2">
               <h3 className="text-sm font-black text-blue-600 uppercase tracking-wider mb-3">WhatsApp Messaging Templates</h3>
@@ -885,21 +963,26 @@ function Settings() {
             </div>
           </div>
 
-          <div className="pt-4 border-t flex items-center justify-between">
-            <div className="text-[10px] text-gray-400 font-medium max-w-[300px]">
-              Note: Changing the shop name will affect all future invoices and quotations immediately.
+          </div>
+          )}
+
+          <div className="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white/95 backdrop-blur border-t rounded-b-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-[11px] text-gray-400 font-medium sm:max-w-[320px]">
+              Saves Shop Profile, Business & Pricing, POS & Receipts and WhatsApp settings together.
             </div>
             <button
               type="submit"
               disabled={saving}
-              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-100 disabled:opacity-50"
+              className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-100 disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Update Profile'}
+              {saving ? 'Saving...' : 'Save Settings'}
             </button>
           </div>
         </form>
       </div>
+      )}
 
+      {activeSection === 'data' && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
           <div>
@@ -1177,7 +1260,10 @@ function Settings() {
       </div>
 
 
-      {/* ── Billing Template Selector ── */}
+      )}
+
+      {/* ── Billing Template Selector (shown under POS & Receipts) ── */}
+      {activeSection === 'pos' && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="bg-gray-50 px-6 py-4 border-b">
           <h2 className="font-bold text-gray-700">Billing Template</h2>
@@ -1244,7 +1330,10 @@ function Settings() {
         </div>
       </div>
 
+      )}
+
       {/* ── Sales Reports ── */}
+      {activeSection === 'reports' && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="bg-gray-50 px-6 py-4 border-b">
           <h2 className="font-bold text-gray-700">Print Sales Report</h2>
@@ -1280,8 +1369,15 @@ function Settings() {
         </div>
       </div>
 
+      )}
+
       {/* Plan & Subscription */}
-      {planInfo && (
+      {activeSection === 'plan' && !planInfo && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-sm text-gray-500">
+          Plan details are not available right now. Connect to the internet and reopen this page.
+        </div>
+      )}
+      {activeSection === 'plan' && planInfo && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="bg-blue-50 px-6 py-4 border-b">
             <h2 className="font-bold text-blue-800">Plan & Subscription</h2>
@@ -1322,6 +1418,7 @@ function Settings() {
         </div>
       )}
 
+      {activeSection === 'plan' && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between">
         <div>
           <h3 className="font-bold text-gray-800">Software Updates</h3>
@@ -1333,7 +1430,10 @@ function Settings() {
         </div>
       </div>
 
+      )}
+
       {/* Danger Zone */}
+      {activeSection === 'danger' && (
       <div className="bg-red-50 rounded-2xl shadow-sm border-2 border-red-200 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
@@ -1358,6 +1458,10 @@ function Settings() {
               {clearing ? 'Clearing...' : '🔥 Clear All Data'}
             </button>
           </div>
+        </div>
+      </div>
+
+      )}
         </div>
       </div>
 
