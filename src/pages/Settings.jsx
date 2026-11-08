@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx'
 import { buildSalesReportHTML, buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { printHTML } from '../utils/printUtils'
-import { syncOfflineData } from '../services/syncService'
+import { syncOfflineData, getSyncQueueStatus, retryFailedSyncItems } from '../services/syncService'
 import { BUSINESS_PRESETS } from '../utils/businessPresets'
 import { Store, Tag, Receipt, ShieldCheck, Printer, MessageCircle, Database, BarChart3, CreditCard, AlertTriangle } from 'lucide-react'
 
@@ -88,6 +88,15 @@ function Settings() {
 
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState({ pending: 0, failed: 0, failedItems: [] })
+  const refreshSyncStatus = async () => {
+    try { setSyncStatus(await getSyncQueueStatus()) } catch { /* local DB unavailable */ }
+  }
+  useEffect(() => {
+    refreshSyncStatus()
+    window.addEventListener('sync_completed', refreshSyncStatus)
+    return () => window.removeEventListener('sync_completed', refreshSyncStatus)
+  }, [])
   const [planInfo, setPlanInfo] = useState(null)
   const [printTemplate, setPrintTemplate] = useState(() => {
     const sid = user?.shop_id
@@ -980,6 +989,37 @@ function Settings() {
           </div>
         </form>
       </div>
+      )}
+
+      {activeSection === 'data' && (syncStatus.pending > 0 || syncStatus.failed > 0) && (
+        <div className={`rounded-2xl border p-4 ${syncStatus.failed > 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`} role="status">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className={`font-bold ${syncStatus.failed > 0 ? 'text-red-800' : 'text-amber-800'}`}>
+                {syncStatus.pending} change(s) waiting to sync{syncStatus.failed > 0 ? ` · ${syncStatus.failed} failed` : ''}
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                Offline sales, purchases and stock changes stay on this device until they reach the server. Failed items are kept — nothing is deleted.
+              </p>
+            </div>
+            {syncStatus.failed > 0 && (
+              <button
+                type="button"
+                onClick={async () => { await retryFailedSyncItems(); await refreshSyncStatus() }}
+                className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm"
+              >
+                Retry failed
+              </button>
+            )}
+          </div>
+          {syncStatus.failedItems.length > 0 && (
+            <ul className="mt-3 space-y-1 text-xs text-red-800 max-h-40 overflow-y-auto">
+              {syncStatus.failedItems.slice(0, 20).map(it => (
+                <li key={it.id} className="break-words"><b>{it.table}</b> {it.action}: {it.last_error || 'unknown error'}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {activeSection === 'data' && (

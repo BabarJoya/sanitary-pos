@@ -180,9 +180,49 @@ export const restoreFromTrash = async (trashItem) => {
   await db.trash.delete(trashItem.id);
 };
 
-db.open().catch(async (err) => {
+// ── Schema-conflict recovery ─────────────────────────────────────────
+// A version conflict (e.g. after rolling back to an older build) used to delete
+// the whole local database — including unsynced offline sales. Now the pending
+// sync queue is saved to localStorage first and re-queued after the rebuild.
+const QUEUE_BACKUP_KEY = 'edgex_sync_queue_backup'
+
+async function backupQueueBeforeRebuild() {
+  try {
+    const raw = new Dexie('SanitaryPOS_Local') // dynamic mode: opens whatever schema exists
+    await raw.open()
+    const table = raw.tables.find(t => t.name === 'sync_queue')
+    const items = table ? await table.toArray() : []
+    raw.close()
+    if (items.length > 0) {
+      const prev = JSON.parse(localStorage.getItem(QUEUE_BACKUP_KEY) || '[]')
+      localStorage.setItem(QUEUE_BACKUP_KEY, JSON.stringify([...prev, ...items]))
+    }
+    return true
+  } catch (e) {
+    console.error('Could not back up sync queue before rebuild', e)
+    return false
+  }
+}
+
+async function restoreQueueBackup() {
+  let items = []
+  try { items = JSON.parse(localStorage.getItem(QUEUE_BACKUP_KEY) || '[]') } catch { items = [] }
+  if (!items.length) return
+  // eslint-disable-next-line no-unused-vars
+  await db.sync_queue.bulkAdd(items.map(({ id, ...rest }) => rest))
+  localStorage.removeItem(QUEUE_BACKUP_KEY)
+  console.warn(`Restored ${items.length} unsynced action(s) after local database rebuild.`)
+}
+
+db.open().then(restoreQueueBackup).catch(async (err) => {
   if (err.name === 'UpgradeError' || err.name === 'VersionError') {
     console.warn('Detected local database schema conflict. Rebuilding database...', err);
+    const saved = await backupQueueBeforeRebuild()
+    if (!saved) {
+      // Do not destroy unsynced data we could not save
+      alert('Local data could not be upgraded safely. Please contact support before clearing browser data.')
+      return
+    }
     await db.delete();
     window.location.reload();
   }
