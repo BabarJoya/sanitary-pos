@@ -4,7 +4,7 @@ import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly } from '../services/integrity'
+import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly, saleUnpaidAmount, splitReturnRefund } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
@@ -164,11 +164,22 @@ function Sales() {
     }
 
     setReturning(true)
-    const totalReturnAmount = itemsToReturn.reduce((sum, item) => sum + Number(item.unit_price) * qtyOf(item), 0)
-    const newSaleTotal = Math.max(0, Number(selectedSale.total_amount || 0) - totalReturnAmount)
-    const refundRow = refundType === 'credit' && selectedSale.customer_id
-      ? { shop_id: user.shop_id, customer_id: selectedSale.customer_id, amount: -totalReturnAmount, payment_type: 'return', note: `Return from Invoice #${String(selectedSale.id).slice(-6)} (Credited to Balance)` }
-      : { shop_id: user.shop_id, customer_id: selectedSale.customer_id || null, amount: -totalReturnAmount, payment_type: 'refund', note: `Cash Refund from Invoice #${String(selectedSale.id).slice(-6)}` }
+    // Refund what the customer actually paid for the goods: the bill discount is shared
+    // across items, and unpaid (credit) goods are taken off the balance, not refunded in cash.
+    const plan = splitReturnRefund({
+      sale: selectedSale,
+      saleItems,
+      returnLines: itemsToReturn.map(it => ({ unit_price: it.unit_price, qty: qtyOf(it) })),
+      refundType,
+      unpaidOnSale: saleUnpaidAmount(selectedSale),
+    })
+    const totalReturnAmount = plan.refund
+    const newSaleTotal = plan.newTotal
+    const invoiceTag = `Invoice #${String(selectedSale.id).slice(-6)}`
+    const refundRows = []
+    if (plan.creditPart > 0) refundRows.push({ shop_id: user.shop_id, customer_id: selectedSale.customer_id, amount: -plan.creditPart, payment_type: 'return', note: `Return from ${invoiceTag} (Credited to Balance)` })
+    if (plan.cashPart > 0) refundRows.push({ shop_id: user.shop_id, customer_id: selectedSale.customer_id || null, amount: -plan.cashPart, payment_type: 'refund', note: `Cash Refund from ${invoiceTag}` })
+    const saleUpdate = { total_amount: plan.newTotal, discount: plan.newDiscount, paid_amount: plan.newPaid }
 
     // Each step is recorded once — if the network drops halfway, the remaining
     // steps are queued instead of re-applying the ones that already succeeded.
@@ -201,30 +212,35 @@ function Sales() {
 
       // Sale total
       if (!wentOffline && navigator.onLine) {
-        const { error } = await supabase.from('sales').update({ total_amount: newSaleTotal }).eq('id', selectedSale.id)
+        const { error } = await supabase.from('sales').update(saleUpdate).eq('id', selectedSale.id)
         if (error && !isNetworkError(error)) throw error
         if (error) wentOffline = true
       } else wentOffline = true
-      await db.sales.update(selectedSale.id, { total_amount: newSaleTotal }).catch(() => {})
-      if (wentOffline) await addToSyncQueue('sales', 'UPDATE', { id: selectedSale.id, total_amount: newSaleTotal })
+      await db.sales.update(selectedSale.id, saleUpdate).catch(() => {})
+      if (wentOffline) await addToSyncQueue('sales', 'UPDATE', { id: selectedSale.id, ...saleUpdate })
       done.saleTotal = true
 
-      // Refund: credit note reduces the customer's balance; cash refund is just logged
-      if (refundType === 'credit' && selectedSale.customer_id) {
-        const r = await adjustCustomerBalance(selectedSale.customer_id, -totalReturnAmount)
+      // Credit part reduces the customer's balance; cash part is handed back and logged
+      if (plan.creditPart > 0 && selectedSale.customer_id) {
+        const r = await adjustCustomerBalance(selectedSale.customer_id, -plan.creditPart)
         if (!r.ok) throw r.error || new Error('Customer balance update failed')
       }
-      let logged = false
-      if (!wentOffline && navigator.onLine) {
-        const { error } = await supabase.from('customer_payments').insert([refundRow])
-        if (error && !isNetworkError(error)) throw error
-        logged = !error
-      }
-      if (!logged) {
-        const localRow = { ...refundRow, id: crypto.randomUUID(), created_at: new Date().toISOString() }
-        await db.customer_payments.add(localRow).catch(() => {})
-        await addToSyncQueue('customer_payments', 'INSERT', localRow)
-        wentOffline = true
+      if (refundRows.length > 0) {
+        let logged = false
+        if (!wentOffline && navigator.onLine) {
+          const { error } = await supabase.from('customer_payments').insert(refundRows)
+          if (error && !isNetworkError(error)) throw error
+          logged = !error
+        }
+        if (!logged) {
+          const now = new Date().toISOString()
+          for (const row of refundRows) {
+            const localRow = { ...row, id: crypto.randomUUID(), created_at: now }
+            await db.customer_payments.add(localRow).catch(() => {})
+            await addToSyncQueue('customer_payments', 'INSERT', localRow)
+          }
+          wentOffline = true
+        }
       }
       done.refund = true
 
@@ -244,11 +260,11 @@ function Sales() {
       setReturnQtys({})
       if (wentOffline) {
         alert('Offline mode: Return processed locally. Stock and Invoice updated! 🔄')
-        setSelectedSale({ ...selectedSale, total_amount: newSaleTotal })
+        setSelectedSale({ ...selectedSale, ...saleUpdate })
         const localUpdated = await db.sale_items.where({ sale_id: selectedSale.id }).toArray().catch(() => [])
         if (localUpdated.length > 0) setSaleItems(localUpdated)
       } else {
-        alert('Return successful! Invoice updated.')
+        alert(`Return successful! Invoice updated.\nCash to give back: Rs. ${plan.cashPart.toFixed(0)}${plan.creditPart > 0 ? `\nTaken off customer balance: Rs. ${plan.creditPart.toFixed(0)}` : ''}`)
         const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
         if (updatedSale) setSelectedSale(updatedSale)
         const { data: updatedItems } = await supabase.from('sale_items').select('*, products(name, stock_quantity)').eq('sale_id', selectedSale.id)

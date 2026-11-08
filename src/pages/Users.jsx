@@ -131,14 +131,16 @@ function Users() {
   }
 
   const toggleActive = async (u) => {
-    await supabase.from('users').update({ is_active: !u.is_active }).eq('id', u.id)
+    const { error } = await supabase.from('users').update({ is_active: !u.is_active }).eq('id', u.id)
+    if (error) alert('Could not update user: ' + error.message)
     fetchUsers()
   }
 
   const handleDelete = async (id) => {
     if (id === user.id) { alert('Aap apna khud ka account delete nahi kar sakte!'); return }
     if (!confirm('Is user ko delete karo?')) return
-    await supabase.from('users').delete().eq('id', id).eq('shop_id', user.shop_id)
+    const { error } = await supabase.from('users').delete().eq('id', id).eq('shop_id', user.shop_id)
+    if (error) alert('Could not delete user: ' + error.message)
     fetchUsers()
   }
 

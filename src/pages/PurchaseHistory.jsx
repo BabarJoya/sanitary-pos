@@ -4,7 +4,7 @@ import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustSupplierBalance } from '../services/integrity'
+import { adjustStock, adjustSupplierBalance, must } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
@@ -151,9 +151,9 @@ function PurchaseHistory() {
                 totalReturnAmount += returnAmount
 
                 // Update returned_qty on purchase_item
-                await supabase.from('purchase_items')
+                await must(supabase.from('purchase_items')
                     .update({ returned_qty: (item.returned_qty || 0) + returnQty })
-                    .eq('id', item.id)
+                    .eq('id', item.id))
 
                 // Reduce stock as an atomic change (local copy updated by the helper)
                 const sr = await adjustStock(item.product_id, -returnQty)
@@ -162,7 +162,7 @@ function PurchaseHistory() {
 
             // Update purchase record total
             const newPurchaseTotal = Math.max(0, (selectedPurchase.total_amount || 0) - totalReturnAmount)
-            await supabase.from('purchases').update({ total_amount: newPurchaseTotal }).eq('id', selectedPurchase.id)
+            await must(supabase.from('purchases').update({ total_amount: newPurchaseTotal }).eq('id', selectedPurchase.id))
 
             // If credit purchase, reduce supplier balance
             if (selectedPurchase.payment_type === 'credit' && selectedPurchase.supplier_id) {
@@ -170,13 +170,13 @@ function PurchaseHistory() {
                 if (!br.ok) throw br.error || new Error('Supplier balance update failed')
 
                 // Log payment return in supplier_payments
-                await supabase.from('supplier_payments').insert([{
+                await must(supabase.from('supplier_payments').insert([{
                     shop_id: user.shop_id,
                     supplier_id: selectedPurchase.supplier_id,
                     amount: -totalReturnAmount,
                     payment_type: 'return',
                     note: `Return from Purchase PR-${String(selectedPurchase.id).slice(-6)}`
-                }])
+                }]))
             }
 
             // Audit Log

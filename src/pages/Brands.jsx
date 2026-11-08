@@ -325,8 +325,9 @@ function Brands() {
         if (name) {
           const exists = brands.find(b => b.name.toLowerCase() === name.toLowerCase())
           if (!exists) {
-            await supabase.from('brands').insert([{ name, shop_id: user.shop_id }])
-            importedCount++
+            const { error } = await supabase.from('brands').insert([{ name, shop_id: user.shop_id }])
+            if (!error) importedCount++
+            else console.warn(`Brand import skipped "${name}":`, error.message)
           }
         }
       }
