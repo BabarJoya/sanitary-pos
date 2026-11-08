@@ -1,5 +1,6 @@
 import { createContext, useState, useContext, useEffect } from 'react'
 import { db } from '../services/db'
+import { adminCall } from '../services/adminApi'
 
 const AuthContext = createContext(null)
 
@@ -71,6 +72,13 @@ export function AuthProvider({ children }) {
       localStorage.setItem('user', JSON.stringify(restored))
       setOriginalUser(null)
       localStorage.removeItem('originalUser')
+      // Swap back to the superadmin's own session token (stashed by ShopsList before the
+      // impersonation handoff) so admin-api calls are authorized again.
+      const superadminToken = localStorage.getItem('superadmin_session_token')
+      if (superadminToken) {
+        localStorage.setItem('session_token', superadminToken)
+        localStorage.removeItem('superadmin_session_token')
+      }
       if (currentShopId) {
         localStorage.removeItem(`shop_name_${currentShopId}`)
         localStorage.removeItem(`shop_logo_${currentShopId}`)
@@ -81,6 +89,10 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
+    // Revoke the superadmin session server-side (best effort; it also expires on its own).
+    if (user?.role === 'superadmin' && localStorage.getItem('session_token')) {
+      adminCall('logout').catch(() => {})
+    }
     setUser(null)
     setOriginalUser(null)
     localStorage.removeItem('user')
@@ -88,6 +100,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user_pw_hash')
     localStorage.removeItem('session_token')
     localStorage.removeItem('superadmin_session')
+    localStorage.removeItem('superadmin_session_token')
     try {
       await Promise.all([
         db.products.clear(),

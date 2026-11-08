@@ -5,7 +5,7 @@ Read this first, then inspect only the modules needed. Treat this as the compact
 ## Architecture
 
 - Root is the shop-facing POS: React 18, Vite 5, Tailwind 4, React Router 6, Supabase, Dexie, and PWA support. Routes are in `src/App.jsx`; most shop pages follow `ProtectedRoute -> Layout -> Page`.
-- Platform administration is currently embedded under `/admin` in the root app (`src/components/admin`, `src/pages/admin`). A separate `superadmin/` Vite app also remains, with its own package/dependencies (React 19, Router 7) and Supabase client. Treat it as a distinct/legacy surface; check both apps before changing shared security or admin behavior.
+- Platform administration is currently embedded under `/admin` in the root app (`src/components/admin`, `src/pages/admin`). The separate `superadmin/` Vite app is retired (renders a "moved to /admin" notice; old modules are unbundled leftovers).
 - `src/components/Layout.jsx` owns the full-screen shell and inner scrolling. Business features are mostly page-local under `src/pages/`; POS, Products, Inventory, Sales, Purchases, Customers, Dashboard, Settings, and ledgers are high-traffic.
 - Business presets/pricing configuration live in `src/utils/businessPresets.js` (verify actual path before editing); global styling is Tailwind utilities and `src/index.css`. `src/App.css` is not part of the current styling path; do not import template CSS that constrains `#root`.
 
@@ -22,7 +22,9 @@ Standalone admin: `cd superadmin`, then the same npm scripts.
 
 - Supabase/RLS header helpers: `src/services/supabase.js`; Dexie schema: `src/services/db.js`; queue runner: `src/services/syncService.js` (30-second interval and `online` event, started by app bootstrap).
 - Login is in `src/pages/Login.jsx`, auth state in `src/context/AuthContext.jsx`. Current offline design persists identity/session material and password hashes in browser storage; this is a security-sensitive legacy constraint, not a secure authorization boundary.
-- **Never put service-role credentials in browser/Vite `VITE_*` variables.** `src/services/supabaseAdmin.js` and the separate admin client currently do this; privileged work belongs behind a trusted server/Edge Function. Check and rotate any key that may have been deployed.
+- **Never put service-role credentials in browser/Vite `VITE_*` variables.** Privileged superadmin work goes through the `admin-api` Edge Function (`supabase/functions/admin-api`, client `src/services/adminApi.js`), which verifies a superadmin session token and allow-lists tables/actions; see `docs/ADMIN_EDGE_FUNCTIONS.md`. The old key leaked (bundle + git history) and must be rotated.
+- `sessions` is server-written only (`secure_login`, Edge Functions); the browser may read only its own row. Superadmin sessions have `shop_id NULL`. Schema: `sql/superadmin_edge_functions_migration.sql`.
+- Never store or display plaintext passwords (`users.raw_password` was dropped in `sql/security_followups_migration.sql`). `audit_logs` is session-scoped like other tenant tables; platform entries (shop_id NULL) are written only by `admin-api`.
 - Enforce tenant isolation and roles in database RLS/RPC/server code, not only frontend filters or `ProtectedRoute`. Review SQL migrations together; order and duplicate policies materially affect security.
 - Preserve shop-scoped localStorage key patterns (`shop_name_${shopId}`, `shop_logo_${shopId}`, `shop_settings_${shopId}`, plan and print settings). Avoid casual changes to sync queue, session, or offline-login behavior. Do not discard queued business writes silently; use idempotency and observable recovery.
 

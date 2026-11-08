@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase, rlsSession } from '../services/supabase'
-import { supabaseAdmin } from '../services/supabaseAdmin'
 import { db as localDB } from '../services/db'
 import { hashPassword } from '../utils/authUtils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -180,35 +179,6 @@ function Login() {
     // ── Online path ───────────────────────────────────────────────────────
     try {
       const hashedPassword = await hashPassword(password)
-      const cleanUsername = username.trim().toLowerCase()
-
-      // Direct Superadmin authentication path for babarjoya@gmail.com
-      if (cleanUsername === 'babarjoya@gmail.com' || cleanUsername.includes('babarjoya')) {
-        if (supabaseAdmin) {
-          const { data: saUser, error: saError } = await supabaseAdmin
-            .from('users')
-            .select('*')
-            .or(`email.ilike.${cleanUsername},username.ilike.${cleanUsername}`)
-            .eq('password', hashedPassword)
-            .eq('role', 'superadmin')
-            .eq('is_active', true)
-            .maybeSingle()
-
-          if (!saError && saUser) {
-            login({
-              id: saUser.id,
-              username: saUser.username || 'Superadmin',
-              email: saUser.email || cleanUsername,
-              role: 'superadmin',
-              shop_id: null,
-              permissions: []
-            })
-            localStorage.setItem('user_pw_hash', hashedPassword)
-            navigate('/admin')
-            return
-          }
-        }
-      }
 
       // Use secure_login RPC (handles auth + shop status check + RLS setup)
       // Wrap in a 5s timeout so offline users don't wait forever
@@ -273,7 +243,8 @@ function Login() {
       }
 
       // If user is a superadmin, immediately navigate to superadmin portal
-      if (userData.role === 'superadmin' || cleanUsername === 'babarjoya@gmail.com') {
+      // Role comes from the server (secure_login) — never from the typed username.
+      if (userData.role === 'superadmin') {
         login({
           id: userData.id,
           username: userData.username,

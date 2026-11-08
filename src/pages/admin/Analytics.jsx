@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts'
 import { TrendingUp, Users, Activity, AlertTriangle, Filter, Download, Calendar, ArrowUpRight, ArrowDownRight, Layers } from 'lucide-react'
 
@@ -35,11 +35,11 @@ export default function Analytics() {
         setLoading(true)
         try {
             const [growthRes, topsRes, inactiveRes, shopsRes, paymentsRes] = await Promise.all([
-                supabaseAdmin.rpc('get_global_growth_stats'),
-                supabaseAdmin.rpc('get_top_performing_shops'),
-                supabaseAdmin.rpc('get_inactive_shops'),
-                supabaseAdmin.from('shops').select('id, name, created_at, subscription_plan, subscription_fee, status, plan_id, subscription_plans(name)'),
-                supabaseAdmin.from('shop_payments').select('id, amount, payment_date, payment_type')
+                adminDb.rpc('get_global_growth_stats'),
+                adminDb.rpc('get_top_performing_shops'),
+                adminDb.rpc('get_inactive_shops'),
+                adminDb.from('shops').select('id, name, created_at, subscription_plan, subscription_fee, status, plan_id, subscription_plans(name)'),
+                adminDb.from('shop_payments').select('id, amount, payment_date, payment_type')
             ])
 
             if (growthRes.error) throw growthRes.error

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb, adminCall } from '../../services/adminApi'
 import { Search, Plus, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Edit, Users, FileText, Trash2, DatabaseBackup } from 'lucide-react'
 import CreateShopModal from '../../components/admin/CreateShopModal'
 import EditShopModal from '../../components/admin/EditShopModal'
@@ -25,16 +25,11 @@ export default function ShopsList() {
   }, [])
 
   const fetchShops = async () => {
-    if (!supabaseAdmin) {
-      setErrorMsg('Service Role Key required. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env')
-      setLoading(false)
-      return
-    }
 
     setLoading(true)
     try {
       // 1. Fetch shops
-      const { data: shopsData, error: shopsError } = await supabaseAdmin
+      const { data: shopsData, error: shopsError } = await adminDb
         .from('shops')
         .select('*, subscription_plans(name)')
         .order('created_at', { ascending: false })
@@ -42,7 +37,7 @@ export default function ShopsList() {
       if (shopsError) throw shopsError
 
       // 2. Fetch user counts per shop
-      const { data: userCounts, error: countsError } = await supabaseAdmin
+      const { data: userCounts, error: countsError } = await adminDb
         .from('users')
         .select('shop_id')
 
@@ -70,7 +65,6 @@ export default function ShopsList() {
   }
 
   const toggleStatus = async (id, currentStatus) => {
-    if (!supabaseAdmin) return
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active'
     
     let suspensionReason = null
@@ -89,7 +83,7 @@ export default function ShopsList() {
       updates.suspension_reason = null
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await adminDb
       .from('shops')
       .update(updates)
       .eq('id', id)
@@ -121,169 +115,52 @@ export default function ShopsList() {
       return
     }
 
-    try {
-      // Delete all related records first (cascade may not be set)
-      await supabaseAdmin.from('users').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('products').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('sales').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('purchases').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('customers').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('suppliers').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('expenses').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('categories').delete().eq('shop_id', shop.id)
-      await supabaseAdmin.from('brands').delete().eq('shop_id', shop.id)
-
-      const { error } = await supabaseAdmin.from('shops').delete().eq('id', shop.id)
-      if (error) throw error
-
-      await logAction({
-        actor_id: user?.id,
-        actor_email: user?.email || user?.username,
-        action_type: 'DELETE_SHOP',
-        target_type: 'SHOP',
-        target_id: shop.id,
-        details: { shopName: shop.name }
-      })
-
-      fetchShops()
-    } catch (e) {
-      alert('Delete failed: ' + e.message)
+    // The Edge Function re-checks the name, deletes all shop data, and writes the audit log.
+    const { error } = await adminCall('delete_shop', { shop_id: shop.id, confirm_name: confirmed.trim() })
+    if (error) {
+      alert('Delete failed: ' + error.message)
+      return
     }
+    fetchShops()
   }
 
   const handleImpersonate = async (shop) => {
-    if (confirm(`Login as ${shop.name}? You will be temporarily in shop view with an exit banner.`)) {
-      // Retrieve first active admin user of the shop to associate with the database session
-      let targetUserId = null;
-      try {
-        const { data: usersData } = await supabaseAdmin
-          .from('users')
-          .select('id')
-          .eq('shop_id', shop.id)
-          .eq('is_active', true)
-          .limit(1);
-        if (usersData && usersData.length > 0) {
-          targetUserId = usersData[0].id;
-        }
-      } catch (err) {
-        console.warn('Failed to fetch target user for impersonation:', err);
-      }
+    if (!confirm(`Login as ${shop.name}? You will be temporarily in shop view with an exit banner.`)) return
 
-      if (!targetUserId) {
-        try {
-          const { data: anyUserData } = await supabaseAdmin
-            .from('users')
-            .select('id')
-            .eq('shop_id', shop.id)
-            .limit(1);
-          if (anyUserData && anyUserData.length > 0) {
-            targetUserId = anyUserData[0].id;
-          }
-        } catch (err) {
-          console.warn('Failed to fetch fallback user for impersonation:', err);
-        }
-      }
-
-      if (!targetUserId) {
-        alert('Cannot impersonate: This shop has no registered users in the database.');
-        return;
-      }
-
-      // Generate secure session token UUID
-      const generateUUID = () => {
-        if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
-          return window.crypto.randomUUID();
-        }
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
-      };
-
-      const token = generateUUID();
-
-      try {
-        const { error: sessionErr } = await supabaseAdmin
-          .from('sessions')
-          .insert([{
-            token: token,
-            user_id: targetUserId,
-            shop_id: shop.id,
-            expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() // 12 hours
-          }]);
-        if (sessionErr) throw sessionErr;
-      } catch (err) {
-        alert('Failed to establish secure database session: ' + err.message);
-        return;
-      }
-
-      // Log the impersonation action
-      await logAction({
-        actor_id: user?.id,
-        actor_email: user?.email || user?.username,
-        action_type: 'IMPERSONATE_SHOP',
-        target_type: 'SHOP',
-        target_id: shop.id,
-        details: { shopName: shop.name }
-      });
-
-      impersonate(shop.id, shop);
-      // Hand off through this tab's sessionStorage — never put the session token in the URL
-      // (Login verifies the token against the database and expires the handoff after 60s).
-      sessionStorage.setItem('edgex_impersonation_handoff', JSON.stringify({
-        impersonateId: shop.id,
-        shopName: shop.name || '',
-        logoUrl: shop.logo_url || '',
-        sessionToken: token,
-        ts: Date.now()
-      }));
-      window.location.href = '/?impersonate=1';
+    // The Edge Function picks a shop user, creates a short-lived session server-side,
+    // and records the impersonation in the audit log.
+    const { data, error } = await adminCall('impersonate', { shop_id: shop.id })
+    if (error || !data?.session_token) {
+      alert(error?.message || 'Failed to establish secure database session.')
+      return
     }
+
+    // Keep the superadmin's own session so "Exit impersonation" can restore it.
+    const ownToken = localStorage.getItem('session_token')
+    if (ownToken) localStorage.setItem('superadmin_session_token', ownToken)
+
+    impersonate(shop.id, shop)
+    // Hand off through this tab's sessionStorage — never put the session token in the URL
+    // (Login verifies the token against the database and expires the handoff after 60s).
+    sessionStorage.setItem('edgex_impersonation_handoff', JSON.stringify({
+      impersonateId: shop.id,
+      shopName: shop.name || '',
+      logoUrl: shop.logo_url || '',
+      sessionToken: data.session_token,
+      ts: Date.now()
+    }))
+    window.location.href = '/?impersonate=1'
   }
 
   const handleQuickBackup = async (shop) => {
-    if (!supabaseAdmin) return alert('Service role key required.')
     setBackingUp(prev => ({ ...prev, [shop.id]: true }))
     try {
-      const TABLES = [
-        { name: 'shops', label: 'Shop Info', singleRow: true },
-        { name: 'users', label: 'Users' },
-        { name: 'categories', label: 'Categories' },
-        { name: 'brands', label: 'Brands' },
-        { name: 'suppliers', label: 'Suppliers' },
-        { name: 'products', label: 'Products' },
-        { name: 'customers', label: 'Customers' },
-        { name: 'sales', label: 'Sales' },
-        { name: 'sale_items', label: 'Sale Items', joinTable: 'sales' },
-        { name: 'purchases', label: 'Purchases' },
-        { name: 'purchase_items', label: 'Purchase Items', joinTable: 'purchases' },
-        { name: 'customer_payments', label: 'Customer Payments' },
-        { name: 'expenses', label: 'Expenses' },
-      ]
+      const { data, error } = await adminCall('backup_shop', { shop_id: shop.id })
+      if (error) throw new Error(error.message)
       const wb = XLSX.utils.book_new()
-      let totalRows = 0
-      for (const tbl of TABLES) {
-        let data = []
-        if (tbl.singleRow) {
-          const { data: rows } = await supabaseAdmin.from(tbl.name).select('*').eq('id', shop.id).limit(1)
-          data = rows || []
-        } else if (tbl.joinTable) {
-          const { data: parents } = await supabaseAdmin.from(tbl.joinTable).select('id').eq('shop_id', shop.id)
-          const ids = (parents || []).map(r => r.id)
-          if (ids.length > 0) {
-            for (let i = 0; i < ids.length; i += 500) {
-              const { data: rows } = await supabaseAdmin.from(tbl.name).select('*').in(`${tbl.joinTable.slice(0, -1)}_id`, ids.slice(i, i + 500))
-              if (rows) data.push(...rows)
-            }
-          }
-        } else {
-          const { data: rows } = await supabaseAdmin.from(tbl.name).select('*').eq('shop_id', shop.id)
-          data = rows || []
-        }
-        totalRows += data.length
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.length ? data : [{}]), tbl.label.substring(0, 31))
+      for (const sheet of data.sheets || []) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet.rows?.length ? sheet.rows : [{}]), String(sheet.label).substring(0, 31))
       }
-      await supabaseAdmin.from('shop_backups').insert([{ shop_id: shop.id, backup_rows: totalRows, backed_up_by: user?.email || 'superadmin' }])
       XLSX.writeFile(wb, `${shop.name.replace(/\s+/g, '_')}_backup_${new Date().toISOString().split('T')[0]}.xlsx`)
     } catch (err) {
       alert('Backup failed: ' + err.message)

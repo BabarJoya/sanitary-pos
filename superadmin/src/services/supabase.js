@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
+// RETIRED APP — see superadmin/src/App.jsx and docs/ADMIN_EDGE_FUNCTIONS.md.
+// This legacy portal used to create a privileged (RLS-bypassing) client in the
+// browser. That is gone for good: privileged work now runs only in the
+// `admin-api` Edge Function used by the main POS app's /admin pages.
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-// This key bypasses RLS. Never use this in normal client apps. We use it here ONLY for the private superadmin dashboard.
-const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
 // To prevent "Multiple GoTrueClient instances" warnings during Vite HMR reloads
 export const supabase = globalThis.__supabaseClient || createClient(supabaseUrl, supabaseAnonKey, {
@@ -19,19 +21,5 @@ if (import.meta.env.DEV) {
   globalThis.__supabaseClient = supabase
 }
 
-export const supabaseAdmin = globalThis.__supabaseAdmin || (serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-    detectSessionInUrl: false,
-    storage: {
-      getItem: () => null,
-      setItem: () => { },
-      removeItem: () => { }
-    }
-  }
-}) : null)
-
-if (import.meta.env.DEV) {
-  globalThis.__supabaseAdmin = supabaseAdmin
-}
+// Kept only so the unused legacy modules still import cleanly. Always null.
+export const supabaseAdmin = null
