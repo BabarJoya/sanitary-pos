@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { printHTML, getShopBranding } from '../utils/printUtils'
 import { db } from '../services/db'
@@ -44,7 +45,7 @@ function CustomerLedger() {
 
             const fetchPromise = Promise.all([
                 supabase.from('customers').select('*').eq('id', id).eq('shop_id', user.shop_id).maybeSingle(),
-                supabase.from('sales').select('*, sale_items(*)').eq('customer_id', id).eq('shop_id', user.shop_id).order('created_at', { ascending: true }),
+                fetchAllRows(() => supabase.from('sales').select('*, sale_items(*)').eq('customer_id', id).eq('shop_id', user.shop_id).order('created_at', { ascending: true })),
                 supabase.from('customer_payments').select('*').eq('customer_id', id).eq('shop_id', user.shop_id)
             ])
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))

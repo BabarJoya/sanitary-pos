@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustCustomerBalance, isNetworkError } from '../services/integrity'
+import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
@@ -87,13 +88,13 @@ function Sales() {
     }
 
     try {
-      const fetchPromise = supabase
+      const fetchPromise = fetchAllRows(() => supabase
         .from('sales')
         .select('*, customers(name)')
         .eq('shop_id', user.shop_id)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }))
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise])
 
       if (error) throw error
@@ -124,7 +125,7 @@ function Sales() {
         .select('*, products(name, stock_quantity)')
         .eq('sale_id', sale.id)
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise])
 
       if (error) throw error
@@ -312,7 +313,7 @@ function Sales() {
       sale: {
         id: sale.id,
         created_at: sale.created_at,
-        paid_amount: sale.amount_paid,
+        paid_amount: sale.paid_amount ?? sale.amount_paid, // column is paid_amount (amount_paid only in the old schema file)
         created_by: sale.users?.username || 'Staff',
         payment_type: sale.payment_type || sale.payment_method,
         price_tier: sale.price_tier
@@ -377,24 +378,37 @@ function Sales() {
     let failCount = 0
     const successfulIds = []
 
+    const effectFailures = []
     for (const id of ids) {
       const item = sales.find(s => s.id === id)
       if (!item) continue
       try {
+        // Line items are needed to put stock back and to restore the sale from Trash later
+        let lineItems = []
+        if (navigator.onLine) {
+          const { data: remoteItems, error: itemsErr } = await supabase.from('sale_items').select('*').eq('sale_id', id)
+          if (itemsErr && !isNetworkError(itemsErr)) throw itemsErr
+          lineItems = remoteItems || []
+        }
+        if (lineItems.length === 0) {
+          lineItems = await db.sale_items.where({ sale_id: id }).toArray().catch(() => [])
+        }
+
         if (navigator.onLine) {
           // Cascade: delete sale_items first, then sale
-          await supabase.from('sale_items').delete().eq('sale_id', id)
+          const { error: delItemsErr } = await supabase.from('sale_items').delete().eq('sale_id', id)
+          if (delItemsErr) throw delItemsErr
           const { error } = await supabase.from('sales').delete().eq('id', id)
           if (error) {
             console.error('Delete failed:', error)
+            // Put the line items back so the sale is not left without its items
+            if (lineItems.length) await supabase.from('sale_items').upsert(lineItems.map(saleRowOnly))
             failCount++
             continue
           }
         } else {
           // Offline: queue both deletions
-          const localItems = await db.sale_items.where({ sale_id: id }).toArray().catch(() => [])
-          for (const it of localItems) {
-            await db.sale_items.delete(it.id)
+          for (const it of lineItems) {
             await addToSyncQueue('sale_items', 'DELETE', { id: it.id })
           }
           await addToSyncQueue('sales', 'DELETE', { id })
@@ -402,7 +416,13 @@ function Sales() {
         // Remove from local IndexedDB
         await db.sale_items.where({ sale_id: id }).delete().catch(() => {})
 
-        await moveToTrash('sales', id, item, user.id, user.shop_id)
+        // Undo what the sale did: return remaining stock, remove its unpaid amount from the customer
+        const failed = await applySaleEffects(item, lineItems, 'reverse')
+        if (failed.length) effectFailures.push(`#${String(id).slice(-8)}: ${failed.join(', ')}`)
+
+        // Keep header + items together so Trash can restore the complete sale
+        const clean = (o) => JSON.parse(JSON.stringify(o))
+        await moveToTrash('sales', id, { ...saleRowOnly(item), __items: clean(lineItems.map(saleRowOnly)) }, user.id, user.shop_id)
         await db.sales.delete(id)
         successfulIds.push(id)
         successCount++
@@ -410,6 +430,9 @@ function Sales() {
         console.error('Delete error:', err)
         failCount++
       }
+    }
+    if (effectFailures.length) {
+      alert(`Sales deleted, but some stock/balance reversals failed:\n${effectFailures.join('\n')}\nPlease check these products / customers.`)
     }
 
     setSales(prev => prev.filter(s => !successfulIds.includes(s.id)))
@@ -714,7 +737,7 @@ function Sales() {
       {showPasswordModal && (
         <PasswordModal
           title="Delete Sale(s)"
-          message={`${pendingDeleteIds.length} sale(s) will be moved to Trash`}
+          message={`${pendingDeleteIds.length} sale(s) will be moved to Trash. Stock will be returned and any unpaid amount removed from the customer's balance.`}
           onConfirm={executeDelete}
           onCancel={() => { setShowPasswordModal(false); setPendingDeleteIds([]) }}
         />

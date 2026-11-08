@@ -119,3 +119,49 @@ export async function findByClientRef(table, clientRef) {
 
 // Strip columns an un-migrated database does not have yet (PGRST204 / 42703)
 export const isMissingColumn = (err) => err && (err.code === 'PGRST204' || err.code === '42703')
+
+// ── Sale delete / restore ────────────────────────────────────────────
+// A completed sale removed stock and (for credit) raised the customer's balance.
+// Deleting it must undo both; restoring it from Trash must apply them again.
+
+// Columns of a `sales` row only — drops joined objects such as `customers(name)`
+// that came from list queries and would break an insert/upsert.
+export function saleRowOnly(sale) {
+  const row = {}
+  for (const [k, v] of Object.entries(sale || {})) {
+    if (k.startsWith('__')) continue
+    if (v && typeof v === 'object' && !Array.isArray(v) && k !== 'payment_details') continue
+    row[k] = v
+  }
+  return row
+}
+
+// Amount the sale added to the customer's balance (net total minus what was paid toward it)
+export function saleUnpaidAmount(sale) {
+  const net = Math.max(0, Number(sale?.total_amount || 0) - Number(sale?.discount || 0))
+  const paid = Math.min(net, Number(sale?.paid_amount ?? sale?.amount_paid ?? 0))
+  return Math.max(0, net - paid)
+}
+
+/**
+ * direction = 'reverse' (sale deleted: stock back, balance down)
+ *           | 'apply'   (sale restored: stock out, balance up)
+ * Returns the names of updates that failed (empty array = all good / queued).
+ */
+export async function applySaleEffects(sale, items, direction) {
+  if (!sale || sale.sale_type === 'quotation') return []
+  const sign = direction === 'reverse' ? 1 : -1
+  const failed = []
+  for (const it of items || []) {
+    const remaining = Number(it.quantity || 0) - Number(it.returned_qty || 0)
+    if (remaining <= 0 || it.product_id == null) continue
+    const r = await adjustStock(it.product_id, sign * remaining)
+    if (!r.ok) failed.push(it.product_name || `product ${it.product_id}`)
+  }
+  const unpaid = saleUnpaidAmount(sale)
+  if (sale.customer_id && unpaid > 0) {
+    const r = await adjustCustomerBalance(sale.customer_id, -sign * unpaid)
+    if (!r.ok) failed.push('customer balance')
+  }
+  return failed
+}

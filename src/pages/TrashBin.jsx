@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, restoreFromTrash, addToSyncQueue } from '../services/db'
+import { applySaleEffects, saleRowOnly, isNetworkError } from '../services/integrity'
 import PasswordModal from '../components/PasswordModal'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
@@ -83,19 +84,54 @@ function TrashBin() {
         sale_items: '📋 Sale Item'
     }
 
+    // Restore a deleted sale completely: header + line items, then take the stock
+    // out again and re-add its unpaid amount to the customer (undone on delete).
+    const restoreSale = async (item) => {
+        const lineItems = Array.isArray(item.data?.__items) ? item.data.__items : []
+        const header = saleRowOnly(item.data)
+        let online = navigator.onLine
+        if (online) {
+            const { error } = await supabase.from('sales').upsert([header])
+            if (error && !isNetworkError(error)) throw new Error(`Sale #${String(header.id).slice(-8)}: ${error.message}`)
+            if (error) online = false
+            else if (lineItems.length) {
+                const { error: itemsErr } = await supabase.from('sale_items').upsert(lineItems)
+                if (itemsErr && !isNetworkError(itemsErr)) throw new Error(`Sale #${String(header.id).slice(-8)} items: ${itemsErr.message}`)
+                if (itemsErr) await addToSyncQueue('sale_items', 'INSERT', lineItems)
+            }
+        }
+        if (!online) {
+            await addToSyncQueue('sales', 'INSERT', header)
+            if (lineItems.length) await addToSyncQueue('sale_items', 'INSERT', lineItems)
+        }
+        await db.sales.put(header)
+        if (lineItems.length) await db.sale_items.bulkPut(lineItems)
+        await db.trash.delete(item.id)
+        // Sales deleted before this fix never had stock/balance reversed — don't apply them twice
+        if (!Array.isArray(item.data?.__items)) return []
+        return applySaleEffects(header, lineItems, 'apply')
+    }
+
     const handleRestore = async (items) => {
         try {
+            const effectFailures = []
             for (const item of items) {
+                if (item.original_table === 'sales') {
+                    const failed = await restoreSale(item)
+                    if (failed.length) effectFailures.push(`#${String(item.original_id).slice(-8)}: ${failed.join(', ')}`)
+                    continue
+                }
                 await restoreFromTrash(item)
                 if (navigator.onLine) {
-                    try {
-                        await supabase.from(item.original_table).upsert([item.data])
-                    } catch (e) {
-                        await addToSyncQueue(item.original_table, 'INSERT', item.data)
-                    }
+                    const { error } = await supabase.from(item.original_table).upsert([item.data])
+                    if (error && !isNetworkError(error)) throw new Error(`${item.original_table}: ${error.message}`)
+                    if (error) await addToSyncQueue(item.original_table, 'INSERT', item.data)
                 } else {
                     await addToSyncQueue(item.original_table, 'INSERT', item.data)
                 }
+            }
+            if (effectFailures.length) {
+                alert(`Restored, but some stock/balance updates failed:\n${effectFailures.join('\n')}`)
             }
             alert(`✅ ${items.length} item(s) restored successfully!`)
             setSelected([])
