@@ -46,7 +46,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
     const handleSubmit = async (e) => {
         e.preventDefault()
         if (!supabaseAdmin) {
-            setError("Setup Error: Missing VITE_SUPABASE_SERVICE_ROLE_KEY in .env file.")
+            setError("This legacy portal is retired. Use /admin in EdgeX POS.")
             return
         }
 

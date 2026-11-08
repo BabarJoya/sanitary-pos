@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { Search, CreditCard, Clock, CheckCircle2, AlertTriangle, FileText, User, MessageSquare } from 'lucide-react'
 import { logAction } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
@@ -48,7 +48,7 @@ export default function Subscriptions() {
 
     const fetchAllPlans = async () => {
         try {
-            const { data, error } = await supabaseAdmin.from('subscription_plans').select('*').order('price', { ascending: true })
+            const { data, error } = await adminDb.from('subscription_plans').select('*').order('price', { ascending: true })
             if (error) throw error
             setAllPlans(data || [])
         } catch (err) {
@@ -57,15 +57,10 @@ export default function Subscriptions() {
     }
 
     const fetchSubscriptions = async () => {
-        if (!supabaseAdmin) {
-            setErrorMsg('Service Role Key required.')
-            setLoading(false)
-            return
-        }
 
         setLoading(true)
         try {
-            const { data, error } = await supabaseAdmin
+            const { data, error } = await adminDb
                 .from('shops')
                 .select('id, name, phone, subscription_plan, subscription_fee, next_billing_date, status, plan_id, subscription_plans(name)')
                 .order('name', { ascending: true })
@@ -82,7 +77,7 @@ export default function Subscriptions() {
 
     const handleRecordPayment = async (e) => {
         e.preventDefault()
-        if (!supabaseAdmin || !selectedShop || !paymentAmount) return
+        if (!selectedShop || !paymentAmount) return
 
         setProcessing(true)
         try {
@@ -90,7 +85,7 @@ export default function Subscriptions() {
             const finalAmount = isRefund ? -Math.abs(parseFloat(paymentAmount)) : parseFloat(paymentAmount)
 
             // 1. Insert Payment Record
-            const { error: paymentError } = await supabaseAdmin.from('shop_payments').insert([{
+            const { error: paymentError } = await adminDb.from('shop_payments').insert([{
                 shop_id: selectedShop.id,
                 amount: finalAmount,
                 payment_type: paymentType,
@@ -137,7 +132,7 @@ export default function Subscriptions() {
             }
 
             if (Object.keys(shopUpdates).length > 0) {
-                const { error: updateError } = await supabaseAdmin
+                const { error: updateError } = await adminDb
                     .from('shops')
                     .update(shopUpdates)
                     .eq('id', selectedShop.id)
@@ -168,7 +163,7 @@ export default function Subscriptions() {
 
     const handleExtendBilling = async (e) => {
         e.preventDefault()
-        if (!supabaseAdmin || !selectedShop || !extendDays) return
+        if (!selectedShop || !extendDays) return
 
         setProcessing(true)
         try {
@@ -179,7 +174,7 @@ export default function Subscriptions() {
             }
             nextDate.setDate(nextDate.getDate() + parseInt(extendDays))
 
-            const { error: updateError } = await supabaseAdmin
+            const { error: updateError } = await adminDb
                 .from('shops')
                 .update({ 
                     next_billing_date: nextDate.toISOString().split('T')[0],
@@ -232,7 +227,7 @@ export default function Subscriptions() {
         setLedgerModalOpen(true)
         setLedgerLoading(true)
         try {
-            const { data, error } = await supabaseAdmin
+            const { data, error } = await adminDb
                 .from('shop_payments')
                 .select('*')
                 .eq('shop_id', shop.id)
@@ -255,7 +250,7 @@ export default function Subscriptions() {
                 subscription_fee: parseFloat(planForm.fee)
             }
 
-            const { error } = await supabaseAdmin
+            const { error } = await adminDb
                 .from('shops')
                 .update(updates)
                 .eq('id', shopId)

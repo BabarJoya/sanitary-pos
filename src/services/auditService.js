@@ -1,5 +1,5 @@
 import { db } from './db'
-import { supabaseAdmin } from './supabaseAdmin'
+import { adminCall } from './adminApi'
 
 /**
  * Records a shop-level audit log entry locally in Dexie and prepares it for offline sync.
@@ -49,38 +49,26 @@ export const recordAuditLog = async (action, entity, entityId, details, userId, 
  * Logs an action to the global platform audit_logs table (Superadmin operations).
  * 
  * @param {Object} params
- * @param {string} params.actor_id - ID of the admin performing the action
- * @param {string} params.actor_email - Email of the admin
  * @param {string} params.action_type - e.g. 'SUSPEND_SHOP', 'UPDATE_BILLING', 'ACTIVATE_SHOP'
  * @param {string} params.target_type - e.g. 'SHOP', 'SUBSCRIPTION', 'SYSTEM'
  * @param {string} params.target_id - ID of the shop or entity being modified
  * @param {Object} params.details - Additional json context
  */
 export const logAction = async ({
-  actor_id,
-  actor_email,
   action_type,
   target_type,
   target_id = null,
   details = {}
 }) => {
+  // The actor is taken from the verified superadmin session server-side
+  // (admin-api Edge Function); any actor_id/actor_email passed here is ignored.
   try {
-    if (!supabaseAdmin) {
-      console.warn('supabaseAdmin not available for audit log')
-      return
-    }
-    const { error } = await supabaseAdmin
-      .from('audit_logs')
-      .insert({
-        actor_id,
-        actor_email,
-        action_type,
-        target_type,
-        target_id: target_id?.toString() || null,
-        details,
-        ip_address: 'Client-Side'
-      })
-
+    const { error } = await adminCall('log_action', {
+      action_type,
+      target_type,
+      target_id: target_id?.toString() || null,
+      details
+    })
     if (error) {
       console.error('Failed to write audit log:', error.message)
     }

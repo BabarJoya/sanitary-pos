@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { Plus, Zap, Check, AlertTriangle, Edit2, Trash2, ShieldCheck } from 'lucide-react'
 import { logAction } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
@@ -54,9 +54,8 @@ export default function PlanManagement() {
     }, [])
 
     const fetchPlans = async () => {
-        if (!supabaseAdmin) return
         try {
-            const { data, error } = await supabaseAdmin
+            const { data, error } = await adminDb
                 .from('subscription_plans')
                 .select('*')
                 .order('price', { ascending: true })
@@ -73,7 +72,7 @@ export default function PlanManagement() {
         e.preventDefault()
         try {
             if (editingPlan) {
-                const { error } = await supabaseAdmin
+                const { error } = await adminDb
                     .from('subscription_plans')
                     .update(form)
                     .eq('id', editingPlan.id)
@@ -88,7 +87,7 @@ export default function PlanManagement() {
                     details: form
                 })
             } else {
-                const { data, error } = await supabaseAdmin
+                const { data, error } = await adminDb
                     .from('subscription_plans')
                     .insert([form])
                     .select()

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { Send, Mail, Users, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react'
 import { logAction } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
@@ -50,9 +50,8 @@ export default function EmailBroadcast() {
     }
 
     const fetchTemplates = async () => {
-        if (!supabaseAdmin) return []
         try {
-            const { data, error } = await supabaseAdmin.from('email_templates').select('*').order('name', { ascending: true })
+            const { data, error } = await adminDb.from('email_templates').select('*').order('name', { ascending: true })
             if (error) throw error
             const list = data || []
             setDbTemplates(list)
@@ -64,9 +63,8 @@ export default function EmailBroadcast() {
     }
 
     const fetchShops = async () => {
-        if (!supabaseAdmin) return setLoading(false)
         try {
-            const { data, error } = await supabaseAdmin
+            const { data, error } = await adminDb
                 .from('shops')
                 .select('id, name, email, status')
                 .order('name', { ascending: true })
@@ -190,7 +188,7 @@ export default function EmailBroadcast() {
         }
 
         try {
-            const { error } = await supabaseAdmin
+            const { error } = await adminDb
                 .from('email_templates')
                 .upsert({
                     name: templateName,
@@ -211,7 +209,7 @@ export default function EmailBroadcast() {
     const handleDeleteTemplate = async (id) => {
         if (!confirm('Are you sure you want to delete this template?')) return
         try {
-            const { error } = await supabaseAdmin.from('email_templates').delete().eq('id', id)
+            const { error } = await adminDb.from('email_templates').delete().eq('id', id)
             if (error) throw error
             fetchTemplates()
         } catch (err) {

@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     if (!supabaseAdmin) {
-      throw new Error('Setup Error: Missing VITE_SUPABASE_SERVICE_ROLE_KEY in .env file.')
+      throw new Error('This legacy portal is retired. Use /admin in EdgeX POS.')
     }
 
     const hashed = await hashPassword(password)

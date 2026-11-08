@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { Search, Activity, CalendarClock, User, ShieldAlert } from 'lucide-react'
 
 export default function AuditLogs() {
@@ -13,14 +13,10 @@ export default function AuditLogs() {
     }, [])
 
     const fetchLogs = async () => {
-        if (!supabaseAdmin) {
-            setLoading(false)
-            return
-        }
 
         setLoading(true)
         try {
-            const { data, error } = await supabaseAdmin
+            const { data, error } = await adminDb
                 .from('audit_logs')
                 .select('*')
                 .order('created_at', { ascending: false })

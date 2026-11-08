@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { Store, Users, Activity, TrendingUp, CreditCard, DollarSign, AlertCircle, Megaphone, Trash2, Plus, Clock, RefreshCw, CheckCircle, MessageSquare } from 'lucide-react'
 import { buildWhatsAppUrl, formatRenewalMessage } from '../../utils/whatsappTemplates'
 
@@ -20,19 +20,21 @@ export default function AdminDashboard() {
   }, [])
 
   const fetchStats = async () => {
-    if (!supabaseAdmin) {
-      setError('Please add VITE_SUPABASE_SERVICE_ROLE_KEY to your .env to fetch global stats.')
-      setLoading(false)
-      return
-    }
 
     try {
       const [shopsRes, usersRes, paymentsRes, salesRes] = await Promise.all([
-        supabaseAdmin.from('shops').select('id, name, status, subscription_plan, subscription_fee, next_billing_date'),
-        supabaseAdmin.from('users').select('id', { count: 'exact' }),
-        supabaseAdmin.from('shop_payments').select('amount'),
-        supabaseAdmin.from('sales').select('total_amount, created_at, shop_id').order('created_at', { ascending: false }).limit(1000)
+        adminDb.from('shops').select('id, name, status, subscription_plan, subscription_fee, next_billing_date'),
+        adminDb.from('users').select('id', { count: 'exact' }),
+        adminDb.from('shop_payments').select('amount'),
+        adminDb.from('sales').select('total_amount, created_at, shop_id').order('created_at', { ascending: false }).limit(1000)
       ])
+
+      // admin-api rejects expired / non-superadmin sessions — tell the user to sign in again.
+      if (shopsRes.error) {
+        setError(`Could not load platform stats: ${shopsRes.error.message}. If your session expired, log out and sign in again.`)
+        setLoading(false)
+        return
+      }
 
       const shops = shopsRes.data || []
       const totalShops = shops.length
@@ -94,7 +96,7 @@ export default function AdminDashboard() {
       })
 
       // Fetch Announcements
-      const { data: annData } = await supabaseAdmin
+      const { data: annData } = await adminDb
         .from('announcements')
         .select('*')
         .order('created_at', { ascending: false })
@@ -119,7 +121,7 @@ export default function AdminDashboard() {
         is_active: true,
         shop_id: newAnnouncement.shop_id ? Number(newAnnouncement.shop_id) : null,
       }
-      const { error } = await supabaseAdmin.from('announcements').insert([payload])
+      const { error } = await adminDb.from('announcements').insert([payload])
       if (error) throw error
       setNewAnnouncement({ message: '', type: 'info', shop_id: '' })
       fetchStats()
@@ -131,7 +133,7 @@ export default function AdminDashboard() {
   const handleDeleteAnnouncement = async (id) => {
     if (!confirm('Are you sure you want to delete this announcement?')) return
     try {
-      await supabaseAdmin.from('announcements').delete().eq('id', id)
+      await adminDb.from('announcements').delete().eq('id', id)
       fetchStats()
     } catch {
       alert('Error deleting announcement')
@@ -139,12 +141,11 @@ export default function AdminDashboard() {
   }
 
   const handlePushUpdate = async () => {
-    if (!supabaseAdmin) return alert('Service role key required.')
     if (!confirm('This will force ALL active POS clients to reload within 5 minutes. Continue?')) return
     setPushingUpdate(true)
     try {
       const newVersion = String(Date.now())
-      const { error } = await supabaseAdmin
+      const { error } = await adminDb
         .from('system_configs')
         .upsert({ key: 'force_refresh_version', value: newVersion, updated_at: new Date().toISOString() })
       if (error) throw error

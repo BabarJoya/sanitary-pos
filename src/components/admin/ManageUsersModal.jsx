@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { logAction } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
 import { hashPassword } from '../../utils/authUtils'
@@ -25,11 +25,15 @@ export default function ManageUsersModal({ shop, onClose }) {
   const [showPass, setShowPass] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
 
-  // Password visibility state
+  // Passwords are never stored or readable in plaintext. A password set in this
+  // modal (create / edit / reset) is kept in memory only, so it can be copied or
+  // sent via WhatsApp right away; it is gone once the modal closes.
+  const [issuedPasswords, setIssuedPasswords] = useState({})
   const [revealedPasswords, setRevealedPasswords] = useState({})
   const [copiedId, setCopiedId] = useState(null)
+  const rememberIssued = (id, pwd) => { if (id) setIssuedPasswords(p => ({ ...p, [id]: pwd })) }
 
-  // Reset & Reveal Modal for legacy users without raw_password
+  // Reset Password modal
   const [resetModalUser, setResetModalUser] = useState(null)
   const [newPasswordInput, setNewPasswordInput] = useState('')
   const [resetting, setResetting] = useState(false)
@@ -37,27 +41,14 @@ export default function ManageUsersModal({ shop, onClose }) {
   useEffect(() => { if (shop) fetchUsers() }, [shop])
 
   const fetchUsers = async () => {
-    if (!supabaseAdmin) return
     setLoading(true)
     try {
-      let { data, error: err } = await supabaseAdmin
+      const { data, error: err } = await adminDb
         .from('users')
-        .select('id, username, email, role, is_active, created_at, last_sign_in_at, raw_password')
+        .select('id, username, email, role, is_active, created_at, last_sign_in_at')
         .eq('shop_id', shop.id)
         .order('role')
-
-      // Fallback if raw_password column not yet added
-      if (err && err.message?.includes('raw_password')) {
-        const fallback = await supabaseAdmin
-          .from('users')
-          .select('id, username, email, role, is_active, created_at, last_sign_in_at')
-          .eq('shop_id', shop.id)
-          .order('role')
-        if (fallback.error) throw fallback.error
-        data = fallback.data
-      } else if (err) {
-        throw err
-      }
+      if (err) throw err
 
       setUsers(data || [])
     } catch (e) {
@@ -90,7 +81,7 @@ export default function ManageUsersModal({ shop, onClose }) {
     setForm({
       username: u.username,
       email: u.email || '',
-      password: u.raw_password || '',
+      password: '',
       role: u.role,
       is_active: u.is_active
     })
@@ -110,27 +101,23 @@ export default function ManageUsersModal({ shop, onClose }) {
     try {
       if (formMode === 'add') {
         // Check username uniqueness within shop
-        const { data: existing } = await supabaseAdmin
+        const { data: existing } = await adminDb
           .from('users').select('id').eq('shop_id', shop.id).ilike('username', form.username.trim()).maybeSingle()
         if (existing) { flash('Username already exists in this shop.', true); setSaving(false); return }
 
         const hashed = await hashPassword(form.password)
-        let insertData = {
+        const insertData = {
           shop_id: shop.id,
           username: form.username.trim(),
           email: form.email.trim() || null,
           password: hashed,
-          raw_password: form.password.trim(),
           role: form.role,
           is_active: form.is_active,
         }
 
-        let { error: insErr } = await supabaseAdmin.from('users').insert([insertData])
-        if (insErr && insErr.message?.includes('raw_password')) {
-          delete insertData.raw_password
-          insErr = (await supabaseAdmin.from('users').insert([insertData])).error
-        }
+        const { data: created, error: insErr } = await adminDb.from('users').insert([insertData]).select('id').single()
         if (insErr) throw insErr
+        rememberIssued(created?.id, form.password)
 
         await logAction({
           actor_id: adminUser?.id, actor_email: adminUser?.email || adminUser?.username,
@@ -148,15 +135,11 @@ export default function ManageUsersModal({ shop, onClose }) {
         }
         if (form.password.trim()) {
           updateData.password = await hashPassword(form.password)
-          updateData.raw_password = form.password.trim()
         }
 
-        let { error: updErr } = await supabaseAdmin.from('users').update(updateData).eq('id', formMode)
-        if (updErr && updErr.message?.includes('raw_password')) {
-          delete updateData.raw_password
-          updErr = (await supabaseAdmin.from('users').update(updateData).eq('id', formMode)).error
-        }
+        const { error: updErr } = await adminDb.from('users').update(updateData).eq('id', formMode)
         if (updErr) throw updErr
+        if (form.password.trim()) rememberIssued(formMode, form.password)
 
         await logAction({
           actor_id: adminUser?.id, actor_email: adminUser?.email || adminUser?.username,
@@ -178,7 +161,7 @@ export default function ManageUsersModal({ shop, onClose }) {
     if (!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return
     setDeletingId(u.id)
     try {
-      const { error: delErr } = await supabaseAdmin.from('users').delete().eq('id', u.id)
+      const { error: delErr } = await adminDb.from('users').delete().eq('id', u.id)
       if (delErr) throw delErr
       await logAction({
         actor_id: adminUser?.id, actor_email: adminUser?.email || adminUser?.username,
@@ -196,7 +179,7 @@ export default function ManageUsersModal({ shop, onClose }) {
 
   const toggleActive = async (u) => {
     try {
-      const { error: e } = await supabaseAdmin.from('users').update({ is_active: !u.is_active }).eq('id', u.id)
+      const { error: e } = await adminDb.from('users').update({ is_active: !u.is_active }).eq('id', u.id)
       if (e) throw e
       flash(`User "${u.username}" is now ${!u.is_active ? 'active' : 'inactive'}.`)
       fetchUsers()
@@ -213,17 +196,9 @@ export default function ManageUsersModal({ shop, onClose }) {
     setResetting(true)
     try {
       const hashed = await hashPassword(newPasswordInput.trim())
-      let updatePayload = {
-        password: hashed,
-        raw_password: newPasswordInput.trim()
-      }
-
-      let { error: rErr } = await supabaseAdmin.from('users').update(updatePayload).eq('id', resetModalUser.id)
-      if (rErr && rErr.message?.includes('raw_password')) {
-        delete updatePayload.raw_password
-        rErr = (await supabaseAdmin.from('users').update(updatePayload).eq('id', resetModalUser.id)).error
-      }
+      const { error: rErr } = await adminDb.from('users').update({ password: hashed }).eq('id', resetModalUser.id)
       if (rErr) throw rErr
+      rememberIssued(resetModalUser.id, newPasswordInput.trim())
 
       await logAction({
         actor_id: adminUser?.id, actor_email: adminUser?.email || adminUser?.username,
@@ -231,7 +206,7 @@ export default function ManageUsersModal({ shop, onClose }) {
         details: { username: resetModalUser.username, shop_name: shop.name }
       })
 
-      flash(`Password for "${resetModalUser.username}" reset to "${newPasswordInput.trim()}".`)
+      flash(`Password for "${resetModalUser.username}" was reset. Copy or WhatsApp it now — it is not stored.`)
       setResetModalUser(null)
       setNewPasswordInput('')
       fetchUsers()
@@ -243,7 +218,13 @@ export default function ManageUsersModal({ shop, onClose }) {
   }
 
   const handleSendUserWhatsApp = (u) => {
-    const passwordToShow = u.raw_password || '(Please reset password to view)'
+    const passwordToShow = issuedPasswords[u.id]
+    if (!passwordToShow) {
+      // Passwords are not stored readable: set a new one first, then send it.
+      setResetModalUser(u)
+      setNewPasswordInput('')
+      return
+    }
     const msg = formatUserCredentialsMessage({
       shopName: shop.name,
       username: u.username,
@@ -266,7 +247,7 @@ export default function ManageUsersModal({ shop, onClose }) {
               <Users size={20} className="text-blue-600" />
               <span>Users — {shop.name}</span>
             </h2>
-            <p className="text-xs text-slate-500">View, reveal passwords, reset credentials, or manage staff access.</p>
+            <p className="text-xs text-slate-500">Add staff, reset credentials, or manage access. Passwords are never stored readable.</p>
           </div>
           <div className="flex items-center gap-2">
             {formMode === null && (
@@ -419,9 +400,9 @@ export default function ManageUsersModal({ shop, onClose }) {
                   {/* ── PASSWORD REVEAL & WHATSAPP ROW ── */}
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Password:</span>
-                    {u.raw_password ? (
-                      <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-xs font-mono font-bold text-slate-700">
-                        <span>{revealedPasswords[u.id] ? u.raw_password : '••••••'}</span>
+                    {issuedPasswords[u.id] ? (
+                      <div className="inline-flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-xs font-mono font-bold text-slate-700" title="New password — shown only until this window closes">
+                        <span>{revealedPasswords[u.id] ? issuedPasswords[u.id] : '••••••'}</span>
                         <button
                           type="button"
                           onClick={() => setRevealedPasswords(p => ({ ...p, [u.id]: !p[u.id] }))}
@@ -432,7 +413,7 @@ export default function ManageUsersModal({ shop, onClose }) {
                         </button>
                         <button
                           type="button"
-                          onClick={() => copyText(u.raw_password, u.id)}
+                          onClick={() => copyText(issuedPasswords[u.id], u.id)}
                           title="Copy Password"
                           className="text-slate-400 hover:text-slate-700 p-0.5"
                         >
@@ -445,7 +426,7 @@ export default function ManageUsersModal({ shop, onClose }) {
                         onClick={() => { setResetModalUser(u); setNewPasswordInput('') }}
                         className="text-[10px] font-bold text-blue-600 hover:underline bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition"
                       >
-                        🔑 Reset & Reveal Password
+                        🔑 Reset Password
                       </button>
                     )}
 
@@ -505,7 +486,7 @@ export default function ManageUsersModal({ shop, onClose }) {
               <button onClick={() => setResetModalUser(null)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             <p className="text-xs text-slate-500">
-              Enter a new readable password. It will be immediately visible for Superadmin support and sent via WhatsApp.
+              Set a new password, then copy it or send it via WhatsApp. It is shown only until this window closes and is never stored readable.
             </p>
 
             <form onSubmit={handleQuickReset} className="space-y-3">
@@ -534,7 +515,7 @@ export default function ManageUsersModal({ shop, onClose }) {
                   disabled={resetting || !newPasswordInput}
                   className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50"
                 >
-                  {resetting ? 'Saving...' : 'Save & Reveal'}
+                  {resetting ? 'Saving...' : 'Save Password'}
                 </button>
               </div>
             </form>

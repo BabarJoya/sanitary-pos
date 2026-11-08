@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Store, Mail, Phone, MapPin } from 'lucide-react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { logAction } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
 
@@ -24,7 +24,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
 
   const fetchPlans = async () => {
     try {
-      const { data, error } = await supabaseAdmin.from('subscription_plans').select('id, name')
+      const { data, error } = await adminDb.from('subscription_plans').select('id, name')
       if (error) throw error
       setAllPlans(data || [])
     } catch (err) {
@@ -45,16 +45,12 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!supabaseAdmin) {
-      setError("Setup Error: Missing VITE_SUPABASE_SERVICE_ROLE_KEY in .env file.")
-      return
-    }
 
     setError('')
     setLoading(true)
 
     try {
-      const { error: updateError } = await supabaseAdmin
+      const { error: updateError } = await adminDb
         .from('shops')
         .update({ name: shopName, phone, address, email, notes, plan_id: planId || null })
         .eq('id', shop.id)

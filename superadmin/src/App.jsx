@@ -1,45 +1,26 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from './context/AuthContext'
-import Login from './pages/Login'
-import ResetPassword from './pages/ResetPassword'
-import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard'
-import ShopsList from './pages/ShopsList'
-import Subscriptions from './pages/Subscriptions'
-import AuditLogs from './pages/AuditLogs'
-import EmailBroadcast from './pages/EmailBroadcast'
-import PlanManagement from './pages/PlanManagement'
-import SupportTickets from './pages/SupportTickets'
-import Analytics from './pages/Analytics'
-import Backups from './pages/Backups'
-
-const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth()
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-100">Loading Access...</div>
-  if (!user || user.role !== 'superadmin') return <Navigate to="/login" replace />
-  return children
-}
+// RETIRED: this standalone superadmin portal used to put a privileged Supabase
+// key in the browser bundle. All superadmin features now live in the main POS
+// app under /admin, backed by the authenticated `admin-api` Edge Function
+// (see docs/ADMIN_EDGE_FUNCTIONS.md). The old pages under src/pages,
+// src/components and src/context are no longer imported or bundled.
+const posUrl = (import.meta.env.VITE_POS_URL || '').replace(/\/$/, '')
+const adminUrl = posUrl ? `${posUrl}/admin` : '/admin'
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-
-        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route index element={<Dashboard />} />
-          <Route path="shops" element={<ShopsList />} />
-          <Route path="subscriptions" element={<Subscriptions />} />
-          <Route path="plans" element={<PlanManagement />} />
-          <Route path="tickets" element={<SupportTickets />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="backups" element={<Backups />} />
-          <Route path="audit-logs" element={<AuditLogs />} />
-          <Route path="broadcast" element={<EmailBroadcast />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <main className="min-h-dvh flex items-center justify-center bg-slate-100 p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
+        <h1 className="text-xl font-black text-slate-800 mb-2">Superadmin portal has moved</h1>
+        <p className="text-sm text-slate-600 mb-6">
+          Platform administration is now part of EdgeX POS. Sign in there with your superadmin account.
+        </p>
+        <a
+          href={adminUrl}
+          className="inline-flex items-center justify-center w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300"
+        >
+          Open EdgeX POS admin
+        </a>
+      </div>
+    </main>
   )
 }

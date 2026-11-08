@@ -58,7 +58,7 @@ export default function Backups() {
 
   const fetchData = useCallback(async () => {
     if (!supabaseAdmin) {
-      setError('Service role key required. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env')
+      setError('This legacy portal is retired. Use /admin in EdgeX POS.')
       setLoading(false)
       return
     }

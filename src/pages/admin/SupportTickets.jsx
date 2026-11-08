@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 
 function SupportTickets() {
     const [tickets, setTickets] = useState([])
@@ -13,7 +13,7 @@ function SupportTickets() {
 
     const fetchTickets = async () => {
         try {
-            const { data, error } = await supabaseAdmin
+            const { data, error } = await adminDb
                 .from('support_tickets')
                 .select('*, shops(name)')
                 .order('created_at', { ascending: false })
@@ -31,7 +31,7 @@ function SupportTickets() {
         try {
             const payload = { status }
             if (reply !== undefined) payload.admin_reply = reply || null
-            const { error } = await supabaseAdmin
+            const { error } = await adminDb
                 .from('support_tickets')
                 .update(payload)
                 .eq('id', id)
