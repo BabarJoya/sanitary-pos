@@ -228,13 +228,16 @@ export default function ShopsList() {
       });
 
       impersonate(shop.id, shop);
-      const params = new URLSearchParams({
+      // Hand off through this tab's sessionStorage — never put the session token in the URL
+      // (Login verifies the token against the database and expires the handoff after 60s).
+      sessionStorage.setItem('edgex_impersonation_handoff', JSON.stringify({
         impersonateId: shop.id,
         shopName: shop.name || '',
         logoUrl: shop.logo_url || '',
-        sessionToken: token
-      }).toString();
-      window.location.href = `/?${params}`;
+        sessionToken: token,
+        ts: Date.now()
+      }));
+      window.location.href = '/?impersonate=1';
     }
   }
 

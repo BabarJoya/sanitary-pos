@@ -8,6 +8,8 @@ import { hashPassword } from '../utils/authUtils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShieldCheck, Zap, PhoneCall, Eye, EyeOff } from 'lucide-react'
 
+const IMPERSONATION_HANDOFF_KEY = 'edgex_impersonation_handoff'
+
 function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -32,43 +34,84 @@ function Login() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Handle impersonation from superadmin
+  // Handle impersonation from the superadmin portal.
+  // Security: impersonation used to be accepted from any URL (`?impersonateId=5&sessionToken=…`),
+  // so anyone could open a shop UI as "admin" and session tokens leaked into browser history.
+  // Now the portal hands off through this tab's sessionStorage (never the URL), the handoff
+  // expires after 60s, and the session token is verified against the database before use.
   useEffect(() => {
-    const impId = searchParams.get('impersonateId')
-    if (!impId) return
+    const legacyId = searchParams.get('impersonateId')
+    const handoffFlag = searchParams.get('impersonate')
+    if (!legacyId && !handoffFlag) return
 
-    const shopName = searchParams.get('shopName') || 'Impersonated Shop'
-    const logoUrl  = searchParams.get('logoUrl')  || ''
-    const sessionToken = searchParams.get('sessionToken') || ''
+    // Always remove any credentials from the address bar / history first
+    try { window.history.replaceState(null, '', window.location.pathname) } catch (_) {}
 
-    // Build the impersonated user object
-    const impersonatedUser = {
-      id: `impersonated-${impId}`,
-      username: `Superadmin (${shopName})`,
-      role: 'admin',
-      shop_id: String(impId),
-      isImpersonating: true
+    if (legacyId) {
+      setError('Impersonation links are no longer accepted. Please start impersonation from the Superadmin portal.')
+      return
     }
 
-    // Synchronously wipe any previous session so no stale shop bleeds through
-    localStorage.removeItem('user')
-    localStorage.removeItem('originalUser')
-    if (sessionToken) localStorage.setItem('session_token', sessionToken)
+    let handoff = null
+    try { handoff = JSON.parse(sessionStorage.getItem(IMPERSONATION_HANDOFF_KEY) || 'null') } catch (_) { handoff = null }
+    sessionStorage.removeItem(IMPERSONATION_HANDOFF_KEY)
 
-    // Write all new shop data before the page reload
-    localStorage.setItem('user', JSON.stringify(impersonatedUser))
-    localStorage.setItem(`shop_name_${impId}`, shopName)
-    if (logoUrl) {
-      localStorage.setItem(`shop_logo_${impId}`, logoUrl)
-    } else {
-      localStorage.removeItem(`shop_logo_${impId}`)
+    if (!handoff || !handoff.impersonateId || !handoff.sessionToken || Date.now() - Number(handoff.ts || 0) > 60000) {
+      setError('Impersonation request expired or invalid. Please start again from the Superadmin portal.')
+      return
     }
 
-    // Also update React context (best-effort — page will reload anyway)
-    try { impersonate(impId, { name: shopName, logo_url: logoUrl }) } catch (_) {}
+    const impId = String(handoff.impersonateId)
+    const shopName = handoff.shopName || 'Impersonated Shop'
+    const logoUrl = handoff.logoUrl || ''
+    const sessionToken = handoff.sessionToken
 
-    // Full reload so AuthContext re-initialises cleanly from the new localStorage state
-    window.location.href = '/dashboard'
+    ;(async () => {
+      // Verify the token is a live session for exactly this shop (RLS only returns the row for its own token)
+      const previousToken = localStorage.getItem('session_token')
+      localStorage.setItem('session_token', sessionToken)
+      const { data: sess, error: sessErr } = await supabase
+        .from('sessions')
+        .select('shop_id, expires_at')
+        .eq('token', sessionToken)
+        .maybeSingle()
+      const valid = !sessErr && sess && String(sess.shop_id) === impId && (!sess.expires_at || new Date(sess.expires_at) > new Date())
+      if (!valid) {
+        if (previousToken) localStorage.setItem('session_token', previousToken)
+        else localStorage.removeItem('session_token')
+        setError('Impersonation session could not be verified. Please start again from the Superadmin portal.')
+        return
+      }
+
+      // Build the impersonated user object
+      const impersonatedUser = {
+        id: `impersonated-${impId}`,
+        username: `Superadmin (${shopName})`,
+        role: 'admin',
+        shop_id: String(impId),
+        isImpersonating: true
+      }
+
+      // Synchronously wipe any previous session so no stale shop bleeds through
+      localStorage.removeItem('user')
+      localStorage.removeItem('originalUser')
+
+      // Write all new shop data before the page reload
+      localStorage.setItem('user', JSON.stringify(impersonatedUser))
+      localStorage.setItem(`shop_name_${impId}`, shopName)
+      if (logoUrl) {
+        localStorage.setItem(`shop_logo_${impId}`, logoUrl)
+      } else {
+        localStorage.removeItem(`shop_logo_${impId}`)
+      }
+
+      // Also update React context (best-effort — page will reload anyway)
+      try { impersonate(impId, { name: shopName, logo_url: logoUrl }) } catch (_) {}
+
+
+      // Full reload so AuthContext re-initialises cleanly from the new localStorage state
+      window.location.href = '/dashboard'
+    })()
   }, [searchParams])  // intentionally omit `impersonate` — we write localStorage directly above
 
   const handleLogin = async (e) => {
