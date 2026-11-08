@@ -275,34 +275,34 @@ function AddProduct() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">📦 Add Product</h1>
+      <h1 className="text-2xl font-bold text-fg mb-6">📦 Add Product</h1>
 
-      <div className="bg-white rounded-xl shadow p-6 max-w-3xl">
+      <div className="bg-surface rounded-xl shadow p-6 max-w-3xl">
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Basic Info */}
-          <h2 className="font-semibold text-gray-700 border-b pb-2">Basic Information</h2>
+          <h2 className="font-semibold text-fg-2 border-b pb-2">Basic Information</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Product Name *</label>
+              <label className="block text-fg-2 font-medium mb-1">Product Name *</label>
               <input
                 type="text"
                 name="name"
                 value={form.name}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder={preset.placeholders.productName}
               />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1 flex justify-between">
+              <label className="block text-fg-2 font-medium mb-1 flex justify-between">
                 <span>Brand</span>
                 <button
                   type="button"
                   onClick={() => setShowNewBrandInput(!showNewBrandInput)}
-                  className="text-[10px] text-blue-600 font-bold uppercase hover:underline"
+                  className="text-[10px] text-primary-fg font-bold uppercase hover:underline"
                 >
                   {showNewBrandInput ? '← Select' : '+ New Brand'}
                 </button>
@@ -313,13 +313,13 @@ function AddProduct() {
                     type="text"
                     value={newBrandName}
                     onChange={(e) => setNewBrandName(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-blue-300 bg-blue-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-4 py-2 border border-primary-edge bg-primary-soft rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     placeholder="Brand name..."
                   />
                   <button
                     type="button"
                     onClick={handleAddBrand}
-                    className="px-3 bg-blue-600 text-white rounded-lg font-bold"
+                    className="px-3 bg-primary text-white rounded-lg font-bold"
                   >
                     Add
                   </button>
@@ -329,7 +329,7 @@ function AddProduct() {
                   name="brand"
                   value={form.brand}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">Select brand...</option>
                   {brands.map((b) => (
@@ -342,7 +342,7 @@ function AddProduct() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">SKU / Barcode</label>
+              <label className="block text-fg-2 font-medium mb-1">SKU / Barcode</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -350,23 +350,23 @@ function AddProduct() {
                   value={form.sku}
                   onChange={handleChange}
                   onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  className="flex-1 px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono"
                   placeholder={preset.placeholders.sku}
                 />
                 <button type="button" onClick={autoGenerateSKU}
-                  className="px-3 py-2 bg-gray-100 hover:bg-blue-100 text-gray-600 hover:text-blue-700 rounded-lg text-xs font-bold transition whitespace-nowrap border border-gray-200">
+                  className="px-3 py-2 bg-surface-3 hover:bg-primary-muted text-fg-3 hover:text-primary-strong rounded-lg text-xs font-bold transition whitespace-nowrap border border-line">
                   ⚡ Auto
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Category *</label>
+              <label className="block text-fg-2 font-medium mb-1">Category *</label>
               <select
                 name="category_id"
                 value={form.category_id}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">Select category...</option>
                 {filteredCategories.map((cat) => (
@@ -377,12 +377,12 @@ function AddProduct() {
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-1">Supplier</label>
+            <label className="block text-fg-2 font-medium mb-1">Supplier</label>
             <select
               name="supplier_id"
               value={form.supplier_id}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">Select supplier</option>
               {suppliers.map((sup) => (
@@ -392,66 +392,66 @@ function AddProduct() {
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-1">Unit of Measure</label>
+            <label className="block text-fg-2 font-medium mb-1">Unit of Measure</label>
             <select name="unit_id" value={form.unit_id} onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
               <option value="">Select unit...</option>
               {units.map(u => <option key={u.id} value={u.id}>{u.name}{u.abbreviation ? ` (${u.abbreviation})` : ''}</option>)}
             </select>
-            {units.length === 0 && <p className="text-xs text-gray-400 mt-1">Units add karne ke liye Master Data → Units mein jayein</p>}
+            {units.length === 0 && <p className="text-xs text-fg-subtle mt-1">Units add karne ke liye Master Data → Units mein jayein</p>}
           </div>
 
           {/* Pricing */}
-          <h2 className="font-semibold text-gray-700 border-b pb-2 pt-2">Pricing</h2>
+          <h2 className="font-semibold text-fg-2 border-b pb-2 pt-2">Pricing</h2>
 
           <div className={`grid gap-4 grid-cols-1 ${priceFieldCount === 4 ? 'sm:grid-cols-2 lg:grid-cols-4' : priceFieldCount === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
             {pricingConfig.enabled && (
               <div>
-                <label className="block text-gray-700 font-medium mb-1">{pricingConfig.label}</label>
+                <label className="block text-fg-2 font-medium mb-1">{pricingConfig.label}</label>
                 <input
                   type="number"
                   name="c_rate"
                   value={form.c_rate}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="0"
                 />
               </div>
             )}
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Purchase / Cost Price *</label>
+              <label className="block text-fg-2 font-medium mb-1">Purchase / Cost Price *</label>
               <input
                 type="number"
                 name="cost_price"
                 value={form.cost_price}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="0"
               />
             </div>
             {wholesaleEnabled && (
               <div>
-                <label className="block text-gray-700 font-medium mb-1">Wholesale Price</label>
+                <label className="block text-fg-2 font-medium mb-1">Wholesale Price</label>
                 <input
                   type="number"
                   name="wholesale_price"
                   value={form.wholesale_price}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-4 py-2 border border-wholesale-edge rounded-lg focus:outline-none focus:ring-2 focus:ring-wholesale"
                   placeholder="0 = use retail"
                 />
               </div>
             )}
             <div>
-              <label className="block text-gray-700 font-medium mb-1">{wholesaleEnabled ? 'Retail Price *' : 'Sale / Selling Price *'}</label>
+              <label className="block text-fg-2 font-medium mb-1">{wholesaleEnabled ? 'Retail Price *' : 'Sale / Selling Price *'}</label>
               <input
                 type="number"
                 name="sale_price"
                 value={form.sale_price}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="0"
               />
             </div>
@@ -459,17 +459,17 @@ function AddProduct() {
 
           {/* Profit Preview */}
           {form.cost_price && form.sale_price && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-green-700 font-medium">
+            <div className="bg-success-soft border border-success-line rounded-lg p-3">
+              <p className="text-success-strong font-medium">
                 💰 Profit per unit: Rs. {(parseFloat(form.sale_price) - parseFloat(form.cost_price)).toFixed(2)}
-                <span className="ml-3 text-green-500">
+                <span className="ml-3 text-success-fg">
                   ({(((parseFloat(form.sale_price) - parseFloat(form.cost_price)) / parseFloat(form.cost_price)) * 100).toFixed(1)}%)
                 </span>
               </p>
             </div>
           )}
           {wholesaleEnabled && form.cost_price && Number(form.wholesale_price) > 0 && (
-            <div className={`${Number(form.wholesale_price) < Number(form.cost_price) ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800'} border rounded-lg p-3 font-medium`}>
+            <div className={`${Number(form.wholesale_price) < Number(form.cost_price) ? 'bg-danger-soft border-danger-line text-danger-strong' : 'bg-wholesale-soft border-wholesale-line text-wholesale-strong'} border rounded-lg p-3 font-medium`}>
               {Number(form.wholesale_price) < Number(form.cost_price)
                 ? `⚠️ Wholesale price is below cost — loss of Rs. ${(Number(form.cost_price) - Number(form.wholesale_price)).toFixed(2)} per unit`
                 : `🏷️ Wholesale profit per unit: Rs. ${(Number(form.wholesale_price) - Number(form.cost_price)).toFixed(2)}`}
@@ -477,41 +477,41 @@ function AddProduct() {
           )}
 
           {/* Stock */}
-          <h2 className="font-semibold text-gray-700 border-b pb-2 pt-2">Stock</h2>
+          <h2 className="font-semibold text-fg-2 border-b pb-2 pt-2">Stock</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Stock Quantity *</label>
+              <label className="block text-fg-2 font-medium mb-1">Stock Quantity *</label>
               <input
                 type="number"
                 name="stock_quantity"
                 value={form.stock_quantity}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="0"
               />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Low Stock Alert</label>
+              <label className="block text-fg-2 font-medium mb-1">Low Stock Alert</label>
               <input
                 type="number"
                 name="low_stock_threshold"
                 value={form.low_stock_threshold}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="10"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-1">Status</label>
+            <label className="block text-fg-2 font-medium mb-1">Status</label>
             <select
               name="status"
               value={form.status}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -522,13 +522,13 @@ function AddProduct() {
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
+              className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition disabled:opacity-50">
               {loading ? 'Saving...' : 'Save Product'}
             </button>
             <button
               type="button"
               onClick={() => navigate('/products')}
-              className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+              className="px-6 py-2 bg-surface-4 hover:bg-surface-5 text-fg-2 rounded-lg transition">
               Cancel
             </button>
           </div>

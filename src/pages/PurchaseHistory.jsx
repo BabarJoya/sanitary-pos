@@ -393,35 +393,35 @@ function PurchaseHistory() {
             <div>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">📦 Purchase History</h1>
-                        <p className="text-gray-500 text-sm">View and manage previous stock-in records</p>
+                        <h1 className="text-2xl font-bold text-fg">📦 Purchase History</h1>
+                        <p className="text-fg-muted text-sm">View and manage previous stock-in records</p>
                     </div>
                     <div className="flex gap-3 items-center overflow-x-auto pb-1 max-w-full">
                         {/* Summary cards */}
-                        <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 text-center min-w-[100px]">
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Total</p>
-                            <p className="text-sm font-bold text-blue-600">Rs. {totalPurchaseValue.toLocaleString()}</p>
+                        <div className="bg-surface px-4 py-2 rounded-xl shadow-sm border border-line-subtle text-center min-w-[100px]">
+                            <p className="text-[10px] text-fg-subtle font-bold uppercase">Total</p>
+                            <p className="text-sm font-bold text-primary-fg">Rs. {totalPurchaseValue.toLocaleString()}</p>
                         </div>
-                        <div className="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-100 text-center min-w-[100px]">
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Cash</p>
-                            <p className="text-sm font-bold text-green-600">{cashCount}</p>
+                        <div className="bg-surface px-3 py-2 rounded-xl shadow-sm border border-line-subtle text-center min-w-[100px]">
+                            <p className="text-[10px] text-fg-subtle font-bold uppercase">Cash</p>
+                            <p className="text-sm font-bold text-success-fg">{cashCount}</p>
                         </div>
-                        <div className="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-100 text-center min-w-[100px]">
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">Credit</p>
-                            <p className="text-sm font-bold text-orange-600">{creditCount}</p>
+                        <div className="bg-surface px-3 py-2 rounded-xl shadow-sm border border-line-subtle text-center min-w-[100px]">
+                            <p className="text-[10px] text-fg-subtle font-bold uppercase">Credit</p>
+                            <p className="text-sm font-bold text-warning-fg">{creditCount}</p>
                         </div>
                     </div>
                     {selected.length > 0 && (
-                        <button onClick={() => requestDelete(selected)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition font-bold text-sm">
+                        <button onClick={() => requestDelete(selected)} className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-xl transition font-bold text-sm">
                             🗑️ Delete Selected ({selected.length})
                         </button>
                     )}
                 </div>
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
+                <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
                     <input
                         type="text"
                         placeholder="Search PR- ID or Supplier..."
-                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-auto"
+                        className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none w-full sm:w-auto"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
@@ -443,13 +443,13 @@ function PurchaseHistory() {
                         />
                         <button
                             onClick={handleExport}
-                            className="px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 font-bold rounded-lg border border-green-200 transition text-sm flex-shrink-0"
+                            className="px-4 py-2 bg-success-soft text-success-strong hover:bg-success-muted font-bold rounded-lg border border-success-line transition text-sm flex-shrink-0"
                         >
                             📤 Export Excel
                         </button>
                         <button
                             onClick={fetchPurchases}
-                            className="p-2 text-gray-400 hover:text-blue-600 transition flex-shrink-0"
+                            className="p-2 text-fg-subtle hover:text-primary-fg transition flex-shrink-0"
                             title="Refresh Data"
                         >
                             🔄
@@ -458,45 +458,45 @@ function PurchaseHistory() {
                 </div>
 
                 {loading ? (
-                    <p className="text-gray-500 italic">Loading purchase records...</p>
+                    <p className="text-fg-muted italic">Loading purchase records...</p>
                 ) : filtered.length === 0 ? (
-                    <div className="text-center py-12"><p className="text-gray-400 text-lg">No purchases found.</p></div>
+                    <div className="text-center py-12"><p className="text-fg-subtle text-lg">No purchases found.</p></div>
                 ) : (
-                    <div className="bg-white rounded-xl shadow overflow-hidden">
-                        <div className="divide-y divide-gray-100 md:hidden">
+                    <div className="bg-surface rounded-xl shadow overflow-hidden">
+                        <div className="divide-y divide-line-subtle md:hidden">
                             {filtered.map(p => (
-                                <div key={p.id} className={`p-4 ${selected.includes(p.id) ? 'bg-blue-50' : ''}`}>
+                                <div key={p.id} className={`p-4 ${selected.includes(p.id) ? 'bg-primary-soft' : ''}`}>
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <p className="font-mono text-xs font-bold text-gray-500 font-black">
+                                            <p className="font-mono text-xs font-bold text-fg-muted font-black">
                                                 PR-{String(p.id).slice(-6)}
                                             </p>
-                                            <p className="mt-1 truncate font-bold text-gray-900">
+                                            <p className="mt-1 truncate font-bold text-fg">
                                                 {p.suppliers?.name || 'Unknown'}
                                             </p>
-                                            <p className="mt-1 text-xs text-gray-400">{new Date(p.created_at).toLocaleDateString('en-PK')}</p>
+                                            <p className="mt-1 text-xs text-fg-subtle">{new Date(p.created_at).toLocaleDateString('en-PK')}</p>
                                         </div>
                                         <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggleSelect(p.id)} className="mt-1 h-4 w-4 rounded" />
                                     </div>
                                     <div className="mt-3 flex items-center justify-between gap-3">
                                         <div>
-                                            <p className="text-lg font-black text-gray-900">
+                                            <p className="text-lg font-black text-fg">
                                                 Rs. {Number(p.total_amount).toLocaleString()}
                                             </p>
                                             <div className="mt-1 flex flex-wrap gap-1.5">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${p.payment_type === 'cash' ? 'bg-success-muted text-success-strong' : 'bg-warning-muted text-warning-strong'}`}>
                                                     {p.payment_type === 'cash' ? '💵 Cash' : '📒 Credit'}
                                                 </span>
                                                 {p.paid_amount != null && Number(p.paid_amount) < Number(p.total_amount) && (
-                                                    <span className="bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                                                    <span className="bg-warning-soft text-warning-fg border border-warning-line px-2 py-0.5 rounded text-[10px] font-bold">
                                                         Paid: {Number(p.paid_amount).toLocaleString()}
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button onClick={() => openPurchase(p)} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">View</button>
-                                            <button onClick={() => requestDelete([p.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
+                                            <button onClick={() => openPurchase(p)} className="rounded-lg bg-primary-soft px-3 py-2 text-sm font-bold text-primary-fg">View</button>
+                                            <button onClick={() => requestDelete([p.id])} className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-bold text-danger-fg">Delete</button>
                                         </div>
                                     </div>
                                 </div>
@@ -504,43 +504,43 @@ function PurchaseHistory() {
                         </div>
                         <div className="hidden overflow-x-auto md:block">
                             <table className="w-full">
-                                <thead className="bg-gray-50 border-b">
+                                <thead className="bg-surface-2 border-b">
                                     <tr>
                                         <th className="px-4 py-4 w-10"><input type="checkbox" checked={selected.length === filtered.length && filtered.length > 0} onChange={toggleSelectAll} className="w-4 h-4 rounded" /></th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Invoice ID</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Supplier</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Total</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Payment</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Date</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Actions</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Invoice ID</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Supplier</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Total</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Payment</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Date</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-200">
+                                <tbody className="divide-y divide-line">
                                     {filtered.map(p => (
-                                        <tr key={p.id} className={`hover:bg-gray-50 transition ${selected.includes(p.id) ? 'bg-blue-50' : ''}`}>
+                                        <tr key={p.id} className={`hover:bg-surface-2 transition ${selected.includes(p.id) ? 'bg-primary-soft' : ''}`}>
                                             <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggleSelect(p.id)} className="w-4 h-4 rounded" /></td>
-                                            <td className="px-4 py-3 font-mono text-xs text-blue-600 font-bold">PR-{String(p.id).slice(-6)}</td>
-                                            <td className="px-4 py-3 text-gray-800 font-medium">{p.suppliers?.name || <span className="text-gray-400 italic">Unknown</span>}</td>
-                                            <td className="px-4 py-3 font-medium text-gray-800">
+                                            <td className="px-4 py-3 font-mono text-xs text-primary-fg font-bold">PR-{String(p.id).slice(-6)}</td>
+                                            <td className="px-4 py-3 text-fg font-medium">{p.suppliers?.name || <span className="text-fg-subtle italic">Unknown</span>}</td>
+                                            <td className="px-4 py-3 font-medium text-fg">
                                                 Rs. {Number(p.total_amount).toLocaleString()}
                                                 {p.paid_amount != null && Number(p.paid_amount) < Number(p.total_amount) && (
-                                                    <span className="text-xs text-orange-500 ml-1">(Paid: {Number(p.paid_amount).toLocaleString()})</span>
+                                                    <span className="text-xs text-warning-fg ml-1">(Paid: {Number(p.paid_amount).toLocaleString()})</span>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-col gap-1">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium w-fit ${p.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium w-fit ${p.payment_type === 'cash' ? 'bg-success-muted text-success-strong' : 'bg-warning-muted text-warning-strong'}`}>
                                                         {p.payment_type === 'cash' ? '💵 Cash' : '📒 Credit'}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-gray-500 text-sm">{new Date(p.created_at).toLocaleDateString('en-PK')}</td>
+                                            <td className="px-4 py-3 text-fg-muted text-sm">{new Date(p.created_at).toLocaleDateString('en-PK')}</td>
                                             <td className="px-4 py-3">
                                                 <div className="flex gap-2">
                                                     <button onClick={() => openPurchase(p)}
-                                                        className="text-blue-500 hover:text-blue-700 text-sm font-medium">View</button>
+                                                        className="text-primary-fg hover:text-primary-strong text-sm font-medium">View</button>
                                                     <button onClick={() => requestDelete([p.id])}
-                                                        className="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                                                        className="text-danger-fg hover:text-danger-strong text-sm font-medium">Delete</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -553,61 +553,61 @@ function PurchaseHistory() {
 
                 {/* Detail Modal */}
                 {selectedPurchase && (
-                    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
+                    <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+                        <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
-                                    <h2 className="text-lg font-bold text-gray-800">
+                                    <h2 className="text-lg font-bold text-fg">
                                         Purchase Invoice PR-{String(selectedPurchase.id).slice(-8)}
                                     </h2>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-fg-muted">
                                         {new Date(selectedPurchase.created_at).toLocaleString('en-PK')} |
                                         {' '}{selectedPurchase.suppliers?.name || 'Unknown'} |
-                                        <span className={selectedPurchase.payment_type === 'cash' ? ' text-green-600' : ' text-orange-600'}>
+                                        <span className={selectedPurchase.payment_type === 'cash' ? ' text-success-fg' : ' text-warning-fg'}>
                                             {' '}{selectedPurchase.payment_type?.toUpperCase()}
                                         </span>
                                     </p>
                                 </div>
-                                <button onClick={() => setSelectedPurchase(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                                <button onClick={() => setSelectedPurchase(null)} className="text-fg-subtle hover:text-fg-3 text-xl">×</button>
                             </div>
 
                             {/* Info Grid */}
-                            <div className="grid grid-cols-2 gap-4 mb-4 bg-gray-50 p-4 rounded-xl border border-gray-100 text-sm">
-                                <p><span className="text-gray-400 font-medium uppercase text-[10px] block">Supplier</span> <b>{selectedPurchase.suppliers?.name || 'Unknown'}</b></p>
-                                <p><span className="text-gray-400 font-medium uppercase text-[10px] block">Date</span> <b>{new Date(selectedPurchase.created_at).toLocaleString('en-PK')}</b></p>
-                                <p><span className="text-gray-400 font-medium uppercase text-[10px] block">Total Amount</span> <b className="text-lg">Rs. {Number(selectedPurchase.total_amount).toLocaleString()}</b></p>
-                                <p><span className="text-gray-400 font-medium uppercase text-[10px] block">Payment Type</span> <b className="uppercase">{selectedPurchase.payment_type}</b>
-                                    {selectedPurchase.paid_amount != null && <span className="text-xs text-gray-400 ml-2">(Paid: Rs. {Number(selectedPurchase.paid_amount).toLocaleString()})</span>}
+                            <div className="grid grid-cols-2 gap-4 mb-4 bg-surface-2 p-4 rounded-xl border border-line-subtle text-sm">
+                                <p><span className="text-fg-subtle font-medium uppercase text-[10px] block">Supplier</span> <b>{selectedPurchase.suppliers?.name || 'Unknown'}</b></p>
+                                <p><span className="text-fg-subtle font-medium uppercase text-[10px] block">Date</span> <b>{new Date(selectedPurchase.created_at).toLocaleString('en-PK')}</b></p>
+                                <p><span className="text-fg-subtle font-medium uppercase text-[10px] block">Total Amount</span> <b className="text-lg">Rs. {Number(selectedPurchase.total_amount).toLocaleString()}</b></p>
+                                <p><span className="text-fg-subtle font-medium uppercase text-[10px] block">Payment Type</span> <b className="uppercase">{selectedPurchase.payment_type}</b>
+                                    {selectedPurchase.paid_amount != null && <span className="text-xs text-fg-subtle ml-2">(Paid: Rs. {Number(selectedPurchase.paid_amount).toLocaleString()})</span>}
                                 </p>
                             </div>
 
                             {loadingItems ? (
-                                <p className="text-center py-8 text-gray-500">Loading items...</p>
+                                <p className="text-center py-8 text-fg-muted">Loading items...</p>
                             ) : (
                                 <>
                                     <div className="overflow-x-auto">
                                         <table className="w-full mb-6">
-                                            <thead className="bg-gray-50">
+                                            <thead className="bg-surface-2">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left text-xs text-gray-500 uppercase font-bold whitespace-nowrap">Product</th>
-                                                    <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase font-bold whitespace-nowrap">Qty</th>
-                                                    <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase font-bold whitespace-nowrap">Rate</th>
-                                                    <th className="px-4 py-3 text-right text-xs text-gray-500 uppercase font-bold whitespace-nowrap">Amount</th>
-                                                    <th className="px-4 py-3 text-center text-xs text-gray-500 uppercase font-bold bg-orange-50 whitespace-nowrap">Ret. Qty</th>
+                                                    <th className="px-4 py-3 text-left text-xs text-fg-muted uppercase font-bold whitespace-nowrap">Product</th>
+                                                    <th className="px-4 py-3 text-right text-xs text-fg-muted uppercase font-bold whitespace-nowrap">Qty</th>
+                                                    <th className="px-4 py-3 text-right text-xs text-fg-muted uppercase font-bold whitespace-nowrap">Rate</th>
+                                                    <th className="px-4 py-3 text-right text-xs text-fg-muted uppercase font-bold whitespace-nowrap">Amount</th>
+                                                    <th className="px-4 py-3 text-center text-xs text-fg-muted uppercase font-bold bg-warning-soft whitespace-nowrap">Ret. Qty</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-gray-100">
+                                            <tbody className="divide-y divide-line-subtle">
                                                 {purchaseItems.map((item, idx) => {
                                                     const maxReturn = item.quantity - (item.returned_qty || 0)
                                                     return (
-                                                        <tr key={idx} className="hover:bg-gray-50">
-                                                            <td className="px-4 py-3 text-gray-800 whitespace-nowrap">{item.product_name}</td>
-                                                            <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
+                                                        <tr key={idx} className="hover:bg-surface-2">
+                                                            <td className="px-4 py-3 text-fg whitespace-nowrap">{item.product_name}</td>
+                                                            <td className="px-4 py-3 text-right text-fg-3 whitespace-nowrap">
                                                                 {item.quantity}
-                                                                {item.returned_qty > 0 && <span className="text-xs text-red-500 ml-1 block">(-{item.returned_qty} ret)</span>}
+                                                                {item.returned_qty > 0 && <span className="text-xs text-danger-fg ml-1 block">(-{item.returned_qty} ret)</span>}
                                                             </td>
-                                                            <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">Rs. {Number(item.unit_price).toFixed(0)}</td>
-                                                            <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">Rs. {Number(item.total_price || item.line_total).toFixed(0)}</td>
+                                                            <td className="px-4 py-3 text-right text-fg-3 whitespace-nowrap">Rs. {Number(item.unit_price).toFixed(0)}</td>
+                                                            <td className="px-4 py-3 text-right font-medium text-fg whitespace-nowrap">Rs. {Number(item.total_price || item.line_total).toFixed(0)}</td>
                                                             <td className="px-4 py-3 text-center align-middle whitespace-nowrap">
                                                                 {maxReturn > 0 ? (
                                                                     <input
@@ -620,7 +620,7 @@ function PurchaseHistory() {
                                                                         placeholder="0"
                                                                     />
                                                                 ) : (
-                                                                    <span className="text-xs text-gray-400 italic">Fully Ret</span>
+                                                                    <span className="text-xs text-fg-subtle italic">Fully Ret</span>
                                                                 )}
                                                             </td>
                                                         </tr>
@@ -629,22 +629,22 @@ function PurchaseHistory() {
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-t border-gray-100 pt-4 mt-4 gap-4">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-t border-line-subtle pt-4 mt-4 gap-4">
                                         <div className="text-sm">
-                                            <p className="text-gray-500">Total Amount: <b className="text-gray-800 text-lg">Rs. {Number(selectedPurchase.total_amount).toLocaleString()}</b></p>
-                                            {selectedPurchase.paid_amount != null && <p className="text-gray-500">Paid Amount: <b className="text-gray-800">Rs. {Number(selectedPurchase.paid_amount).toLocaleString()}</b></p>}
+                                            <p className="text-fg-muted">Total Amount: <b className="text-fg text-lg">Rs. {Number(selectedPurchase.total_amount).toLocaleString()}</b></p>
+                                            {selectedPurchase.paid_amount != null && <p className="text-fg-muted">Paid Amount: <b className="text-fg">Rs. {Number(selectedPurchase.paid_amount).toLocaleString()}</b></p>}
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             <button onClick={() => printPurchase(selectedPurchase, purchaseItems)}
-                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition">
+                                                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm transition">
                                                 🖨️ Print Invoice
                                             </button>
                                             <button onClick={handleReturn} disabled={returning}
-                                                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition disabled:opacity-50">
+                                                className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-lg text-sm transition disabled:opacity-50">
                                                 {returning ? 'Processing...' : '↩️ Process Return'}
                                             </button>
                                             <button onClick={() => setSelectedPurchase(null)}
-                                                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+                                                className="px-4 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg text-sm transition">
                                                 Close
                                             </button>
                                         </div>

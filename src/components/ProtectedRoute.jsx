@@ -95,8 +95,8 @@ function ProtectedRoute({ children, allowedRoles, requiredModule }) {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <p className="text-4xl mb-3">🚫</p>
-          <h2 className="text-xl font-bold text-gray-700">Access Denied</h2>
-          <p className="text-gray-400 mt-1">Aap ka is page tak access nahi hai.</p>
+          <h2 className="text-xl font-bold text-fg-2">Access Denied</h2>
+          <p className="text-fg-subtle mt-1">Aap ka is page tak access nahi hai.</p>
         </div>
       </div>
     )

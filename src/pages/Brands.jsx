@@ -413,7 +413,7 @@ function Brands() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">🏷️ Brands</h1>
+        <h1 className="text-2xl font-bold text-fg">🏷️ Brands</h1>
         <div className="flex gap-2 w-full sm:w-auto">
           <input
             type="file"
@@ -424,19 +424,19 @@ function Brands() {
           />
           <button
             onClick={() => fileInputRef.current.click()}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
+            className="px-4 py-2 bg-success hover:bg-success-hover text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
           >
             📥 Import
           </button>
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
+            className="px-4 py-2 bg-contrast hover:bg-contrast-hover text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
           >
             📤 Export
           </button>
           <button
             onClick={() => showForm ? handleCancel() : setShowForm(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm font-bold"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition text-sm font-bold"
           >
             {showForm ? 'Cancel' : '+ Add Brand'}
           </button>
@@ -445,26 +445,26 @@ function Brands() {
 
       {/* Missing Brands Banner */}
       {missingBrands.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 shadow-sm">
+        <div className="bg-warning-soft border border-warning-line rounded-xl p-4 mb-6 shadow-sm">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-              <h3 className="font-bold text-amber-800 text-sm flex items-center gap-2">
+              <h3 className="font-bold text-warning-strong text-sm flex items-center gap-2">
                 <span>⚠️ Missing Brands Detected</span>
-                <span className="bg-amber-200 text-amber-900 text-xs px-2 py-0.5 rounded-full font-black">
+                <span className="bg-warning-line text-warning-strong text-xs px-2 py-0.5 rounded-full font-black">
                   {missingBrands.length} unlisted
                 </span>
               </h3>
-              <p className="text-xs text-amber-700 mt-1">
+              <p className="text-xs text-warning-strong mt-1">
                 Products mein kuch brands use ho rahe hain jo Master Data brands list mein register nahi hain. Inhe add karne se POS aur filters theek ho jayenge:
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {missingBrands.map((item, idx) => (
-                  <span key={idx} className="bg-white border border-amber-300 text-amber-900 text-xs px-2.5 py-1 rounded-lg flex items-center gap-2 font-medium">
+                  <span key={idx} className="bg-surface border border-warning-edge text-warning-strong text-xs px-2.5 py-1 rounded-lg flex items-center gap-2 font-medium">
                     <span>🏷️ <strong>{item.name}</strong> ({item.count} products)</span>
                     <button
                       onClick={() => handleSyncMissingBrand(item)}
                       disabled={syncingMissing}
-                      className="text-[10px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-2 py-0.5 rounded transition disabled:opacity-50"
+                      className="text-[10px] bg-warning hover:bg-warning-hover text-white font-bold px-2 py-0.5 rounded transition disabled:opacity-50"
                     >
                       + Add
                     </button>
@@ -475,7 +475,7 @@ function Brands() {
             <button
               onClick={handleSyncAllMissing}
               disabled={syncingMissing}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition whitespace-nowrap shadow-sm disabled:opacity-50"
+              className="px-4 py-2 bg-warning hover:bg-warning-hover text-white rounded-lg text-xs font-bold transition whitespace-nowrap shadow-sm disabled:opacity-50"
             >
               {syncingMissing ? 'Syncing...' : '⚡ Add All Missing Brands'}
             </button>
@@ -490,34 +490,34 @@ function Brands() {
           placeholder="🔍 Search brands..."
           value={searchBrand}
           onChange={(e) => setSearchBrand(e.target.value)}
-          className="w-full sm:w-80 px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full sm:w-80 px-4 py-2 border border-line-strong rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-lg">
-          <h2 className="font-semibold text-gray-700 mb-4">
+        <div className="bg-surface rounded-xl shadow p-6 mb-6 max-w-lg">
+          <h2 className="font-semibold text-fg-2 mb-4">
             {editingId ? 'Edit Brand' : 'New Brand'}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Brand Name *</label>
+              <label className="block text-fg-2 font-medium mb-1">Brand Name *</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. Samsung, Nike, Nestlé, Master"
               />
             </div>
             {categories.length > 0 && (
               <div>
-                <label className="block text-gray-700 font-medium mb-2">Categories (optional)</label>
-                <p className="text-xs text-gray-400 mb-2">Is brand ki categories select karein. POS aur product form mein sirf yeh categories dikhein gi.</p>
-                <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50">
+                <label className="block text-fg-2 font-medium mb-2">Categories (optional)</label>
+                <p className="text-xs text-fg-subtle mb-2">Is brand ki categories select karein. POS aur product form mein sirf yeh categories dikhein gi.</p>
+                <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto border border-line rounded-lg p-2 bg-surface-2">
                   {categories.map(cat => (
-                    <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:bg-white rounded px-1.5 py-1 transition">
+                    <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:bg-surface rounded px-1.5 py-1 transition">
                       <input
                         type="checkbox"
                         checked={selectedCategoryIds.includes(cat.id)}
@@ -528,14 +528,14 @@ function Brands() {
                             setSelectedCategoryIds(prev => prev.filter(id => id !== cat.id))
                           }
                         }}
-                        className="w-3.5 h-3.5 rounded accent-blue-600"
+                        className="w-3.5 h-3.5 rounded accent-primary"
                       />
-                      <span className="text-sm text-gray-700">{cat.name}</span>
+                      <span className="text-sm text-fg-2">{cat.name}</span>
                     </label>
                   ))}
                 </div>
                 {selectedCategoryIds.length > 0 && (
-                  <p className="text-xs text-blue-600 mt-1">{selectedCategoryIds.length} categor{selectedCategoryIds.length > 1 ? 'ies' : 'y'} selected</p>
+                  <p className="text-xs text-primary-fg mt-1">{selectedCategoryIds.length} categor{selectedCategoryIds.length > 1 ? 'ies' : 'y'} selected</p>
                 )}
               </div>
             )}
@@ -543,13 +543,13 @@ function Brands() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
+                className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition disabled:opacity-50">
                 {saving ? 'Saving...' : editingId ? 'Update Brand' : 'Save Brand'}
               </button>
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+                className="px-6 py-2 bg-surface-4 hover:bg-surface-5 text-fg-2 rounded-lg transition">
                 Cancel
               </button>
             </div>
@@ -558,44 +558,44 @@ function Brands() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-fg-muted">Loading...</p>
       ) : brands.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No brands yet</p>
+          <p className="text-fg-subtle text-lg">No brands yet</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-surface rounded-xl shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-y">
+              <thead className="bg-surface-2 border-y">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Brand Name</th>
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-fg-muted uppercase tracking-wider">Brand Name</th>
+                  <th className="px-6 py-3 text-center text-xs font-bold text-fg-muted uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line-subtle">
                 {brands
                   .filter(b => (b.name || '').toLowerCase().includes(searchBrand.trim().toLowerCase()))
                   .map((brand) => (
-                  <tr key={brand.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 whitespace-nowrap font-semibold text-gray-900">{brand.name}</td>
+                  <tr key={brand.id} className="hover:bg-surface-2 transition">
+                    <td className="px-6 py-4 whitespace-nowrap font-semibold text-fg">{brand.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex gap-2 justify-center">
                         <button
                           onClick={() => handleViewProducts(brand)}
-                          className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded font-medium transition flex items-center gap-1"
+                          className="px-3 py-1 bg-primary-soft hover:bg-primary-muted text-primary-fg rounded font-medium transition flex items-center gap-1"
                         >
                           📦 View Products
                         </button>
                         <button
                           onClick={() => handleEdit(brand)}
-                          className="px-3 py-1 hover:bg-gray-100 text-gray-600 rounded font-medium transition border"
+                          className="px-3 py-1 hover:bg-surface-3 text-fg-3 rounded font-medium transition border"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(brand.id)}
-                          className="px-3 py-1 hover:bg-red-50 text-red-500 rounded font-medium transition border border-transparent hover:border-red-200"
+                          className="px-3 py-1 hover:bg-danger-soft text-danger-fg rounded font-medium transition border border-transparent hover:border-danger-line"
                         >
                           Delete
                         </button>
@@ -605,7 +605,7 @@ function Brands() {
                 ))}
                 {brands.filter(b => (b.name || '').toLowerCase().includes(searchBrand.trim().toLowerCase())).length === 0 && (
                   <tr>
-                    <td colSpan="2" className="px-6 py-8 text-center text-gray-500">No brands match your search</td>
+                    <td colSpan="2" className="px-6 py-8 text-center text-fg-muted">No brands match your search</td>
                   </tr>
                 )}
               </tbody>
@@ -616,75 +616,75 @@ function Brands() {
 
       {/* View Products Modal */}
       {viewBrand && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setViewBrand(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setViewBrand(null)}>
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 shrink-0">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">📦 Products of {viewBrand.name}</h2>
-                <p className="text-xs text-gray-500">Click any product row to view purchase price history</p>
+                <h2 className="text-xl font-bold text-fg">📦 Products of {viewBrand.name}</h2>
+                <p className="text-xs text-fg-muted">Click any product row to view purchase price history</p>
               </div>
-              <button onClick={() => setViewBrand(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+              <button onClick={() => setViewBrand(null)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
             </div>
 
-            <div className="flex-1 overflow-auto border rounded-xl bg-gray-50">
+            <div className="flex-1 overflow-auto border rounded-xl bg-surface-2">
               {loadingProducts ? (
-                <p className="text-center text-gray-400 py-10">Loading products...</p>
+                <p className="text-center text-fg-subtle py-10">Loading products...</p>
               ) : brandProducts.length === 0 ? (
-                <p className="text-center text-gray-400 py-10 italic">No products found for this brand.</p>
+                <p className="text-center text-fg-subtle py-10 italic">No products found for this brand.</p>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-100 sticky top-0 z-10">
+                  <thead className="bg-surface-3 sticky top-0 z-10">
                     <tr className="border-b">
-                      <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Product</th>
-                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">C. Rate</th>
-                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Cost Price</th>
-                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Sale Price</th>
-                      <th className="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase">Stock</th>
-                      <th className="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase">History</th>
+                      <th className="px-4 py-2 text-left text-xs font-bold text-fg-muted uppercase">Product</th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-fg-muted uppercase">C. Rate</th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-fg-muted uppercase">Cost Price</th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-fg-muted uppercase">Sale Price</th>
+                      <th className="px-4 py-2 text-center text-xs font-bold text-fg-muted uppercase">Stock</th>
+                      <th className="px-4 py-2 text-center text-xs font-bold text-fg-muted uppercase">History</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
+                  <tbody className="divide-y divide-line bg-surface">
                     {brandProducts.map(p => (
                       <>
-                        <tr key={p.id} className={`hover:bg-gray-50 cursor-pointer transition ${expandedProductId === p.id ? 'bg-blue-50' : ''}`} onClick={() => fetchProductHistory(p.id)}>
-                          <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
-                          <td className="px-4 py-3 text-right text-blue-600 font-bold">{p.c_rate || 0}</td>
-                          <td className="px-4 py-3 text-right text-gray-700">Rs. {p.cost_price || 0}</td>
-                          <td className="px-4 py-3 text-right font-bold text-green-600">Rs. {p.sale_price || 0}</td>
+                        <tr key={p.id} className={`hover:bg-surface-2 cursor-pointer transition ${expandedProductId === p.id ? 'bg-primary-soft' : ''}`} onClick={() => fetchProductHistory(p.id)}>
+                          <td className="px-4 py-3 font-medium text-fg">{p.name}</td>
+                          <td className="px-4 py-3 text-right text-primary-fg font-bold">{p.c_rate || 0}</td>
+                          <td className="px-4 py-3 text-right text-fg-2">Rs. {p.cost_price || 0}</td>
+                          <td className="px-4 py-3 text-right font-bold text-success-fg">Rs. {p.sale_price || 0}</td>
                           <td className="px-4 py-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.stock_quantity <= 5 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{p.stock_quantity}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.stock_quantity <= 5 ? 'bg-danger-muted text-danger-fg' : 'bg-success-muted text-success-fg'}`}>{p.stock_quantity}</span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <button className="text-blue-500 hover:text-blue-700 text-xs font-bold">
+                            <button className="text-primary-fg hover:text-primary-strong text-xs font-bold">
                               {expandedProductId === p.id ? '▲ Hide' : '▼ View'}
                             </button>
                           </td>
                         </tr>
                         {expandedProductId === p.id && (
                           <tr key={`${p.id}-history`}>
-                            <td colSpan="6" className="px-4 py-2 bg-blue-50/50">
+                            <td colSpan="6" className="px-4 py-2 bg-primary-soft/50">
                               {loadingHistoryId === p.id ? (
-                                <p className="text-center text-gray-400 text-xs py-3">Loading history...</p>
+                                <p className="text-center text-fg-subtle text-xs py-3">Loading history...</p>
                               ) : (productHistory[p.id]?.length || 0) === 0 ? (
-                                <p className="text-center text-gray-400 text-xs py-3 italic">No previous purchases found.</p>
+                                <p className="text-center text-fg-subtle text-xs py-3 italic">No previous purchases found.</p>
                               ) : (
                                 <div className="border rounded-lg overflow-hidden mx-4 my-1">
                                   <table className="w-full text-xs">
-                                    <thead className="bg-gray-100">
+                                    <thead className="bg-surface-3">
                                       <tr>
-                                        <th className="px-3 py-1.5 text-left text-gray-500 font-bold">Date</th>
-                                        <th className="px-3 py-1.5 text-left text-gray-500 font-bold">Supplier</th>
-                                        <th className="px-3 py-1.5 text-right text-gray-500 font-bold">Purchase Rate</th>
-                                        <th className="px-3 py-1.5 text-right text-gray-500 font-bold">Qty</th>
+                                        <th className="px-3 py-1.5 text-left text-fg-muted font-bold">Date</th>
+                                        <th className="px-3 py-1.5 text-left text-fg-muted font-bold">Supplier</th>
+                                        <th className="px-3 py-1.5 text-right text-fg-muted font-bold">Purchase Rate</th>
+                                        <th className="px-3 py-1.5 text-right text-fg-muted font-bold">Qty</th>
                                       </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-line-subtle">
                                       {productHistory[p.id].map((h, idx) => (
-                                        <tr key={idx} className={`${idx === 0 ? 'bg-yellow-50 font-semibold' : 'hover:bg-gray-50'}`}>
-                                          <td className="px-3 py-1.5 text-gray-600">{h.date ? new Date(h.date).toLocaleDateString('en-PK') : '-'}</td>
-                                          <td className="px-3 py-1.5 text-gray-600">{h.supplier}</td>
-                                          <td className={`px-3 py-1.5 text-right font-bold ${idx > 0 && h.price !== productHistory[p.id][idx - 1]?.price ? 'text-orange-600' : 'text-gray-800'}`}>Rs. {h.price}</td>
-                                          <td className="px-3 py-1.5 text-right text-gray-500">{h.qty}</td>
+                                        <tr key={idx} className={`${idx === 0 ? 'bg-warning-soft font-semibold' : 'hover:bg-surface-2'}`}>
+                                          <td className="px-3 py-1.5 text-fg-3">{h.date ? new Date(h.date).toLocaleDateString('en-PK') : '-'}</td>
+                                          <td className="px-3 py-1.5 text-fg-3">{h.supplier}</td>
+                                          <td className={`px-3 py-1.5 text-right font-bold ${idx > 0 && h.price !== productHistory[p.id][idx - 1]?.price ? 'text-warning-fg' : 'text-fg'}`}>Rs. {h.price}</td>
+                                          <td className="px-3 py-1.5 text-right text-fg-muted">{h.qty}</td>
                                         </tr>
                                       ))}
                                     </tbody>

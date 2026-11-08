@@ -209,10 +209,10 @@ function Users() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">👨‍💼 Users</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-fg">👨‍💼 Users</h1>
+          <p className="text-sm text-fg-muted mt-1">
             Shop Limit ({limits.plan_name || 'TRIAL'}):
-            <span className={users.length >= (limits.user_limit || 2) ? 'text-red-500 font-bold ml-1' : 'text-blue-600 font-bold ml-1'}>
+            <span className={users.length >= (limits.user_limit || 2) ? 'text-danger-fg font-bold ml-1' : 'text-primary-fg font-bold ml-1'}>
               {users.length} / {limits.user_limit || 2}
             </span> users
           </p>
@@ -220,7 +220,7 @@ function Users() {
         <div className="flex gap-2">
           <button
             onClick={() => setShowChangePw(!showChangePw)}
-            className={`px-4 py-2 rounded-lg transition font-medium text-sm ${showChangePw ? 'bg-gray-200 text-gray-700' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+            className={`px-4 py-2 rounded-lg transition font-medium text-sm ${showChangePw ? 'bg-surface-4 text-fg-2' : 'bg-success hover:bg-success-hover text-white'}`}>
             {showChangePw ? '✕ Close' : '🔑 Change My Password'}
           </button>
           <button
@@ -231,7 +231,7 @@ function Users() {
               }
               setShowForm(!showForm)
             }}
-            className={`px-4 py-2 text-white rounded-lg transition ${users.length >= (limits.user_limit || 2) && !showForm && !editingId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+            className={`px-4 py-2 text-white rounded-lg transition ${users.length >= (limits.user_limit || 2) && !showForm && !editingId ? 'bg-fg-subtle cursor-not-allowed' : 'bg-primary hover:bg-primary-hover'}`}>
             {showForm ? 'Cancel' : '+ Add User'}
           </button>
         </div>
@@ -239,38 +239,38 @@ function Users() {
 
       {/* Change My Password */}
       {showChangePw && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-md border-2 border-green-100">
-          <h2 className="font-bold text-gray-800 mb-1 flex items-center gap-2">🔑 Change My Password</h2>
-          <p className="text-xs text-gray-500 mb-4">Apna password yahan change karein. Current password zaroori hai.</p>
+        <div className="bg-surface rounded-xl shadow p-6 mb-6 max-w-md border-2 border-success-muted">
+          <h2 className="font-bold text-fg mb-1 flex items-center gap-2">🔑 Change My Password</h2>
+          <p className="text-xs text-fg-muted mb-4">Apna password yahan change karein. Current password zaroori hai.</p>
           <form onSubmit={handleChangePassword} className="space-y-3">
             <div>
-              <label className="block text-gray-700 font-medium mb-1 text-sm">Current Password *</label>
+              <label className="block text-fg-2 font-medium mb-1 text-sm">Current Password *</label>
               <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)}
-                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-success"
                 placeholder="Purana password" />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1 text-sm">New Password *</label>
+              <label className="block text-fg-2 font-medium mb-1 text-sm">New Password *</label>
               <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)}
-                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-success"
                 placeholder="Naya password (min 4 characters)" />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1 text-sm">Confirm New Password *</label>
+              <label className="block text-fg-2 font-medium mb-1 text-sm">Confirm New Password *</label>
               <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
-                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-success"
                 placeholder="Naya password dobara darj karein" />
               {newPw && confirmPw && newPw !== confirmPw && (
-                <p className="text-red-500 text-xs mt-1">❌ Passwords match nahi karte</p>
+                <p className="text-danger-fg text-xs mt-1">❌ Passwords match nahi karte</p>
               )}
             </div>
             <div className="flex gap-3 pt-1">
               <button type="submit" disabled={changingPw}
-                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 font-bold">
+                className="px-6 py-2 bg-success hover:bg-success-hover text-white rounded-lg transition disabled:opacity-50 font-bold">
                 {changingPw ? 'Changing...' : '✅ Update Password'}
               </button>
               <button type="button" onClick={() => { setShowChangePw(false); setCurrentPw(''); setNewPw(''); setConfirmPw('') }}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+                className="px-6 py-2 bg-surface-4 hover:bg-surface-5 text-fg-2 rounded-lg transition">
                 Cancel
               </button>
             </div>
@@ -279,33 +279,33 @@ function Users() {
       )}
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-lg">
-          <h2 className="font-semibold text-gray-700 mb-4">{editingId ? 'Edit User' : 'New User'}</h2>
+        <div className="bg-surface rounded-xl shadow p-6 mb-6 max-w-lg">
+          <h2 className="font-semibold text-fg-2 mb-4">{editingId ? 'Edit User' : 'New User'}</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Username *</label>
+              <label className="block text-fg-2 font-medium mb-1">Username *</label>
               <input type="text" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
-                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. cashier1" />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Email *</label>
+              <label className="block text-fg-2 font-medium mb-1">Email *</label>
               <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. ali@shop.com" />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">
-                Password {editingId && <span className="text-gray-400 text-xs">(khali chhorein agar change nahi karna)</span>}
+              <label className="block text-fg-2 font-medium mb-1">
+                Password {editingId && <span className="text-fg-subtle text-xs">(khali chhorein agar change nahi karna)</span>}
               </label>
               <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder={editingId ? 'Naya password (optional)' : 'Password'} />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Role</label>
+              <label className="block text-fg-2 font-medium mb-1">Role</label>
               <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
                 <option value="cashier">Cashier</option>
                 <option value="manager">Manager</option>
                 <option value="accountant">Accountant</option>
@@ -314,10 +314,10 @@ function Users() {
             </div>
 
             {/* Custom Permissions */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mt-4">
-              <label className="block text-gray-800 font-bold mb-3">Allowed Modules (Custom Permissions)</label>
+            <div className="bg-surface-2 border border-line rounded-xl p-4 mt-4">
+              <label className="block text-fg font-bold mb-3">Allowed Modules (Custom Permissions)</label>
               {form.role === 'admin' ? (
-                <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-100 italic">
+                <div className="text-sm text-primary-fg bg-primary-soft p-3 rounded-lg border border-primary-muted italic">
                   Admins implicitly have full access to all modules natively. Custom restrictions are ignored.
                 </div>
               ) : (
@@ -328,9 +328,9 @@ function Users() {
                         type="checkbox"
                         checked={form.permissions.includes(mod.id)}
                         onChange={() => togglePermission(mod.id)}
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        className="w-4 h-4 text-primary-fg rounded border-line-strong focus:ring-primary"
                       />
-                      <span className="text-sm text-gray-700 font-medium group-hover:text-blue-600 transition-colors">
+                      <span className="text-sm text-fg-2 font-medium group-hover:text-primary-fg transition-colors">
                         {mod.label}
                       </span>
                     </label>
@@ -342,16 +342,16 @@ function Users() {
             <div className="flex items-center gap-2 pt-2">
               <input type="checkbox" id="is_active" checked={form.is_active}
                 onChange={e => setForm({ ...form, is_active: e.target.checked })}
-                className="w-4 h-4 text-blue-600" />
-              <label htmlFor="is_active" className="text-gray-700 font-medium">Active (login kar sakta hai)</label>
+                className="w-4 h-4 text-primary-fg" />
+              <label htmlFor="is_active" className="text-fg-2 font-medium">Active (login kar sakta hai)</label>
             </div>
             <div className="flex gap-3">
               <button type="submit" disabled={saving}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
+                className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition disabled:opacity-50">
                 {saving ? 'Saving...' : editingId ? 'Update User' : 'Save User'}
               </button>
               <button type="button" onClick={handleCancel}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+                className="px-6 py-2 bg-surface-4 hover:bg-surface-5 text-fg-2 rounded-lg transition">
                 Cancel
               </button>
             </div>
@@ -359,42 +359,42 @@ function Users() {
         </div>
       )}
 
-      {loading ? <p className="text-gray-500">Loading...</p> : users.length === 0 ? (
-        <div className="text-center py-12"><p className="text-gray-400 text-lg">No users yet</p></div>
+      {loading ? <p className="text-fg-muted">Loading...</p> : users.length === 0 ? (
+        <div className="text-center py-12"><p className="text-fg-subtle text-lg">No users yet</p></div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden overflow-x-auto">
+        <div className="bg-surface rounded-xl shadow overflow-hidden overflow-x-auto">
           <table className="w-full min-w-[520px]">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-surface-2 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User Info</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase">User Info</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-line">
               {users.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50">
+                <tr key={u.id} className="hover:bg-surface-2">
                   <td className="px-6 py-4">
-                    <div className="font-bold text-gray-800">
-                      {u.username} {u.id === user.id && <span className="text-xs text-blue-500 font-normal ml-1">(You)</span>}
+                    <div className="font-bold text-fg">
+                      {u.username} {u.id === user.id && <span className="text-xs text-primary-fg font-normal ml-1">(You)</span>}
                     </div>
-                    {u.email && <div className="text-xs text-gray-500 mt-0.5">{u.email}</div>}
+                    {u.email && <div className="text-xs text-fg-muted mt-0.5">{u.email}</div>}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-info-muted text-info-strong' : 'bg-primary-muted text-primary-strong'}`}>
                       {u.role}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     <button onClick={() => toggleActive(u)}
-                      className={`px-2 py-1 rounded-full text-xs font-medium cursor-pointer ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      className={`px-2 py-1 rounded-full text-xs font-medium cursor-pointer ${u.is_active ? 'bg-success-muted text-success-strong' : 'bg-danger-muted text-danger-strong'}`}>
                       {u.is_active ? '✅ Active' : '❌ Inactive'}
                     </button>
                   </td>
                   <td className="px-6 py-4 flex gap-3">
-                    <button onClick={() => handleEdit(u)} className="text-blue-500 hover:text-blue-700 text-sm font-medium">Edit</button>
-                    <button onClick={() => handleDelete(u.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                    <button onClick={() => handleEdit(u)} className="text-primary-fg hover:text-primary-strong text-sm font-medium">Edit</button>
+                    <button onClick={() => handleDelete(u.id)} className="text-danger-fg hover:text-danger-strong text-sm font-medium">Delete</button>
                   </td>
                 </tr>
               ))}

@@ -47,32 +47,32 @@ function CustomerLedgerOverview() {
     const totalReceivable = customers.reduce((sum, c) => sum + (c.outstanding_balance || 0), 0)
     const customersWithBalance = customers.filter(c => (c.outstanding_balance || 0) > 0)
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Loading customer ledger...</div>
+    if (loading) return <div className="p-8 text-center text-fg-muted">Loading customer ledger...</div>
 
     return (
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">📒 Customer Ledger</h1>
-                    <p className="text-gray-500 text-sm mt-1">Accounts receivable overview — all customer balances</p>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-fg">📒 Customer Ledger</h1>
+                    <p className="text-fg-muted text-sm mt-1">Accounts receivable overview — all customer balances</p>
                 </div>
             </div>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total Receivable</p>
-                    <p className={`text-2xl font-bold ${totalReceivable > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <div className="bg-surface rounded-xl shadow-sm border border-line-subtle p-4">
+                    <p className="text-xs text-fg-muted uppercase tracking-wider font-semibold">Total Receivable</p>
+                    <p className={`text-2xl font-bold ${totalReceivable > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>
                         Rs. {totalReceivable.toLocaleString()}
                     </p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Customers with Dues</p>
-                    <p className="text-2xl font-bold text-orange-600">{customersWithBalance.length}</p>
+                <div className="bg-surface rounded-xl shadow-sm border border-line-subtle p-4">
+                    <p className="text-xs text-fg-muted uppercase tracking-wider font-semibold">Customers with Dues</p>
+                    <p className="text-2xl font-bold text-warning-fg">{customersWithBalance.length}</p>
                 </div>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total Customers</p>
-                    <p className="text-2xl font-bold text-blue-600">{customers.length}</p>
+                <div className="bg-surface rounded-xl shadow-sm border border-line-subtle p-4">
+                    <p className="text-xs text-fg-muted uppercase tracking-wider font-semibold">Total Customers</p>
+                    <p className="text-2xl font-bold text-primary-fg">{customers.length}</p>
                 </div>
             </div>
 
@@ -83,46 +83,46 @@ function CustomerLedgerOverview() {
                     placeholder="Search by name or phone..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="w-full sm:w-80 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full sm:w-80 px-4 py-2.5 border border-line-strong rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 />
             </div>
 
             {/* Customer List */}
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+            <div className="bg-surface rounded-2xl shadow-xl overflow-hidden border border-line-subtle">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-surface-2 border-b">
                             <tr>
-                                <th className="px-4 sm:px-6 py-4 text-left font-semibold text-gray-600">Customer</th>
-                                <th className="px-4 sm:px-6 py-4 text-left font-semibold text-gray-600 hidden sm:table-cell">Phone</th>
-                                <th className="px-4 sm:px-6 py-4 text-right font-semibold text-gray-600">Balance</th>
-                                <th className="px-4 sm:px-6 py-4 text-center font-semibold text-gray-600">Actions</th>
+                                <th className="px-4 sm:px-6 py-4 text-left font-semibold text-fg-3">Customer</th>
+                                <th className="px-4 sm:px-6 py-4 text-left font-semibold text-fg-3 hidden sm:table-cell">Phone</th>
+                                <th className="px-4 sm:px-6 py-4 text-right font-semibold text-fg-3">Balance</th>
+                                <th className="px-4 sm:px-6 py-4 text-center font-semibold text-fg-3">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-line-subtle">
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-12 text-center text-gray-400">
+                                    <td colSpan="4" className="px-6 py-12 text-center text-fg-subtle">
                                         {search ? 'No customers match your search.' : 'No customers found.'}
                                     </td>
                                 </tr>
                             )}
                             {filtered.map(c => (
-                                <tr key={c.id} className="hover:bg-gray-50 transition">
+                                <tr key={c.id} className="hover:bg-surface-2 transition">
                                     <td className="px-4 sm:px-6 py-4">
-                                        <div className="font-medium text-gray-800">{c.name}</div>
-                                        <div className="text-xs text-gray-400 sm:hidden">{c.phone || '-'}</div>
+                                        <div className="font-medium text-fg">{c.name}</div>
+                                        <div className="text-xs text-fg-subtle sm:hidden">{c.phone || '-'}</div>
                                     </td>
-                                    <td className="px-4 sm:px-6 py-4 text-gray-500 hidden sm:table-cell">{c.phone || '-'}</td>
+                                    <td className="px-4 sm:px-6 py-4 text-fg-muted hidden sm:table-cell">{c.phone || '-'}</td>
                                     <td className="px-4 sm:px-6 py-4 text-right">
-                                        <span className={`font-bold ${(c.outstanding_balance || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        <span className={`font-bold ${(c.outstanding_balance || 0) > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>
                                             Rs. {(c.outstanding_balance || 0).toLocaleString()}
                                         </span>
                                     </td>
                                     <td className="px-4 sm:px-6 py-4 text-center">
                                         <Link
                                             to={`/customers/${c.id}`}
-                                            className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition"
+                                            className="px-3 py-1.5 bg-primary-soft text-primary-fg hover:bg-primary-muted rounded-lg text-xs font-bold transition"
                                         >
                                             View Ledger →
                                         </Link>

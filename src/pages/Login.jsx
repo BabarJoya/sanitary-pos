@@ -440,12 +440,12 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-surface-2 flex">
       {/* Left Side - Branding */}
       <div className="hidden lg:flex w-1/2 bg-[url('/inventory-bg.png')] bg-cover bg-left relative p-12 flex-col justify-between overflow-hidden">
-        <div className="absolute inset-0 bg-slate-900/60 z-0" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-600/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
+        <div className="absolute inset-0 bg-contrast/60 z-0" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-success/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
 
         <div className="relative z-10">
           <motion.div
@@ -468,29 +468,29 @@ function Login() {
           >
             <h1 className="text-5xl font-black text-white leading-tight mb-6">
               Smart Retail Management
-              <span className="block text-blue-500">Simplified.</span>
+              <span className="block text-primary-fg">Simplified.</span>
             </h1>
-            <p className="text-lg text-slate-400 mb-12">
+            <p className="text-lg text-white/60 mb-12">
               Enterprise-grade POS system with bank-level security and multi-tenant isolation.
             </p>
 
             <div className="space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                  <Zap className="text-blue-400" size={20} />
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Zap className="text-primary-fg" size={20} />
                 </div>
                 <div>
                   <h3 className="text-white font-semibold">Lightning Fast</h3>
-                  <p className="text-sm text-slate-400">Offline-first architecture</p>
+                  <p className="text-sm text-white/60">Offline-first architecture</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <ShieldCheck className="text-emerald-400" size={20} />
+                <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
+                  <ShieldCheck className="text-success-fg" size={20} />
                 </div>
                 <div>
                   <h3 className="text-white font-semibold">Enterprise Security</h3>
-                  <p className="text-sm text-slate-400">Row-level security & data encryption</p>
+                  <p className="text-sm text-white/60">Row-level security & data encryption</p>
                 </div>
               </div>
             </div>
@@ -503,19 +503,19 @@ function Login() {
           transition={{ duration: 0.8, delay: 0.6 }}
           className="relative z-10"
         >
-          <p className="text-sm text-slate-500 font-medium">
-            Developed with <span className="text-red-500">❤︎</span> by EdgeX Digital & Babar Joya
+          <p className="text-sm text-white/50 font-medium">
+            Developed with <span className="text-danger-fg">❤︎</span> by EdgeX Digital & Babar Joya
           </p>
-          <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <PhoneCall size={14} className="text-slate-400" />
-            <span className="font-mono text-sm text-slate-300">Support: 0301-2616367</span>
+          <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-contrast-hover/50 rounded-lg border border-contrast-hover/50">
+            <PhoneCall size={14} className="text-white/60" />
+            <span className="font-mono text-sm text-fg-on-contrast">Support: 0301-2616367</span>
           </div>
         </motion.div>
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-slate-900 relative border-l border-slate-800">
-        <div className="absolute top-1/4 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-contrast relative border-l border-contrast-hover">
+        <div className="absolute top-1/4 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -525,7 +525,7 @@ function Login() {
         >
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-10 flex flex-col items-center">
-            <div className="w-20 h-20 mb-4 rounded-xl border border-slate-700 p-1 bg-slate-800 shadow-sm flex items-center justify-center overflow-hidden">
+            <div className="w-20 h-20 mb-4 rounded-xl border border-contrast-hover p-1 bg-contrast-hover shadow-sm flex items-center justify-center overflow-hidden">
               <img src={logoUrl} alt={platformName} className="max-w-full max-h-full object-contain" />
             </div>
             <h1 className="text-2xl font-black text-white tracking-tight uppercase">{platformName}</h1>
@@ -533,19 +533,19 @@ function Login() {
 
           {/* Desktop Logo */}
           <div className="hidden lg:flex flex-col items-center mb-10">
-            <div className="w-28 h-28 mb-4 rounded-2xl border-2 border-slate-700 p-2 bg-slate-800/50 backdrop-blur-md shadow-2xl flex items-center justify-center overflow-hidden">
+            <div className="w-28 h-28 mb-4 rounded-2xl border-2 border-contrast-hover p-2 bg-contrast-hover/50 backdrop-blur-md shadow-2xl flex items-center justify-center overflow-hidden">
               <img src={logoUrl} alt={platformName} className="max-w-full max-h-full object-contain drop-shadow-lg" />
             </div>
           </div>
 
           <div className="mb-10 text-center lg:text-left">
             <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-            <p className="text-slate-400">Please sign in to your dashboard</p>
+            <p className="text-white/60">Please sign in to your dashboard</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Email or Username</label>
+              <label className="block text-sm font-semibold text-fg-on-contrast mb-2">Email or Username</label>
               <input
                 type="text"
                 placeholder="Enter email or username"
@@ -553,12 +553,12 @@ function Login() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 autoComplete="username"
-                className="w-full px-5 py-4 bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-slate-800 transition-all shadow-inner"
+                className="w-full px-5 py-4 bg-contrast-hover/50 border border-contrast-hover text-white placeholder-white/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary focus:bg-contrast-hover transition-all shadow-inner"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Password</label>
+              <label className="block text-sm font-semibold text-fg-on-contrast mb-2">Password</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -567,12 +567,12 @@ function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="w-full px-5 py-4 bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-slate-800 transition-all shadow-inner"
+                  className="w-full px-5 py-4 bg-contrast-hover/50 border border-contrast-hover text-white placeholder-white/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary focus:bg-contrast-hover transition-all shadow-inner"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -588,7 +588,7 @@ function Login() {
                   exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                   className="overflow-hidden"
                 >
-                  <p className="text-red-600 text-sm font-medium bg-red-50 border border-red-100 px-4 py-3 rounded-xl">
+                  <p className="text-danger-fg text-sm font-medium bg-danger-soft border border-danger-muted px-4 py-3 rounded-xl">
                     {error}
                   </p>
                 </motion.div>
@@ -598,7 +598,7 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-blue-600/30 active:scale-[0.98] flex justify-center items-center h-14"
+              className="w-full py-4 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-primary/30 active:scale-[0.98] flex justify-center items-center h-14"
             >
               {loading ? (
                 <motion.div
@@ -613,9 +613,9 @@ function Login() {
           </form>
 
           <div className="mt-10 lg:hidden text-center">
-            <div className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-800/50 rounded-xl border border-slate-700">
-              <PhoneCall size={16} className="text-slate-400" />
-              <span className="font-mono font-bold text-slate-400">Support: 0301-2616367</span>
+            <div className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-contrast-hover/50 rounded-xl border border-contrast-hover">
+              <PhoneCall size={16} className="text-white/60" />
+              <span className="font-mono font-bold text-white/60">Support: 0301-2616367</span>
             </div>
           </div>
         </motion.div>

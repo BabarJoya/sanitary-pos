@@ -294,9 +294,9 @@ function Customers() {
   const getSegment = (c) => {
     const isNew = new Date(c.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const bal = Number(c.outstanding_balance || 0)
-    if (isNew) return { label: '🆕 New', bg: 'bg-blue-100 text-blue-700' }
-    if (bal >= 10000) return { label: '⭐ VIP', bg: 'bg-yellow-100 text-yellow-700' }
-    if (bal === 0) return { label: '✓ Clear', bg: 'bg-green-100 text-green-700' }
+    if (isNew) return { label: '🆕 New', bg: 'bg-primary-muted text-primary-strong' }
+    if (bal >= 10000) return { label: '⭐ VIP', bg: 'bg-warning-muted text-warning-strong' }
+    if (bal === 0) return { label: '✓ Clear', bg: 'bg-success-muted text-success-strong' }
     return null
   }
 
@@ -364,64 +364,64 @@ function Customers() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">👥 Customers</h1>
+        <h1 className="text-2xl font-bold text-fg">👥 Customers</h1>
         <div className="flex gap-2 w-full sm:w-auto flex-wrap">
           {selected.length > 0 && (
             <button
               onClick={() => requestDelete(selected)}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-bold text-sm">
+              className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-lg transition font-bold text-sm">
               🗑️ Delete Selected ({selected.length})
             </button>
           )}
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
           <button onClick={handleExport}
-            className="px-4 py-2 border border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition font-bold text-sm flex items-center gap-2">
+            className="px-4 py-2 border border-success text-success-fg hover:bg-success-soft rounded-lg transition font-bold text-sm flex items-center gap-2">
             📤 Export
           </button>
           <button onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2 border border-orange-500 text-orange-500 hover:bg-orange-50 rounded-lg transition font-bold text-sm flex items-center gap-2">
+            className="px-4 py-2 border border-warning text-warning-fg hover:bg-warning-soft rounded-lg transition font-bold text-sm flex items-center gap-2">
             📥 Import
           </button>
           <button
             onClick={handlePrintOutstanding}
-            className="px-4 py-2 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg transition font-bold text-sm flex items-center gap-2">
+            className="px-4 py-2 border border-primary text-primary-fg hover:bg-primary-soft rounded-lg transition font-bold text-sm flex items-center gap-2">
             🖨️ Print Outstanding
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition">
             {showForm ? 'Cancel' : '+ Add Customer'}
           </button>
         </div>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-lg">
-          <h2 className="font-semibold text-gray-700 mb-4">{editingId ? 'Edit Customer' : 'New Customer'}</h2>
+        <div className="bg-surface rounded-xl shadow p-6 mb-6 max-w-lg">
+          <h2 className="font-semibold text-fg-2 mb-4">{editingId ? 'Edit Customer' : 'New Customer'}</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Name *</label>
+              <label className="block text-fg-2 font-medium mb-1">Name *</label>
               <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. Ahmed Khan" />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Phone</label>
+              <label className="block text-fg-2 font-medium mb-1">Phone</label>
               <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="03001234567" />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Address</label>
+              <label className="block text-fg-2 font-medium mb-1">Address</label>
               <input type="text" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="City, Pakistan" />
             </div>
             {wholesaleEnabled && (
               <div>
-                <label htmlFor="customer-price-tier" className="block text-gray-700 font-medium mb-1">Customer Type</label>
+                <label htmlFor="customer-price-tier" className="block text-fg-2 font-medium mb-1">Customer Type</label>
                 <select id="customer-price-tier" value={normalizeTier(form.price_tier)} onChange={(e) => setForm({ ...form, price_tier: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-surface">
                   <option value="retail">Retail customer</option>
                   <option value="wholesale">Wholesale customer (POS switches to wholesale prices)</option>
                 </select>
@@ -429,11 +429,11 @@ function Customers() {
             )}
             <div className="flex gap-3">
               <button type="submit" disabled={saving}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
+                className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition disabled:opacity-50">
                 {saving ? 'Saving...' : editingId ? 'Update Customer' : 'Save Customer'}
               </button>
               <button type="button" onClick={handleCancel}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+                className="px-6 py-2 bg-surface-4 hover:bg-surface-5 text-fg-2 rounded-lg transition">
                 Cancel
               </button>
             </div>
@@ -442,16 +442,16 @@ function Customers() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-fg-muted">Loading...</p>
       ) : customers.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No customers yet</p>
+          <p className="text-fg-subtle text-lg">No customers yet</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-surface rounded-xl shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-surface-2 border-b">
                 <tr>
                   <th className="px-4 py-3 w-10">
                     <input
@@ -461,16 +461,16 @@ function Customers() {
                       className="w-4 h-4 rounded"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Address</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Balance</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Phone</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Address</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Balance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-line">
                 {customers.map((c) => (
-                  <tr key={c.id} className={`hover:bg-gray-50 ${selected.includes(c.id) ? 'bg-blue-50' : ''}`}>
+                  <tr key={c.id} className={`hover:bg-surface-2 ${selected.includes(c.id) ? 'bg-primary-soft' : ''}`}>
                     <td className="px-4 py-4">
                       <input
                         type="checkbox"
@@ -481,22 +481,22 @@ function Customers() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-800">{c.name}</span>
+                        <span className="font-medium text-fg">{c.name}</span>
                         {wholesaleEnabled && c.price_tier === 'wholesale' && (
-                          <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-800">Wholesale</span>
+                          <span className="ml-1.5 rounded bg-wholesale-muted px-1.5 py-0.5 text-[10px] font-black uppercase text-wholesale-strong">Wholesale</span>
                         )}
                         {(() => { const seg = getSegment(c); return seg ? <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${seg.bg}`}>{seg.label}</span> : null })()}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{c.phone || '-'}</td>
-                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{c.address || '-'}</td>
+                    <td className="px-6 py-4 text-fg-muted whitespace-nowrap">{c.phone || '-'}</td>
+                    <td className="px-6 py-4 text-fg-muted whitespace-nowrap">{c.address || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`font-medium ${c.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className={`font-medium ${c.outstanding_balance > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>
                         Rs. {c.outstanding_balance || 0}
                       </span>
                     </td>
                     <td className="px-6 py-4 flex gap-3 whitespace-nowrap items-center">
-                      <Link to={`/customers/${c.id}`} className="text-blue-600 hover:text-blue-800 text-sm font-bold bg-blue-50 px-2 py-1 rounded">
+                      <Link to={`/customers/${c.id}`} className="text-primary-fg hover:text-primary-strong text-sm font-bold bg-primary-soft px-2 py-1 rounded">
                         Ledger
                       </Link>
                       {c.phone && (
@@ -517,13 +517,13 @@ function Customers() {
 
                             window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
                           }}
-                          className="text-green-600 hover:text-green-800 text-lg"
+                          className="text-success-fg hover:text-success-strong text-lg"
                         >
                           💬
                         </button>
                       )}
-                      <button onClick={() => handleEdit(c)} className="text-blue-500 hover:text-blue-700 text-sm font-medium">Edit</button>
-                      <button onClick={() => requestDelete([c.id])} className="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                      <button onClick={() => handleEdit(c)} className="text-primary-fg hover:text-primary-strong text-sm font-medium">Edit</button>
+                      <button onClick={() => requestDelete([c.id])} className="text-danger-fg hover:text-danger-strong text-sm font-medium">Delete</button>
                     </td>
                   </tr>
                 ))}

@@ -20,14 +20,14 @@ const DELETION_ORDER = {
 }
 
 const SAFETY_BADGE = {
-    sale_items: { label: 'Safe to delete', color: 'bg-green-100 text-green-700' },
-    purchase_items: { label: 'Safe to delete', color: 'bg-green-100 text-green-700' },
-    expenses: { label: 'Safe to delete', color: 'bg-green-100 text-green-700' },
-    sales: { label: 'Delete after items', color: 'bg-yellow-100 text-yellow-700' },
-    purchases: { label: 'Delete after items', color: 'bg-yellow-100 text-yellow-700' },
-    products: { label: 'Delete last', color: 'bg-red-100 text-red-600' },
-    customers: { label: 'Delete last', color: 'bg-red-100 text-red-600' },
-    suppliers: { label: 'Delete last', color: 'bg-red-100 text-red-600' },
+    sale_items: { label: 'Safe to delete', color: 'bg-success-muted text-success-strong' },
+    purchase_items: { label: 'Safe to delete', color: 'bg-success-muted text-success-strong' },
+    expenses: { label: 'Safe to delete', color: 'bg-success-muted text-success-strong' },
+    sales: { label: 'Delete after items', color: 'bg-warning-muted text-warning-strong' },
+    purchases: { label: 'Delete after items', color: 'bg-warning-muted text-warning-strong' },
+    products: { label: 'Delete last', color: 'bg-danger-muted text-danger-fg' },
+    customers: { label: 'Delete last', color: 'bg-danger-muted text-danger-fg' },
+    suppliers: { label: 'Delete last', color: 'bg-danger-muted text-danger-fg' },
 }
 
 function TrashBin() {
@@ -199,8 +199,8 @@ function TrashBin() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">🗑️ Trash Bin</h1>
-                    <p className="text-gray-500 text-sm">Deleted items can be restored or permanently removed</p>
+                    <h1 className="text-2xl font-bold text-fg">🗑️ Trash Bin</h1>
+                    <p className="text-fg-muted text-sm">Deleted items can be restored or permanently removed</p>
                 </div>
                 <div className="flex gap-2 items-center flex-wrap">
                     <select
@@ -221,7 +221,7 @@ function TrashBin() {
                                     const items = filtered.filter(x => selected.includes(x.id))
                                     handleRestore(items)
                                 }}
-                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-bold text-sm"
+                                className="px-4 py-2 bg-success hover:bg-success-hover text-white rounded-lg transition font-bold text-sm"
                             >
                                 ♻️ Restore Selected ({selected.length})
                             </button>
@@ -230,7 +230,7 @@ function TrashBin() {
                                     const items = filtered.filter(x => selected.includes(x.id))
                                     requestPasswordAction('delete', items)
                                 }}
-                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-bold text-sm"
+                                className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-lg transition font-bold text-sm"
                             >
                                 🔥 Delete Forever ({selected.length})
                             </button>
@@ -241,13 +241,13 @@ function TrashBin() {
                         <>
                             <button
                                 onClick={() => requestPasswordAction('delete_ordered', trashItems)}
-                                className="px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold text-sm"
+                                className="px-4 py-2 border border-primary-line bg-primary-soft hover:bg-primary-muted text-primary-strong rounded-lg transition font-bold text-sm"
                             >
                                 🔄 Delete In Order
                             </button>
                             <button
                                 onClick={() => requestPasswordAction('delete', trashItems)}
-                                className="px-4 py-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition font-bold text-sm"
+                                className="px-4 py-2 border border-danger-line bg-danger-soft hover:bg-danger-muted text-danger-strong rounded-lg transition font-bold text-sm"
                             >
                                 Empty Trash
                             </button>
@@ -257,46 +257,46 @@ function TrashBin() {
             </div>
 
             {/* Deletion Order Guide */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+            <div className="bg-warning-soft border border-warning-line rounded-xl overflow-hidden">
                 <button
                     onClick={() => setShowGuide(g => !g)}
-                    className="w-full flex items-center justify-between px-4 py-3 text-amber-800 font-bold text-sm text-left"
+                    className="w-full flex items-center justify-between px-4 py-3 text-warning-strong font-bold text-sm text-left"
                 >
                     <span>💡 Deletion Order Guide — Kya pehle delete karein?</span>
                     <span className="text-xs">{showGuide ? '▲ Band karein' : '▼ Dekhein'}</span>
                 </button>
                 {showGuide && (
-                    <div className="px-4 pb-4 text-sm text-amber-900 space-y-3">
-                        <p className="text-xs text-amber-700 italic">Agar deletion fail ho raha hai (Foreign Key error), neeche diya hua order follow karein:</p>
+                    <div className="px-4 pb-4 text-sm text-warning-strong space-y-3">
+                        <p className="text-xs text-warning-strong italic">Agar deletion fail ho raha hai (Foreign Key error), neeche diya hua order follow karein:</p>
                         <ol className="space-y-2">
                             <li className="flex items-start gap-2">
-                                <span className="bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 1</span>
+                                <span className="bg-success-muted text-success-strong font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 1</span>
                                 <span><strong>📋 Sale Items & Purchase Items</strong> — Pehle yeh delete karein. Inke koi children nahi hote.</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 2</span>
+                                <span className="bg-warning-muted text-warning-strong font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 2</span>
                                 <span><strong>📜 Sales & 🛒 Purchases</strong> — Sale/Purchase Items delete hone ke baad yeh delete ho sakte hain.</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 3</span>
+                                <span className="bg-danger-muted text-danger-strong font-bold px-2 py-0.5 rounded text-xs min-w-fit">Step 3</span>
                                 <span><strong>📦 Products / 👥 Customers / 🚚 Suppliers</strong> — Sab sales/purchases clear hone ke baad in ko delete karein.</span>
                             </li>
                             <li className="flex items-start gap-2">
-                                <span className="bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Any time</span>
+                                <span className="bg-surface-3 text-fg-2 font-bold px-2 py-0.5 rounded text-xs min-w-fit">Any time</span>
                                 <span><strong>💸 Expenses</strong> — Kabhi bhi delete ho sakte hain, koi dependency nahi.</span>
                             </li>
                         </ol>
-                        <p className="text-xs text-amber-700 bg-amber-100 px-3 py-2 rounded-lg">
+                        <p className="text-xs text-warning-strong bg-warning-muted px-3 py-2 rounded-lg">
                             💡 <strong>Shortcut:</strong> "<strong>🔄 Delete In Order</strong>" button use karein — yeh automatically sahi order mein delete karta hai.
                         </p>
                     </div>
                 )}
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-surface rounded-xl shadow-sm border border-line-subtle overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-surface-2 border-b">
                             <tr>
                                 <th className="px-4 py-3 w-10">
                                     <input
@@ -306,24 +306,24 @@ function TrashBin() {
                                         className="w-4 h-4 rounded"
                                     />
                                 </th>
-                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Type</th>
-                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Name / Description</th>
-                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase hidden sm:table-cell">Status</th>
-                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase">Deleted On</th>
-                                <th className="px-4 py-3 text-xs font-bold text-gray-500 uppercase text-center">Actions</th>
+                                <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase">Type</th>
+                                <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase">Name / Description</th>
+                                <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase hidden sm:table-cell">Status</th>
+                                <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase">Deleted On</th>
+                                <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-line-subtle">
                             {loading ? (
-                                <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400">Loading trash...</td></tr>
+                                <tr><td colSpan="6" className="px-6 py-12 text-center text-fg-subtle">Loading trash...</td></tr>
                             ) : filtered.length === 0 ? (
-                                <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400 italic">
+                                <tr><td colSpan="6" className="px-6 py-12 text-center text-fg-subtle italic">
                                     {trashItems.length === 0 ? '🎉 Trash is empty! No deleted items.' : 'No items match the filter.'}
                                 </td></tr>
                             ) : filtered.map(item => {
                                 const badge = SAFETY_BADGE[item.original_table]
                                 return (
-                                    <tr key={item.id} className="hover:bg-gray-50 transition">
+                                    <tr key={item.id} className="hover:bg-surface-2 transition">
                                         <td className="px-4 py-3">
                                             <input
                                                 type="checkbox"
@@ -333,11 +333,11 @@ function TrashBin() {
                                             />
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-[10px] font-bold uppercase">
+                                            <span className="px-2 py-1 bg-surface-3 text-fg-3 rounded-full text-[10px] font-bold uppercase">
                                                 {tableLabels[item.original_table] || item.original_table}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 font-medium text-gray-800">{getItemLabel(item)}</td>
+                                        <td className="px-4 py-3 font-medium text-fg">{getItemLabel(item)}</td>
                                         <td className="px-4 py-3 hidden sm:table-cell">
                                             {badge && (
                                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.color}`}>
@@ -345,20 +345,20 @@ function TrashBin() {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-sm text-gray-500">
+                                        <td className="px-4 py-3 text-sm text-fg-muted">
                                             {new Date(item.deleted_at).toLocaleString('en-PK')}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <div className="flex justify-center gap-2">
                                                 <button
                                                     onClick={() => handleRestore([item])}
-                                                    className="px-3 py-1 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-xs font-bold transition"
+                                                    className="px-3 py-1 bg-success-soft hover:bg-success-muted text-success-strong rounded-lg text-xs font-bold transition"
                                                 >
                                                     ♻️ Restore
                                                 </button>
                                                 <button
                                                     onClick={() => requestPasswordAction('delete', [item])}
-                                                    className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition"
+                                                    className="px-3 py-1 bg-danger-soft hover:bg-danger-muted text-danger-strong rounded-lg text-xs font-bold transition"
                                                 >
                                                     🔥 Delete
                                                 </button>

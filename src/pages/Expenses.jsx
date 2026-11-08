@@ -211,31 +211,31 @@ function Expenses() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">💸 Expenses</h1>
-          <p className="text-gray-500 text-sm">Track your daily business expenditures</p>
+          <h1 className="text-2xl font-bold text-fg">💸 Expenses</h1>
+          <p className="text-fg-muted text-sm">Track your daily business expenditures</p>
         </div>
         <div className="flex gap-4 w-full sm:w-auto overflow-x-auto pb-1 items-center flex-wrap">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center min-w-[120px]">
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Today</p>
-            <p className="text-xl font-bold text-red-600">Rs. {summary.today.toLocaleString()}</p>
+          <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle text-center min-w-[120px]">
+            <p className="text-[10px] text-fg-subtle font-bold uppercase tracking-wider">Today</p>
+            <p className="text-xl font-bold text-danger-fg">Rs. {summary.today.toLocaleString()}</p>
           </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center min-w-[120px]">
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">This Month</p>
-            <p className="text-xl font-bold text-gray-800">Rs. {summary.monthly.toLocaleString()}</p>
+          <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle text-center min-w-[120px]">
+            <p className="text-[10px] text-fg-subtle font-bold uppercase tracking-wider">This Month</p>
+            <p className="text-xl font-bold text-fg">Rs. {summary.monthly.toLocaleString()}</p>
           </div>
 
           {/* Monthly Budget Card */}
           {(() => {
             const pct = monthlyBudget > 0 ? Math.min((summary.monthly / monthlyBudget) * 100, 100) : 0
-            const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-yellow-400' : 'bg-green-500'
-            const textColor = pct >= 90 ? 'text-red-600' : pct >= 70 ? 'text-yellow-600' : 'text-green-600'
+            const barColor = pct >= 90 ? 'bg-danger' : pct >= 70 ? 'bg-warning' : 'bg-success'
+            const textColor = pct >= 90 ? 'text-danger-fg' : pct >= 70 ? 'text-warning-fg' : 'text-success-fg'
             return (
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 min-w-[180px]">
+              <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle min-w-[180px]">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Monthly Budget</p>
+                  <p className="text-[10px] text-fg-subtle font-bold uppercase tracking-wider">Monthly Budget</p>
                   <button
                     onClick={() => { setBudgetInput(monthlyBudget); setEditingBudget(true) }}
-                    className="text-[10px] text-blue-500 hover:text-blue-700 font-bold"
+                    className="text-[10px] text-primary-fg hover:text-primary-strong font-bold"
                     title="Edit budget"
                   >✏️</button>
                 </div>
@@ -247,23 +247,23 @@ function Expenses() {
                       onChange={e => setBudgetInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') saveBudget(); if (e.key === 'Escape') setEditingBudget(false) }}
                       autoFocus
-                      className="w-24 px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      className="w-24 px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       placeholder="Budget..."
                     />
-                    <button onClick={saveBudget} className="px-2 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold">✓</button>
+                    <button onClick={saveBudget} className="px-2 py-1 bg-primary text-white rounded-lg text-xs font-bold">✓</button>
                   </div>
                 ) : monthlyBudget > 0 ? (
                   <>
                     <p className={`text-lg font-bold ${textColor}`}>
-                      Rs. {summary.monthly.toLocaleString()} <span className="text-xs text-gray-400 font-normal">/ {monthlyBudget.toLocaleString()}</span>
+                      Rs. {summary.monthly.toLocaleString()} <span className="text-xs text-fg-subtle font-normal">/ {monthlyBudget.toLocaleString()}</span>
                     </p>
-                    <div className="w-full bg-gray-100 rounded-full h-2 mt-2">
+                    <div className="w-full bg-surface-3 rounded-full h-2 mt-2">
                       <div className={`${barColor} h-2 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
                     </div>
                     <p className={`text-[10px] font-bold mt-1 ${textColor}`}>{pct.toFixed(0)}% used</p>
                   </>
                 ) : (
-                  <p className="text-sm text-gray-400 italic mt-1">Set a budget ✏️</p>
+                  <p className="text-sm text-fg-subtle italic mt-1">Set a budget ✏️</p>
                 )}
               </div>
             )
@@ -272,14 +272,14 @@ function Expenses() {
           {selected.length > 0 && (
             <button
               onClick={() => requestDelete(selected)}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition font-bold text-sm"
+              className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-xl transition font-bold text-sm"
             >
               🗑️ Delete Selected ({selected.length})
             </button>
           )}
           <button
             onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ category: 'Misc', amount: '', note: '' }) }}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition shadow-lg shadow-blue-100 font-bold"
+            className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl transition shadow-lg shadow-primary-muted font-bold"
           >
             {showForm ? 'Cancel' : '+ Add Expense'}
           </button>
@@ -287,36 +287,36 @@ function Expenses() {
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-50 max-w-xl mx-auto md:mx-0">
-          <h2 className="font-bold text-gray-800 mb-4">{editingId ? 'Edit Expense' : 'New Expense'}</h2>
+        <div className="bg-surface rounded-2xl shadow-xl p-6 border border-primary-muted max-w-xl mx-auto md:mx-0">
+          <h2 className="font-bold text-fg mb-4">{editingId ? 'Edit Expense' : 'New Expense'}</h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <label className="block text-sm font-medium text-fg-2 mb-1">Category</label>
               <select
                 value={form.category}
                 onChange={e => setForm({ ...form, category: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none"
               >
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amount (Rs.)</label>
+              <label className="block text-sm font-medium text-fg-2 mb-1">Amount (Rs.)</label>
               <input
                 type="number"
                 required
                 value={form.amount}
                 onChange={e => setForm({ ...form, amount: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 placeholder="0.00"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Note / Description</label>
+              <label className="block text-sm font-medium text-fg-2 mb-1">Note / Description</label>
               <textarea
                 value={form.note}
                 onChange={e => setForm({ ...form, note: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 placeholder="Description of expenditure..."
                 rows="2"
               ></textarea>
@@ -325,7 +325,7 @@ function Expenses() {
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition disabled:opacity-50"
+                className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editingId ? 'Update Expense' : 'Save Expense'}
               </button>
@@ -334,29 +334,29 @@ function Expenses() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="divide-y divide-gray-100 md:hidden">
+      <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle overflow-hidden">
+        <div className="divide-y divide-line-subtle md:hidden">
           {loading ? (
-            <p className="px-6 py-12 text-center text-gray-400">Loading expenses...</p>
+            <p className="px-6 py-12 text-center text-fg-subtle">Loading expenses...</p>
           ) : expenses.length === 0 ? (
-            <p className="px-6 py-12 text-center text-gray-400 italic">No expenses recorded yet.</p>
+            <p className="px-6 py-12 text-center text-fg-subtle italic">No expenses recorded yet.</p>
           ) : expenses.map(exp => (
-            <div key={exp.id} className={`p-4 ${selected.includes(exp.id) ? 'bg-blue-50' : ''}`}>
+            <div key={exp.id} className={`p-4 ${selected.includes(exp.id) ? 'bg-primary-soft' : ''}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[10px] font-bold uppercase">
+                  <span className="px-2 py-0.5 bg-surface-3 text-fg-2 rounded text-[10px] font-bold uppercase">
                     {exp.category}
                   </span>
-                  <p className="mt-1 font-bold text-gray-900 text-sm">{exp.note || 'No note'}</p>
-                  <p className="mt-1 text-xs text-gray-400">{new Date(exp.created_at).toLocaleDateString('en-PK')}</p>
+                  <p className="mt-1 font-bold text-fg text-sm">{exp.note || 'No note'}</p>
+                  <p className="mt-1 text-xs text-fg-subtle">{new Date(exp.created_at).toLocaleDateString('en-PK')}</p>
                 </div>
                 <input type="checkbox" checked={selected.includes(exp.id)} onChange={() => toggleSelect(exp.id)} className="mt-1 h-4 w-4 rounded" />
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
-                <p className="text-lg font-black text-gray-900">Rs. {exp.amount.toLocaleString()}</p>
+                <p className="text-lg font-black text-fg">Rs. {exp.amount.toLocaleString()}</p>
                 <div className="flex gap-2">
-                  <button onClick={() => handleEdit(exp)} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">Edit</button>
-                  <button onClick={() => requestDelete([exp.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
+                  <button onClick={() => handleEdit(exp)} className="rounded-lg bg-primary-soft px-3 py-2 text-sm font-bold text-primary-fg">Edit</button>
+                  <button onClick={() => requestDelete([exp.id])} className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-bold text-danger-fg">Delete</button>
                 </div>
               </div>
             </div>
@@ -364,7 +364,7 @@ function Expenses() {
         </div>
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-surface-2 border-b">
               <tr>
                 <th className="px-4 py-4 w-10">
                   <input
@@ -374,20 +374,20 @@ function Expenses() {
                     className="w-4 h-4 rounded"
                   />
                 </th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Date</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap">Category</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase whitespace-nowrap min-w-[150px]">Description</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right whitespace-nowrap">Amount</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-center whitespace-nowrap">Actions</th>
+                <th className="px-6 py-4 text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Date</th>
+                <th className="px-6 py-4 text-xs font-bold text-fg-muted uppercase whitespace-nowrap">Category</th>
+                <th className="px-6 py-4 text-xs font-bold text-fg-muted uppercase whitespace-nowrap min-w-[150px]">Description</th>
+                <th className="px-6 py-4 text-xs font-bold text-fg-muted uppercase text-right whitespace-nowrap">Amount</th>
+                <th className="px-6 py-4 text-xs font-bold text-fg-muted uppercase text-center whitespace-nowrap">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line-subtle">
               {loading ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400">Loading expenses...</td></tr>
+                <tr><td colSpan="6" className="px-6 py-12 text-center text-fg-subtle">Loading expenses...</td></tr>
               ) : expenses.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-gray-400 italic">No expenses recorded yet.</td></tr>
+                <tr><td colSpan="6" className="px-6 py-12 text-center text-fg-subtle italic">No expenses recorded yet.</td></tr>
               ) : expenses.map(exp => (
-                <tr key={exp.id} className={`hover:bg-gray-50 transition group ${selected.includes(exp.id) ? 'bg-blue-50' : ''}`}>
+                <tr key={exp.id} className={`hover:bg-surface-2 transition group ${selected.includes(exp.id) ? 'bg-primary-soft' : ''}`}>
                   <td className="px-4 py-4">
                     <input
                       type="checkbox"
@@ -396,18 +396,18 @@ function Expenses() {
                       className="w-4 h-4 rounded"
                     />
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{new Date(exp.created_at).toLocaleDateString('en-PK')}</td>
+                  <td className="px-6 py-4 text-sm text-fg-muted">{new Date(exp.created_at).toLocaleDateString('en-PK')}</td>
                   <td className="px-6 py-4">
-                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold uppercase">
+                    <span className="px-3 py-1 bg-surface-3 text-fg-2 rounded-full text-xs font-bold uppercase">
                       {exp.category}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 italic">{exp.note || '-'}</td>
-                  <td className="px-6 py-4 text-right font-bold text-gray-900">Rs. {exp.amount.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-fg-3 italic">{exp.note || '-'}</td>
+                  <td className="px-6 py-4 text-right font-bold text-fg">Rs. {exp.amount.toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition">
-                      <button onClick={() => handleEdit(exp)} className="text-blue-500 hover:text-blue-700 font-bold text-sm">Edit</button>
-                      <button onClick={() => requestDelete([exp.id])} className="text-red-500 hover:text-red-700 font-bold text-sm">Delete</button>
+                      <button onClick={() => handleEdit(exp)} className="text-primary-fg hover:text-primary-strong font-bold text-sm">Edit</button>
+                      <button onClick={() => requestDelete([exp.id])} className="text-danger-fg hover:text-danger-strong font-bold text-sm">Delete</button>
                     </div>
                   </td>
                 </tr>
