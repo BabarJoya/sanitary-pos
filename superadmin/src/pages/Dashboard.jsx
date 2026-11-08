@@ -21,7 +21,7 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     if (!supabaseAdmin) {
-      setError('Please add VITE_SUPABASE_SERVICE_ROLE_KEY to your .env to fetch global stats.')
+      setError('This legacy portal is retired. Use /admin in EdgeX POS.')
       setLoading(false)
       return
     }

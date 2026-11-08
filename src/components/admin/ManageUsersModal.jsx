@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb } from '../../services/adminApi'
 import { logAction } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
 import { hashPassword } from '../../utils/authUtils'
@@ -37,10 +37,9 @@ export default function ManageUsersModal({ shop, onClose }) {
   useEffect(() => { if (shop) fetchUsers() }, [shop])
 
   const fetchUsers = async () => {
-    if (!supabaseAdmin) return
     setLoading(true)
     try {
-      let { data, error: err } = await supabaseAdmin
+      let { data, error: err } = await adminDb
         .from('users')
         .select('id, username, email, role, is_active, created_at, last_sign_in_at, raw_password')
         .eq('shop_id', shop.id)
@@ -48,7 +47,7 @@ export default function ManageUsersModal({ shop, onClose }) {
 
       // Fallback if raw_password column not yet added
       if (err && err.message?.includes('raw_password')) {
-        const fallback = await supabaseAdmin
+        const fallback = await adminDb
           .from('users')
           .select('id, username, email, role, is_active, created_at, last_sign_in_at')
           .eq('shop_id', shop.id)
@@ -110,7 +109,7 @@ export default function ManageUsersModal({ shop, onClose }) {
     try {
       if (formMode === 'add') {
         // Check username uniqueness within shop
-        const { data: existing } = await supabaseAdmin
+        const { data: existing } = await adminDb
           .from('users').select('id').eq('shop_id', shop.id).ilike('username', form.username.trim()).maybeSingle()
         if (existing) { flash('Username already exists in this shop.', true); setSaving(false); return }
 
@@ -125,10 +124,10 @@ export default function ManageUsersModal({ shop, onClose }) {
           is_active: form.is_active,
         }
 
-        let { error: insErr } = await supabaseAdmin.from('users').insert([insertData])
+        let { error: insErr } = await adminDb.from('users').insert([insertData])
         if (insErr && insErr.message?.includes('raw_password')) {
           delete insertData.raw_password
-          insErr = (await supabaseAdmin.from('users').insert([insertData])).error
+          insErr = (await adminDb.from('users').insert([insertData])).error
         }
         if (insErr) throw insErr
 
@@ -151,10 +150,10 @@ export default function ManageUsersModal({ shop, onClose }) {
           updateData.raw_password = form.password.trim()
         }
 
-        let { error: updErr } = await supabaseAdmin.from('users').update(updateData).eq('id', formMode)
+        let { error: updErr } = await adminDb.from('users').update(updateData).eq('id', formMode)
         if (updErr && updErr.message?.includes('raw_password')) {
           delete updateData.raw_password
-          updErr = (await supabaseAdmin.from('users').update(updateData).eq('id', formMode)).error
+          updErr = (await adminDb.from('users').update(updateData).eq('id', formMode)).error
         }
         if (updErr) throw updErr
 
@@ -178,7 +177,7 @@ export default function ManageUsersModal({ shop, onClose }) {
     if (!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return
     setDeletingId(u.id)
     try {
-      const { error: delErr } = await supabaseAdmin.from('users').delete().eq('id', u.id)
+      const { error: delErr } = await adminDb.from('users').delete().eq('id', u.id)
       if (delErr) throw delErr
       await logAction({
         actor_id: adminUser?.id, actor_email: adminUser?.email || adminUser?.username,
@@ -196,7 +195,7 @@ export default function ManageUsersModal({ shop, onClose }) {
 
   const toggleActive = async (u) => {
     try {
-      const { error: e } = await supabaseAdmin.from('users').update({ is_active: !u.is_active }).eq('id', u.id)
+      const { error: e } = await adminDb.from('users').update({ is_active: !u.is_active }).eq('id', u.id)
       if (e) throw e
       flash(`User "${u.username}" is now ${!u.is_active ? 'active' : 'inactive'}.`)
       fetchUsers()
@@ -218,10 +217,10 @@ export default function ManageUsersModal({ shop, onClose }) {
         raw_password: newPasswordInput.trim()
       }
 
-      let { error: rErr } = await supabaseAdmin.from('users').update(updatePayload).eq('id', resetModalUser.id)
+      let { error: rErr } = await adminDb.from('users').update(updatePayload).eq('id', resetModalUser.id)
       if (rErr && rErr.message?.includes('raw_password')) {
         delete updatePayload.raw_password
-        rErr = (await supabaseAdmin.from('users').update(updatePayload).eq('id', resetModalUser.id)).error
+        rErr = (await adminDb.from('users').update(updatePayload).eq('id', resetModalUser.id)).error
       }
       if (rErr) throw rErr
 

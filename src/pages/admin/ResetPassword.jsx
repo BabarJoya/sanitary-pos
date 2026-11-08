@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../services/supabase'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminCall } from '../../services/adminApi'
 import { hashPassword } from '../../utils/authUtils'
 import { KeyRound, ShieldAlert, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react'
 
@@ -60,13 +60,15 @@ export default function ResetPassword() {
       if (authError) throw new Error(authError.message)
 
       // 2. Sync hashed password to custom users table (keeps POS-style login in sync)
-      if (supabaseAdmin && session?.user?.email) {
+      // The admin-api Edge Function verifies this recovery session with Supabase Auth,
+      // updates only the superadmin row for that email, and signs out its POS sessions.
+      if (session?.access_token) {
         const hashed = await hashPassword(newPassword)
-        const { error: dbError } = await supabaseAdmin
-          .from('users')
-          .update({ password: hashed })
-          .eq('email', session.user.email)
-          .eq('role', 'superadmin')
+        const { error: dbError } = await adminCall(
+          'reset_superadmin_password',
+          { password_hash: hashed },
+          { authorization: session.access_token }
+        )
         if (dbError) console.warn('Custom users table sync warning:', dbError.message)
       }
 

@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
-import { useAuth } from '../../context/AuthContext'
+import { adminDb, adminCall } from '../../services/adminApi'
 import { Download, DatabaseBackup, CheckCircle, AlertTriangle, Clock, RefreshCw, Search } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
-// Tables to export per shop (in order)
+// Tables exported per shop (in order). Display only: the admin-api Edge Function
+// (supabase/functions/admin-api) holds the authoritative list — keep them in sync.
 const BACKUP_TABLES = [
   { name: 'shops',              label: 'Shop Info',          singleRow: true },
   { name: 'users',              label: 'Users' },
@@ -47,7 +47,6 @@ function BackupStatusChip({ lastBackup }) {
 }
 
 export default function Backups() {
-  const { user } = useAuth()
   const [shops, setShops] = useState([])
   const [backupMeta, setBackupMeta] = useState({}) // { shop_id: { backed_up_at, backup_rows } }
   const [loading, setLoading] = useState(true)
@@ -57,16 +56,11 @@ export default function Backups() {
   const [error, setError] = useState('')
 
   const fetchData = useCallback(async () => {
-    if (!supabaseAdmin) {
-      setError('Service role key required. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env')
-      setLoading(false)
-      return
-    }
     setLoading(true)
     try {
       const [shopsRes, backupsRes] = await Promise.all([
-        supabaseAdmin.from('shops').select('id, name, status, phone').order('name'),
-        supabaseAdmin
+        adminDb.from('shops').select('id, name, status, phone').order('name'),
+        adminDb
           .from('shop_backups')
           .select('shop_id, backed_up_at, backup_rows')
           .order('backed_up_at', { ascending: false }),
@@ -90,56 +84,19 @@ export default function Backups() {
 
   // ── Core export function ──────────────────────────────────────────────────
   const exportShopBackup = async (shop) => {
-    if (!supabaseAdmin) return
     setExporting(prev => ({ ...prev, [shop.id]: true }))
     try {
+      // The admin-api Edge Function gathers every BACKUP_TABLES sheet for the shop
+      // (same list, defined server-side) and records the shop_backups entry.
+      const { data: backup, error: backupError } = await adminCall('backup_shop', { shop_id: shop.id })
+      if (backupError) throw new Error(backupError.message)
+
       const wb = XLSX.utils.book_new()
-      let totalRows = 0
-
-      for (const tbl of BACKUP_TABLES) {
-        let data = []
-
-        if (tbl.singleRow) {
-          // Shop info — single row
-          const { data: rows } = await supabaseAdmin
-            .from(tbl.name).select('*').eq('id', shop.id).limit(1)
-          data = rows || []
-        } else if (tbl.joinTable) {
-          // Tables joined via parent (e.g. sale_items via sales.shop_id)
-          // Fetch parent IDs first
-          const { data: parentRows } = await supabaseAdmin
-            .from(tbl.joinTable).select('id').eq('shop_id', shop.id)
-          const parentIds = (parentRows || []).map(r => r.id)
-          if (parentIds.length > 0) {
-            // Fetch in chunks of 500 to avoid URL length limits
-            const chunks = []
-            for (let i = 0; i < parentIds.length; i += 500) {
-              const chunk = parentIds.slice(i, i + 500)
-              const { data: rows } = await supabaseAdmin
-                .from(tbl.name).select('*')
-                .in(`${tbl.joinTable.slice(0, -1)}_id`, chunk) // sale_items.sale_id
-              if (rows) chunks.push(...rows)
-            }
-            data = chunks
-          }
-        } else {
-          // Standard: filter by shop_id
-          let query = supabaseAdmin.from(tbl.name).select('*').eq('shop_id', shop.id)
-          const { data: rows } = await query
-          data = rows || []
-        }
-
-        totalRows += data.length
-        const ws = XLSX.utils.json_to_sheet(data.length ? data : [{}])
-        XLSX.utils.book_append_sheet(wb, ws, tbl.label.substring(0, 31))
+      const totalRows = backup.total_rows || 0
+      for (const sheet of backup.sheets || []) {
+        const ws = XLSX.utils.json_to_sheet(sheet.rows?.length ? sheet.rows : [{}])
+        XLSX.utils.book_append_sheet(wb, ws, String(sheet.label).substring(0, 31))
       }
-
-      // Write backup record
-      await supabaseAdmin.from('shop_backups').insert([{
-        shop_id: shop.id,
-        backup_rows: totalRows,
-        backed_up_by: user?.email || 'superadmin',
-      }])
 
       // Download
       const filename = `${shop.name.replace(/\s+/g, '_')}_backup_${new Date().toISOString().split('T')[0]}.xlsx`

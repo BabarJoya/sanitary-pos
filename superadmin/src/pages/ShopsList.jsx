@@ -26,7 +26,7 @@ export default function ShopsList() {
 
   const fetchShops = async () => {
     if (!supabaseAdmin) {
-      setErrorMsg('Service Role Key required. Add VITE_SUPABASE_SERVICE_ROLE_KEY to .env')
+      setErrorMsg('This legacy portal is retired. Use /admin in EdgeX POS.')
       setLoading(false)
       return
     }

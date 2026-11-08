@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { supabaseAdmin } from '../../services/supabaseAdmin'
+import { adminDb, adminCall } from '../../services/adminApi'
 import { X, Store, User, Mail, Key, Zap, AlertTriangle, CheckCircle2, MessageSquare, Copy, Check } from 'lucide-react'
-import { hashPassword } from '../../utils/authUtils'
 import { buildWhatsAppUrl, formatOnboardingMessage } from '../../utils/whatsappTemplates'
 
 const STORE_TYPES = [
@@ -41,7 +40,7 @@ export default function CreateShopModal({ onClose, onCreated }) {
 
   const fetchPlans = async () => {
     try {
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await adminDb
         .from('subscription_plans')
         .select('id, name, price, billing_cycle')
         .order('price', { ascending: true })
@@ -55,10 +54,6 @@ export default function CreateShopModal({ onClose, onCreated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!supabaseAdmin) {
-      setError("Setup Error: Missing VITE_SUPABASE_SERVICE_ROLE_KEY in .env file. Cannot create users without it.")
-      return
-    }
     if (!selectedPlanId) {
       setError('Please select a subscription plan for this shop.')
       return
@@ -68,73 +63,25 @@ export default function CreateShopModal({ onClose, onCreated }) {
     setLoading(true)
 
     try {
-      // 1. Create the Shop with plan_id and business_type
-      let shopInsert = {
-        name: shopName,
-        phone,
-        address,
-        email: ownerEmail,
-        status: 'active',
-        plan_id: selectedPlanId,
-        business_type: businessType
-      }
-
-      let { data: shopData, error: shopError } = await supabaseAdmin
-        .from('shops')
-        .insert([shopInsert])
-        .select()
-        .single()
-
-      // Fallback in case business_type column is not yet migrated in Supabase
-      if (shopError && shopError.message?.includes('business_type')) {
-        delete shopInsert.business_type
-        const retry = await supabaseAdmin.from('shops').insert([shopInsert]).select().single()
-        if (retry.error) throw new Error('Failed to create shop: ' + retry.error.message)
-        shopData = retry.data
-      } else if (shopError) {
-        throw new Error('Failed to create shop: ' + shopError.message)
-      }
-
-      // 2. Create the Owner Auth User via Admin API
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: ownerEmail,
-        password: ownerPassword,
-        email_confirm: true,
-        user_metadata: {
-          role: 'admin',
-          shop_id: shopData.id
+      // Shop + owner auth user + users profile are created server-side by the
+      // admin-api Edge Function (it rolls the shop back if the account fails).
+      const { data: created, error: createError, warning } = await adminCall('create_shop', {
+        shop: {
+          name: shopName,
+          phone,
+          address,
+          plan_id: selectedPlanId,
+          business_type: businessType
+        },
+        owner: {
+          email: ownerEmail,
+          username: ownerUsername,
+          password: ownerPassword
         }
       })
-
-      if (authError) {
-        // Rollback shop if user creation fails
-        await supabaseAdmin.from('shops').delete().eq('id', shopData.id)
-        throw new Error('Failed to create user account: ' + authError.message)
-      }
-
-      // 3. Ensure the public users table is updated with raw_password for superadmin helpdesk
-      const hashedPassword = await hashPassword(ownerPassword)
-      let userInsert = {
-        id: authData.user.id,
-        username: ownerUsername || ownerEmail.split('@')[0],
-        email: ownerEmail,
-        password: hashedPassword,
-        raw_password: ownerPassword,
-        role: 'admin',
-        shop_id: shopData.id,
-        is_active: true
-      }
-
-      let { error: profileError } = await supabaseAdmin.from('users').insert([userInsert])
-      // Fallback if raw_password column is not yet migrated
-      if (profileError && profileError.message?.includes('raw_password')) {
-        delete userInsert.raw_password
-        profileError = (await supabaseAdmin.from('users').insert([userInsert])).error
-      }
-
-      if (profileError) {
-        console.warn('Profile update warning:', profileError)
-      }
+      if (createError) throw new Error(createError.message)
+      if (warning) console.warn(warning)
+      const shopData = created.shop
 
       const activePlan = plans.find(p => p.id === selectedPlanId)
 
