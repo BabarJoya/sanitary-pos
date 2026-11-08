@@ -7,13 +7,15 @@ import {
   LayoutDashboard, ShoppingCart, Package, Layers, Boxes,
   Users, BookOpen, MessageSquare, Receipt, Truck,
   ShoppingBag, History, Wallet, BarChart3, UserCog,
-  Settings as SettingsIcon, Trash2, LifeBuoy, Lock, Store
+  Settings as SettingsIcon, Trash2, LifeBuoy, Lock, Store, Sun, Moon
 } from 'lucide-react'
+import { useTheme } from '../context/ThemeContext'
 
 let lastLayoutFetchTime = 0
 
 function Layout({ children }) {
   const { user, logout, stopImpersonating } = useAuth()
+  const { resolvedMode, setTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -195,7 +197,7 @@ function Layout({ children }) {
   const pageTitle = location.pathname.split('/').pop().replace('-', ' ').toUpperCase() || 'DASHBOARD'
 
   return (
-    <div className={`flex h-screen bg-gray-100 overflow-hidden text-gray-800 ${compactMode ? 'compact-mode' : ''}`}>
+    <div className={`flex h-dvh bg-app overflow-hidden text-fg ${compactMode ? 'compact-mode' : ''}`}>
 
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -203,23 +205,23 @@ function Layout({ children }) {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed md:static inset-y-0 left-0 bg-gray-900 text-white flex flex-col shrink-0 z-50 shadow-2xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} w-64`}>
+      <div className={`fixed md:static inset-y-0 left-0 bg-sidebar text-sidebar-fg flex flex-col shrink-0 z-50 shadow-2xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} w-64`}>
         {/* Logo */}
-        <div className={`p-4 border-b border-gray-800 flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'items-center justify-between gap-2'} transition-all`}>
+        <div className={`p-4 border-b border-sidebar-line flex ${sidebarCollapsed ? 'flex-col items-center gap-3' : 'items-center justify-between gap-2'} transition-all`}>
           <div className="flex items-center gap-3 min-w-0">
             {shopLogo ? (
-              <div className="w-8 h-8 rounded-lg bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5">
+              <div className="w-8 h-8 rounded-lg bg-surface overflow-hidden flex-shrink-0 flex items-center justify-center p-0.5">
                 <img src={shopLogo} alt="Logo" className="max-w-full max-h-full object-contain" />
               </div>
             ) : (
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-900 flex-shrink-0">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-bold text-lg text-white shadow-lg shadow-black/30 flex-shrink-0">
                 {shopName.charAt(0).toUpperCase()}
               </div>
             )}
             {!sidebarCollapsed && (
               <div className="min-w-0">
-                <h1 className="text-sm font-black tracking-tighter leading-none uppercase truncate w-28">{shopName}</h1>
-                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mt-0.5">Control Panel</p>
+                <h1 className="text-sm font-black tracking-tighter leading-none uppercase truncate w-28 text-white">{shopName}</h1>
+                <p className="text-[10px] text-sidebar-muted uppercase font-bold tracking-widest mt-0.5">Control Panel</p>
               </div>
             )}
           </div>
@@ -227,7 +229,7 @@ function Layout({ children }) {
           {/* Collapse Toggle Button (Desktop Only) */}
           <button 
             onClick={toggleSidebar} 
-            className="hidden md:flex items-center justify-center w-6 h-6 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition cursor-pointer flex-shrink-0"
+            className="hidden md:flex items-center justify-center w-7 h-7 rounded-lg bg-sidebar-hover hover:bg-sidebar-line text-sidebar-muted hover:text-white transition cursor-pointer flex-shrink-0"
             title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
             {sidebarCollapsed ? "▶" : "◀"}
@@ -305,37 +307,48 @@ function Layout({ children }) {
 
         {/* Credits */}
         {!sidebarCollapsed && (
-          <div className="p-4 border-t border-gray-800 bg-gray-900/50 flex flex-col gap-3">
+          <div className="p-4 border-t border-sidebar-line flex flex-col gap-3">
             <div className="text-center px-1">
-              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Developed with <span className="text-red-500">❤︎</span> by</p>
-              <p className="text-xs text-gray-300 font-semibold leading-tight">EdgeX Digital<br />& Babar Joya</p>
-              <p className="text-[10px] font-mono text-gray-400 mt-1">📞 0301-2616367</p>
+              <p className="text-[10px] text-sidebar-muted font-bold uppercase tracking-wider mb-1">Developed with <span className="text-danger-fg">❤︎</span> by</p>
+              <p className="text-xs text-sidebar-fg font-semibold leading-tight">EdgeX Digital<br />& Babar Joya</p>
+              <p className="text-[10px] font-mono text-sidebar-muted mt-1">📞 0301-2616367</p>
             </div>
           </div>
         )}
       </div>
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 
         {/* Top Header */}
-        <header className="h-14 sm:h-16 bg-white border-b border-gray-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shrink-0 shadow-sm z-20 transition-all">
+        <header className="h-14 sm:h-16 bg-surface border-b border-line px-3 sm:px-4 md:px-6 flex items-center justify-between shrink-0 shadow-sm z-20 transition-all">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="md:hidden w-8 h-8 flex items-center justify-center text-xl cursor-pointer hover:bg-gray-100 rounded-lg transition flex-shrink-0">☰</button>
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu" className="md:hidden w-10 h-10 flex items-center justify-center text-xl text-fg-2 cursor-pointer hover:bg-surface-3 rounded-lg transition flex-shrink-0">☰</button>
             <div className="flex flex-col min-w-0">
-              <span className="text-gray-900 font-black tracking-tight text-sm sm:text-lg leading-none truncate max-w-[140px] sm:max-w-[300px]">{shopName}</span>
-              <span className="text-gray-400 font-bold tracking-tight text-[10px] uppercase mt-0.5">{pageTitle}</span>
+              <span className="text-fg font-black tracking-tight text-sm sm:text-lg leading-none truncate max-w-[140px] sm:max-w-[300px]">{shopName}</span>
+              <span className="text-fg-subtle font-bold tracking-tight text-[10px] uppercase mt-0.5">{pageTitle}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Light / Dark quick toggle (full options live in Settings → Appearance) */}
+            <button
+              type="button"
+              onClick={() => setTheme({ mode: resolvedMode === 'dark' ? 'light' : 'dark' })}
+              className="w-9 h-9 rounded-xl border border-line bg-surface text-fg-3 hover:bg-surface-3 hover:text-fg flex items-center justify-center transition cursor-pointer"
+              title={resolvedMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={resolvedMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {resolvedMode === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+
             {/* Compact Mode Toggle */}
             <button
               onClick={toggleCompactMode}
               className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border text-[10px] sm:text-xs font-bold transition flex items-center gap-1.5 cursor-pointer select-none ${
                 compactMode
-                  ? 'bg-blue-50 text-blue-600 border-blue-100 shadow-sm shadow-blue-50'
-                  : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                  ? 'bg-primary-soft text-primary-fg border-primary-muted shadow-sm shadow-primary-soft'
+                  : 'bg-surface text-fg-muted border-line hover:bg-surface-2'
               }`}
               title={compactMode ? "Switch to Normal View" : "Switch to Compact View"}
             >
@@ -344,9 +357,9 @@ function Layout({ children }) {
             </button>
 
             {/* Status Indicator — dot only on mobile, full pill on sm+ */}
-            <div className={`flex items-center gap-1.5 rounded-full font-black uppercase tracking-widest ${isOnline ? 'text-green-600' : 'text-orange-600 animate-pulse'}`}>
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-orange-500'}`}></span>
-              <span className={`hidden sm:inline text-[9px] px-2 py-1 rounded-full border ${isOnline ? 'bg-green-50 border-green-100' : 'bg-orange-50 border-orange-100'}`}>
+            <div className={`flex items-center gap-1.5 rounded-full font-black uppercase tracking-widest ${isOnline ? 'text-success-fg' : 'text-warning-fg animate-pulse'}`}>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-success' : 'bg-warning'}`}></span>
+              <span className={`hidden sm:inline text-[9px] px-2 py-1 rounded-full border ${isOnline ? 'bg-success-soft border-success-muted' : 'bg-warning-soft border-warning-muted'}`}>
                 {isOnline ? 'System Online' : 'Offline Mode'}
               </span>
             </div>
@@ -355,7 +368,7 @@ function Layout({ children }) {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className={`p-2 rounded-full transition relative group ${showNotifications ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                className={`p-2 rounded-full transition relative group ${showNotifications ? 'bg-primary-soft text-primary-fg' : 'text-fg-muted hover:bg-surface-3'}`}
               >
                 <div className={`${lowStock.length > 0 ? 'animate-bounce-slow' : ''}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -363,7 +376,7 @@ function Layout({ children }) {
                   </svg>
                 </div>
                 {lowStock.length > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white ring-1 ring-red-100">
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-danger text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-surface ring-1 ring-danger-muted">
                     {lowStock.length}
                   </span>
                 )}
@@ -371,61 +384,61 @@ function Layout({ children }) {
 
               {/* Notification Dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 origin-top-right">
-                  <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-                    <h3 className="font-bold text-gray-800">Alerts</h3>
-                    <span className="text-[10px] font-black text-white bg-red-600 px-2 py-0.5 rounded-full uppercase tracking-wider">{lowStock.length} Now</span>
+                <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-surface rounded-2xl shadow-2xl border border-line-subtle overflow-hidden z-50 origin-top-right">
+                  <div className="p-4 bg-surface-2 border-b flex justify-between items-center">
+                    <h3 className="font-bold text-fg">Alerts</h3>
+                    <span className="text-[10px] font-black text-white bg-danger px-2 py-0.5 rounded-full uppercase tracking-wider">{lowStock.length} Now</span>
                   </div>
                   <div className="max-h-96 overflow-y-auto custom-scrollbar">
                     {lowStock.length === 0 ? (
                       <div className="p-10 text-center">
                         <span className="text-4xl mb-2 block">✅</span>
-                        <p className="text-sm text-gray-500 font-medium">Stock levels are perfect!</p>
+                        <p className="text-sm text-fg-muted font-medium">Stock levels are perfect!</p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-50">
-                        <p className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-red-50/50">Low Stock 🚩</p>
+                      <div className="divide-y divide-line-subtle">
+                        <p className="px-4 py-2 text-[10px] font-bold text-fg-subtle uppercase tracking-widest bg-danger-soft/50">Low Stock 🚩</p>
                         {lowStock.map((p, i) => (
-                          <div key={i} className="p-4 hover:bg-gray-50 transition flex justify-between items-center">
+                          <div key={i} className="p-4 hover:bg-surface-2 transition flex justify-between items-center">
                             <div className="flex-1 pr-4">
-                              <p className="text-sm font-bold text-gray-800 truncate">{p.name}</p>
-                              <p className="text-xs text-red-500 font-medium">Only {p.stock_quantity} remaining</p>
+                              <p className="text-sm font-bold text-fg truncate">{p.name}</p>
+                              <p className="text-xs text-danger-fg font-medium">Only {p.stock_quantity} remaining</p>
                             </div>
-                            <Link to="/inventory" onClick={() => setShowNotifications(false)} className="px-3 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-black hover:bg-blue-600 hover:text-white transition uppercase">Restock</Link>
+                            <Link to="/inventory" onClick={() => setShowNotifications(false)} className="px-3 py-1 bg-primary-soft text-primary-fg rounded text-[10px] font-black hover:bg-primary hover:text-white transition uppercase">Restock</Link>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                   {lowStock.length > 0 && (
-                    <div className="p-3 bg-gray-50 border-t text-center">
-                      <Link to="/inventory" onClick={() => setShowNotifications(false)} className="text-xs font-bold text-gray-400 hover:text-blue-600 transition">Go to Inventory Management →</Link>
+                    <div className="p-3 bg-surface-2 border-t text-center">
+                      <Link to="/inventory" onClick={() => setShowNotifications(false)} className="text-xs font-bold text-fg-subtle hover:text-primary-fg transition">Go to Inventory Management →</Link>
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            <div className="h-6 w-px bg-gray-200 hidden sm:block"></div>
+            <div className="h-6 w-px bg-surface-4 hidden sm:block"></div>
 
             <div className="flex items-center gap-2 sm:gap-3 relative" ref={userDropdownRef}>
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-black text-gray-800 leading-none">{user?.username}</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{user?.role}</p>
+                <p className="text-sm font-black text-fg leading-none">{user?.username}</p>
+                <p className="text-[10px] text-fg-subtle font-bold uppercase mt-1">{user?.role}</p>
               </div>
               <button
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black shadow-lg shadow-blue-100 ring-4 ring-blue-50 focus:outline-none focus:ring-blue-200 transition hover:scale-105"
+                className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover text-white flex items-center justify-center font-black shadow-lg shadow-primary-muted ring-4 ring-primary-muted focus:outline-none focus:ring-primary-muted transition hover:scale-105"
               >
                 {user?.username?.charAt(0).toUpperCase()}
               </button>
 
               {/* User Dropdown */}
               {showUserDropdown && (
-                <div className="absolute top-[120%] right-0 w-48 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 origin-top-right">
-                  <div className="p-4 border-b border-gray-50 block sm:hidden">
-                    <p className="text-sm font-black text-gray-800 leading-none">{user?.username}</p>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{user?.role}</p>
+                <div className="absolute top-[120%] right-0 w-48 bg-surface rounded-xl shadow-2xl border border-line-subtle overflow-hidden z-50 origin-top-right">
+                  <div className="p-4 border-b border-line-subtle block sm:hidden">
+                    <p className="text-sm font-black text-fg leading-none">{user?.username}</p>
+                    <p className="text-[10px] text-fg-subtle font-bold uppercase mt-1">{user?.role}</p>
                   </div>
                   <div className="p-2">
                     {user?.isImpersonating && (
@@ -434,14 +447,14 @@ function Layout({ children }) {
                           stopImpersonating()
                           navigate('/admin/shops')
                         }}
-                        className="w-full text-left px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg font-bold flex items-center gap-2 transition mb-1 cursor-pointer"
+                        className="w-full text-left px-3 py-2.5 text-sm text-primary-fg hover:bg-primary-soft rounded-lg font-bold flex items-center gap-2 transition mb-1 cursor-pointer"
                       >
                         <span>🔙</span> Exit Shop
                       </button>
                     )}
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg font-bold flex items-center gap-2 transition"
+                      className="w-full text-left px-3 py-2.5 text-sm text-danger-fg hover:bg-danger-soft rounded-lg font-bold flex items-center gap-2 transition"
                     >
                       <span>🚪</span> Logout
                     </button>
@@ -454,7 +467,7 @@ function Layout({ children }) {
 
         {/* Impersonation Banner */}
         {user?.isImpersonating && (
-          <div className="bg-blue-600 text-white px-4 py-2 flex items-center justify-between text-sm shadow-inner z-10 shrink-0">
+          <div className="bg-primary text-white px-4 py-2 flex items-center justify-between text-sm shadow-inner z-10 shrink-0">
             <div className="flex items-center gap-2 font-bold">
               <span className="animate-pulse">🕵️‍♂️</span>
               <span>SUPERADMIN MODE: You are currently viewing {shopName}'s POS system.</span>
@@ -477,10 +490,10 @@ function Layout({ children }) {
             {announcements.map(ann => (
               <div
                 key={ann.id}
-                className={`px-4 py-2 flex items-center justify-between text-sm shadow-sm z-10 ${ann.type === 'error' ? 'bg-red-600 text-white' :
-                  ann.type === 'warning' ? 'bg-orange-500 text-white' :
-                    ann.type === 'success' ? 'bg-emerald-600 text-white' :
-                      'bg-blue-600 text-white'
+                className={`px-4 py-2 flex items-center justify-between text-sm shadow-sm z-10 ${ann.type === 'error' ? 'bg-danger text-white' :
+                  ann.type === 'warning' ? 'bg-warning text-white' :
+                    ann.type === 'success' ? 'bg-success text-white' :
+                      'bg-primary text-white'
                   }`}
               >
                 <div className="flex items-center gap-2 font-medium">
@@ -500,7 +513,7 @@ function Layout({ children }) {
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 custom-scrollbar relative">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-app custom-scrollbar relative">
           <div className="mx-auto w-full h-full p-4 md:p-6 lg:p-8">
             {children}
           </div>
@@ -510,8 +523,8 @@ function Layout({ children }) {
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
         @keyframes bounce-slow {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-3px); }
@@ -607,10 +620,10 @@ function Layout({ children }) {
 }
 
 function NavHeader({ label, collapsed }) {
-  if (collapsed) return <li className="my-2 border-b border-gray-800" />
+  if (collapsed) return <li className="my-2 border-b border-sidebar-line" />
   return (
     <li className="pt-4 pb-1 px-4">
-      <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{label}</span>
+      <span className="text-[10px] font-black text-sidebar-muted uppercase tracking-[0.2em]">{label}</span>
     </li>
   )
 }
@@ -626,15 +639,15 @@ function NavItem({ to, icon, label, active, onClick, locked, collapsed }) {
           collapsed ? 'justify-center p-3 mx-1' : 'gap-3 px-4 py-3'
         } ${
           active
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' + (collapsed ? '' : ' translate-x-1')
+            ? 'bg-primary text-white shadow-lg shadow-black/30' + (collapsed ? '' : ' translate-x-1')
             : locked
-              ? 'text-gray-600 opacity-50 hover:bg-gray-800 hover:opacity-70'
-              : 'text-gray-400 hover:bg-gray-800 hover:text-white active:scale-95'
+              ? 'text-sidebar-muted opacity-60 hover:bg-sidebar-hover hover:opacity-80'
+              : 'text-sidebar-fg/80 hover:bg-sidebar-hover hover:text-white active:scale-95'
         }`}
       >
         <span className="flex-shrink-0 flex items-center justify-center">{icon}</span>
         {!collapsed && <span className="flex-1 truncate">{label}</span>}
-        {!collapsed && locked && <Lock size={13} className="ml-auto text-gray-500" />}
+        {!collapsed && locked && <Lock size={13} className="ml-auto text-sidebar-muted" />}
       </Link>
     </li>
   )

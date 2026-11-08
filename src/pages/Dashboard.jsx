@@ -8,15 +8,15 @@ import { printHTML, getShopBranding } from '../utils/printUtils'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 
 const StatCard = ({ title, value, icon, color, subValue }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
+  <div className="bg-surface p-6 rounded-2xl shadow-sm border border-line-subtle hover:shadow-md transition">
     <div className="flex justify-between items-start mb-4">
       <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-xl`}>
         {icon}
       </div>
-      {subValue && <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{subValue}</span>}
+      {subValue && <span className="text-xs font-bold text-fg-subtle uppercase tracking-wider">{subValue}</span>}
     </div>
-    <h3 className="text-gray-500 text-sm font-medium">{title}</h3>
-    <p className="text-2xl font-bold text-gray-800 mt-1">
+    <h3 className="text-fg-muted text-sm font-medium">{title}</h3>
+    <p className="text-2xl font-bold text-fg mt-1">
       {typeof value === 'number' && title.includes('Rs') ? `Rs. ${value.toLocaleString()}` : value}
     </p>
   </div>
@@ -288,19 +288,19 @@ function Dashboard() {
   return (
     <div className="max-w-6xl mx-auto">
       {billingWarning && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between shadow-sm animate-pulse">
+        <div className="mb-6 p-4 bg-warning-soft border border-warning-line rounded-2xl flex items-center justify-between shadow-sm animate-pulse">
           <div className="flex items-center gap-3">
             <span className="text-2xl">⚠️</span>
             <div>
-              <h4 className="font-extrabold text-amber-800 text-sm">Subscription Overdue Notice</h4>
-              <p className="text-xs text-amber-700 font-semibold mt-0.5">
+              <h4 className="font-extrabold text-warning-strong text-sm">Subscription Overdue Notice</h4>
+              <p className="text-xs text-warning-strong font-semibold mt-0.5">
                 Your subscription payment was due on {billingWarning.dueDate}.
-                Please pay by <strong className="underline text-red-600">{billingWarning.deadlineDate}</strong> to avoid service suspension.
+                Please pay by <strong className="underline text-danger-fg">{billingWarning.deadlineDate}</strong> to avoid service suspension.
               </p>
             </div>
           </div>
           <div className="text-right shrink-0">
-            <span className="bg-amber-600 text-white font-black text-[10px] px-3 py-1.5 rounded-full uppercase tracking-wider">
+            <span className="bg-warning text-white font-black text-[10px] px-3 py-1.5 rounded-full uppercase tracking-wider">
               {billingWarning.daysRemaining} {billingWarning.daysRemaining === 1 ? 'Day' : 'Days'} Left
             </span>
           </div>
@@ -308,20 +308,20 @@ function Dashboard() {
       )}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Assalam-o-Alaikum, {user.username}! 👋</h1>
-          <p className="text-gray-500 mt-1">Today's Summary</p>
+          <h1 className="text-3xl font-bold text-fg">Assalam-o-Alaikum, {user.username}! 👋</h1>
+          <p className="text-fg-muted mt-1">Today's Summary</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={openEOD}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition shadow"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-bold rounded-xl transition shadow"
             title="End of Day Summary"
           >
             🌙 Close Day
           </button>
           <button
             onClick={fetchDashboardStats}
-            className="p-2 text-gray-400 hover:text-blue-600 transition"
+            className="p-2 text-fg-subtle hover:text-primary-fg transition"
             title="Refresh Stats"
           >
             🔄
@@ -332,7 +332,7 @@ function Dashboard() {
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 animate-pulse">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-32 bg-gray-100 rounded-2xl"></div>
+            <div key={i} className="h-32 bg-surface-3 rounded-2xl"></div>
           ))}
         </div>
       ) : (
@@ -341,35 +341,35 @@ function Dashboard() {
             title="Today's Sales (Rs)"
             value={stats.todaySales}
             icon="💰"
-            color="text-green-600 bg-green-600"
+            color="text-success-fg bg-success"
             subValue="Today"
           />
           <StatCard
             title="Today's Profit (Rs)"
             value={stats.todayProfit}
             icon="📈"
-            color="text-emerald-600 bg-emerald-600"
+            color="text-success-fg bg-success"
             subValue="Gross"
           />
           <StatCard
             title="Monthly Sales (Rs)"
             value={stats.monthlySales}
             icon="🗓️"
-            color="text-blue-600 bg-blue-600"
+            color="text-primary-fg bg-primary"
             subValue="This Month"
           />
           <StatCard
             title="Total Receivables (Rs)"
             value={stats.totalReceivables}
             icon="📒"
-            color="text-orange-600 bg-orange-600"
+            color="text-warning-fg bg-warning"
             subValue="Pending"
           />
           <StatCard
             title="Low Stock Products"
             value={stats.lowStockCount}
             icon="⚠️"
-            color="text-red-600 bg-red-600"
+            color="text-danger-fg bg-danger"
             subValue="Alert"
           />
         </div>
@@ -378,86 +378,86 @@ function Dashboard() {
       {/* Today's cash vs credit breakdown */}
       {!loading && (stats.todayCashSales > 0 || stats.todayCreditSales > 0) && (
         <div className="flex gap-3 mt-3">
-          <div className="flex-1 bg-green-50 border border-green-100 rounded-xl px-4 py-2 flex justify-between items-center">
-            <span className="text-sm font-medium text-green-700">💵 Cash Sales</span>
-            <span className="font-bold text-green-700">Rs. {stats.todayCashSales.toLocaleString()}</span>
+          <div className="flex-1 bg-success-soft border border-success-muted rounded-xl px-4 py-2 flex justify-between items-center">
+            <span className="text-sm font-medium text-success-strong">💵 Cash Sales</span>
+            <span className="font-bold text-success-strong">Rs. {stats.todayCashSales.toLocaleString()}</span>
           </div>
-          <div className="flex-1 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2 flex justify-between items-center">
-            <span className="text-sm font-medium text-orange-700">📒 Credit</span>
-            <span className="font-bold text-orange-700">Rs. {stats.todayCreditSales.toLocaleString()}</span>
+          <div className="flex-1 bg-warning-soft border border-warning-muted rounded-xl px-4 py-2 flex justify-between items-center">
+            <span className="text-sm font-medium text-warning-strong">📒 Credit</span>
+            <span className="font-bold text-warning-strong">Rs. {stats.todayCreditSales.toLocaleString()}</span>
           </div>
         </div>
       )}
       {!loading && wholesaleEnabled && stats.todayWholesaleSales > 0 && (
-        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 flex justify-between items-center">
-          <span className="text-sm font-medium text-amber-800">🏷️ Wholesale Sales Today</span>
-          <span className="font-bold text-amber-800">Rs. {stats.todayWholesaleSales.toLocaleString()}</span>
+        <div className="mt-3 bg-wholesale-soft border border-wholesale-line rounded-xl px-4 py-2 flex justify-between items-center">
+          <span className="text-sm font-medium text-wholesale-strong">🏷️ Wholesale Sales Today</span>
+          <span className="font-bold text-wholesale-strong">Rs. {stats.todayWholesaleSales.toLocaleString()}</span>
         </div>
       )}
 
 
       {/* Daily Sales Target */}
-      <div className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div className="mt-6 bg-surface rounded-2xl border border-line-subtle shadow-sm p-4">
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">
             <span className="text-lg">🎯</span>
-            <span className="font-bold text-gray-700 text-sm">Daily Sales Target</span>
+            <span className="font-bold text-fg-2 text-sm">Daily Sales Target</span>
           </div>
           {!editingTarget ? (
             <button onClick={() => { setEditingTarget(true); setTargetInput(String(dailyTarget || '')) }}
-              className="text-xs text-blue-500 hover:text-blue-700 font-semibold">
+              className="text-xs text-primary-fg hover:text-primary-strong font-semibold">
               {dailyTarget ? '✏️ Edit' : '+ Set Target'}
             </button>
           ) : (
             <div className="flex items-center gap-2">
               <input type="number" value={targetInput} onChange={e => setTargetInput(e.target.value)}
-                className="w-28 px-2 py-1 border rounded-lg text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-28 px-2 py-1 border rounded-lg text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. 50000" autoFocus />
               <button onClick={() => { const t = Number(targetInput) || 0; setDailyTarget(t); localStorage.setItem('daily_sales_target', t); setEditingTarget(false) }}
-                className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg font-bold">Save</button>
-              <button onClick={() => setEditingTarget(false)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                className="text-xs bg-primary hover:bg-primary-hover text-white px-3 py-1 rounded-lg font-bold">Save</button>
+              <button onClick={() => setEditingTarget(false)} className="text-xs text-fg-subtle hover:text-fg-3">✕</button>
             </div>
           )}
         </div>
         {dailyTarget > 0 ? (() => {
           const pct = Math.min(100, (stats.todaySales / dailyTarget) * 100)
-          const color = pct >= 100 ? 'bg-green-500' : pct >= 70 ? 'bg-blue-500' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400'
+          const color = pct >= 100 ? 'bg-success' : pct >= 70 ? 'bg-primary' : pct >= 40 ? 'bg-warning' : 'bg-danger'
           return (
             <>
-              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-surface-3 rounded-full h-3 overflow-hidden">
                 <div className={`h-3 rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
               </div>
-              <div className="flex justify-between mt-1 text-xs text-gray-500">
+              <div className="flex justify-between mt-1 text-xs text-fg-muted">
                 <span>Rs. {stats.todaySales.toLocaleString()} achieved</span>
-                <span className={`font-bold ${pct >= 100 ? 'text-green-600' : 'text-gray-600'}`}>
+                <span className={`font-bold ${pct >= 100 ? 'text-success-fg' : 'text-fg-3'}`}>
                   {pct >= 100 ? '🎉 Target Hit!' : `${pct.toFixed(0)}% — Rs. ${(dailyTarget - stats.todaySales).toLocaleString()} remaining`}
                 </span>
               </div>
             </>
           )
         })() : (
-          <p className="text-xs text-gray-400 italic">No target set. Click "+ Set Target" to add a daily goal.</p>
+          <p className="text-xs text-fg-subtle italic">No target set. Click "+ Set Target" to add a daily goal.</p>
         )}
       </div>
 
       {/* Top Debtors */}
       {stats.topDebtors.length > 0 && (
-        <div className="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div className="mt-4 bg-surface rounded-2xl border border-line-subtle shadow-sm p-4">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <span className="text-lg">📒</span>
-              <span className="font-bold text-gray-700 text-sm">Top Debtors</span>
+              <span className="font-bold text-fg-2 text-sm">Top Debtors</span>
             </div>
-            <Link to="/customer-ledger" className="text-xs text-blue-500 hover:text-blue-700 font-semibold">View All →</Link>
+            <Link to="/customer-ledger" className="text-xs text-primary-fg hover:text-primary-strong font-semibold">View All →</Link>
           </div>
           <div className="space-y-2">
             {stats.topDebtors.map((c, i) => (
-              <Link key={c.id} to={`/customers/${c.id}`} className="flex items-center justify-between hover:bg-gray-50 rounded-lg px-2 py-1.5 transition group">
+              <Link key={c.id} to={`/customers/${c.id}`} className="flex items-center justify-between hover:bg-surface-2 rounded-lg px-2 py-1.5 transition group">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-gray-300 w-4">{i + 1}</span>
-                  <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">{c.name}</span>
+                  <span className="text-xs font-black text-fg-faint w-4">{i + 1}</span>
+                  <span className="text-sm font-medium text-fg-2 group-hover:text-primary-fg">{c.name}</span>
                 </div>
-                <span className="text-sm font-bold text-red-500">Rs. {Number(c.outstanding_balance).toLocaleString()}</span>
+                <span className="text-sm font-bold text-danger-fg">Rs. {Number(c.outstanding_balance).toLocaleString()}</span>
               </Link>
             ))}
           </div>
@@ -465,21 +465,21 @@ function Dashboard() {
       )}
 
       <div className="mt-10">
-        <h2 className="text-xl font-bold text-gray-800 mb-6">Quick Actions</h2>
+        <h2 className="text-xl font-bold text-fg mb-6">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link to="/pos" className="flex flex-col items-center p-6 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition shadow-lg shadow-blue-200">
+          <Link to="/pos" className="flex flex-col items-center p-6 bg-primary text-white rounded-2xl hover:bg-primary-hover transition shadow-lg shadow-primary-line">
             <span className="text-3xl mb-2">🛒</span>
             <span className="font-bold">New Sale</span>
           </Link>
-          <Link to="/customers" className="flex flex-col items-center p-6 bg-white border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 transition shadow-sm">
+          <Link to="/customers" className="flex flex-col items-center p-6 bg-surface border border-line text-fg-2 rounded-2xl hover:bg-surface-2 transition shadow-sm">
             <span className="text-3xl mb-2">👥</span>
             <span className="font-bold">Customers</span>
           </Link>
-          <Link to="/sales" className="flex flex-col items-center p-6 bg-white border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 transition shadow-sm">
+          <Link to="/sales" className="flex flex-col items-center p-6 bg-surface border border-line text-fg-2 rounded-2xl hover:bg-surface-2 transition shadow-sm">
             <span className="text-3xl mb-2">📜</span>
             <span className="font-bold">Sales History</span>
           </Link>
-          <Link to="/products" className="flex flex-col items-center p-6 bg-white border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 transition shadow-sm">
+          <Link to="/products" className="flex flex-col items-center p-6 bg-surface border border-line text-fg-2 rounded-2xl hover:bg-surface-2 transition shadow-sm">
             <span className="text-3xl mb-2">📦</span>
             <span className="font-bold">Inventory</span>
           </Link>
@@ -494,52 +494,52 @@ function Dashboard() {
       {/* EOD Modal */}
       {showEOD && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-100">
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-line-subtle">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-800">🌙 End of Day Summary</h2>
-                <button onClick={() => setShowEOD(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+                <h2 className="text-xl font-bold text-fg">🌙 End of Day Summary</h2>
+                <button onClick={() => setShowEOD(false)} className="text-fg-subtle hover:text-fg-3 text-2xl leading-none">×</button>
               </div>
-              <p className="text-sm text-gray-500 mt-1">{new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <p className="text-sm text-fg-muted mt-1">{new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
             </div>
 
             {eodLoading ? (
-              <div className="p-8 text-center text-gray-400">Loading summary...</div>
+              <div className="p-8 text-center text-fg-subtle">Loading summary...</div>
             ) : eodData ? (
               <div className="p-6 space-y-4">
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Sales</p>
+                  <p className="text-xs font-bold text-fg-subtle uppercase tracking-wider mb-2">Sales</p>
                   <div className="space-y-2">
-                    <div className="flex justify-between"><span className="text-gray-600">💵 Cash Sales</span><span className="font-bold text-green-600">Rs. {eodData.cashSales.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">📒 Credit</span><span className="font-bold text-orange-500">Rs. {eodData.creditSales.toLocaleString()}</span></div>
-                    <div className="flex justify-between border-t pt-2"><span className="font-semibold text-gray-800">Total Sales</span><span className="font-bold text-gray-800">Rs. {eodData.totalSales.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-fg-3">💵 Cash Sales</span><span className="font-bold text-success-fg">Rs. {eodData.cashSales.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-fg-3">📒 Credit</span><span className="font-bold text-warning-fg">Rs. {eodData.creditSales.toLocaleString()}</span></div>
+                    <div className="flex justify-between border-t pt-2"><span className="font-semibold text-fg">Total Sales</span><span className="font-bold text-fg">Rs. {eodData.totalSales.toLocaleString()}</span></div>
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Outflows</p>
+                  <p className="text-xs font-bold text-fg-subtle uppercase tracking-wider mb-2">Outflows</p>
                   <div className="space-y-2">
-                    <div className="flex justify-between"><span className="text-gray-600">💸 Expenses</span><span className="font-bold text-red-500">Rs. {eodData.expenses.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">📦 Cash Purchases</span><span className="font-bold text-red-500">Rs. {eodData.cashPurchases.toLocaleString()}</span></div>
-                    {eodData.creditPurchases > 0 && <div className="flex justify-between"><span className="text-gray-600">📦 Credit Purchases</span><span className="font-medium text-gray-500">Rs. {eodData.creditPurchases.toLocaleString()}</span></div>}
+                    <div className="flex justify-between"><span className="text-fg-3">💸 Expenses</span><span className="font-bold text-danger-fg">Rs. {eodData.expenses.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-fg-3">📦 Cash Purchases</span><span className="font-bold text-danger-fg">Rs. {eodData.cashPurchases.toLocaleString()}</span></div>
+                    {eodData.creditPurchases > 0 && <div className="flex justify-between"><span className="text-fg-3">📦 Credit Purchases</span><span className="font-medium text-fg-muted">Rs. {eodData.creditPurchases.toLocaleString()}</span></div>}
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-100">
+                <div className="bg-surface-2 rounded-xl p-4 space-y-2 border border-line-subtle">
                   <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">📈 Gross Profit</span>
-                    <span className={`font-bold text-lg ${eodData.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>Rs. {eodData.profit.toLocaleString()}</span>
+                    <span className="font-semibold text-fg-2">📈 Gross Profit</span>
+                    <span className={`font-bold text-lg ${eodData.profit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>Rs. {eodData.profit.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between border-t pt-2">
-                    <span className="font-bold text-gray-800">💰 Net Cash in Hand</span>
-                    <span className={`font-black text-xl ${eodData.netCash >= 0 ? 'text-green-600' : 'text-red-600'}`}>Rs. {eodData.netCash.toLocaleString()}</span>
+                    <span className="font-bold text-fg">💰 Net Cash in Hand</span>
+                    <span className={`font-black text-xl ${eodData.netCash >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>Rs. {eodData.netCash.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
-            ) : <div className="p-8 text-center text-red-400">Could not load data.</div>}
+            ) : <div className="p-8 text-center text-danger-fg">Could not load data.</div>}
 
-            <div className="p-4 border-t border-gray-100 flex gap-3">
-              {eodData && <button onClick={printEOD} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition">🖨️ Print</button>}
-              {eodData && <button onClick={shareEODWhatsApp} className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition">📱 WhatsApp</button>}
-              <button onClick={() => setShowEOD(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition">Close</button>
+            <div className="p-4 border-t border-line-subtle flex gap-3">
+              {eodData && <button onClick={printEOD} className="flex-1 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition">🖨️ Print</button>}
+              {eodData && <button onClick={shareEODWhatsApp} className="flex-1 py-2.5 bg-success hover:bg-success-hover text-white font-bold rounded-xl transition">📱 WhatsApp</button>}
+              <button onClick={() => setShowEOD(false)} className="flex-1 py-2.5 bg-surface-3 hover:bg-surface-4 text-fg-2 font-bold rounded-xl transition">Close</button>
             </div>
           </div>
         </div>

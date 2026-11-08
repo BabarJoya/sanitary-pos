@@ -10,13 +10,15 @@ import { hasFeature } from '../utils/featureGate'
 import { printHTML } from '../utils/printUtils'
 import { syncOfflineData, getSyncQueueStatus, retryFailedSyncItems } from '../services/syncService'
 import { BUSINESS_PRESETS } from '../utils/businessPresets'
-import { Store, Tag, Receipt, ShieldCheck, Printer, MessageCircle, Database, BarChart3, CreditCard, AlertTriangle } from 'lucide-react'
+import { Store, Tag, Receipt, ShieldCheck, Printer, MessageCircle, Database, BarChart3, CreditCard, AlertTriangle, Palette } from 'lucide-react'
+import AppearanceSection from '../components/settings/AppearanceSection'
 
 // Sidebar sections. `form: true` sections share the single profile form and its Save button.
 const SETTINGS_SECTIONS = [
   { id: 'profile',  label: 'Shop Profile',      icon: Store,         form: true, desc: 'Name, contact details and logo shown on prints and invoices.' },
   { id: 'business', label: 'Business & Pricing', icon: Tag,          form: true, desc: 'Store type, price fields, tax number and Wholesale Mode.' },
   { id: 'pos',      label: 'POS & Receipts',    icon: Printer,       form: true, desc: 'POS screen layout, receipt footers, invoice prefix, print size and bill template.' },
+  { id: 'appearance', label: 'Appearance',     icon: Palette,       desc: 'Light or dark mode and brand colour for this shop. Applies instantly on this device.' },
   { id: 'whatsapp', label: 'WhatsApp',          icon: MessageCircle, form: true, desc: 'Message templates for reminders, bills and supplier reorders.' },
   { id: 'data',     label: 'Data & Backup',     icon: Database,      desc: 'Sync, import, export or back up your store data.' },
   { id: 'reports',  label: 'Sales Reports',     icon: BarChart3,     desc: 'Print a daily, weekly or monthly sales summary.' },
@@ -256,6 +258,9 @@ function Settings() {
         custom_price_label:   data.custom_price_label   || saved.custom_price_label   || prev.custom_price_label   || '',
         tax_number:           data.tax_number           || saved.tax_number           || prev.tax_number           || '',
         wholesale_enabled:    typeof data.wholesale_enabled === 'boolean' ? data.wholesale_enabled : (saved.wholesale_enabled ?? prev.wholesale_enabled ?? false),
+        // Appearance is a local, per-shop preference (not stored in the shops table) — keep it.
+        theme_mode:           saved.theme_mode   || prev.theme_mode,
+        theme_accent:         saved.theme_accent || prev.theme_accent,
       }
 
       // Sync immediately to localStorage to ensure consistent branding/printing across pages
@@ -536,15 +541,15 @@ function Settings() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">⚙️ Settings</h1>
-        <span className="px-2 py-1 bg-gray-100 text-gray-400 text-[10px] font-bold uppercase rounded tracking-widest italic tracking-tighter">Shop ID: {user.shop_id}</span>
+        <h1 className="text-2xl font-bold text-fg">⚙️ Settings</h1>
+        <span className="px-2 py-1 bg-surface-3 text-fg-subtle text-[10px] font-bold uppercase rounded tracking-widest italic tracking-tighter">Shop ID: {user.shop_id}</span>
       </div>
 
 
       <div className="flex flex-col md:flex-row gap-6 items-start">
         {/* Section navigation: horizontal chips on phones, sticky sidebar on md+ */}
         <nav aria-label="Settings sections" className="w-full md:w-56 shrink-0 md:sticky md:top-0">
-          <ul className="flex md:flex-col gap-1.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 bg-white md:p-2 md:rounded-2xl md:border md:border-gray-100 md:shadow-sm">
+          <ul className="flex md:flex-col gap-1.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 bg-surface md:p-2 md:rounded-2xl md:border md:border-line-subtle md:shadow-sm">
             {SETTINGS_SECTIONS.map(sec => {
               const Icon = sec.icon
               const active = sec.id === activeSection
@@ -555,10 +560,10 @@ function Settings() {
                     type="button"
                     onClick={() => goToSection(sec.id)}
                     aria-current={active ? 'page' : undefined}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 border md:border-0 ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary border md:border-0 ${
                       active
-                        ? (danger ? 'bg-red-50 text-red-700 border-red-200' : 'bg-blue-50 text-blue-700 border-blue-200')
-                        : (danger ? 'text-red-600 hover:bg-red-50 border-gray-200' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-gray-200')
+                        ? (danger ? 'bg-danger-soft text-danger-strong border-danger-line' : 'bg-primary-soft text-primary-strong border-primary-line')
+                        : (danger ? 'text-danger-fg hover:bg-danger-soft border-line' : 'text-fg-3 hover:bg-surface-2 hover:text-fg border-line')
                     }`}
                   >
                     <Icon size={17} className="shrink-0" aria-hidden="true" />
@@ -572,10 +577,10 @@ function Settings() {
 
         <div className="flex-1 min-w-0 w-full space-y-6">
       {currentSection.form && (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-        <div className="bg-gray-50 px-6 py-4 border-b rounded-t-2xl">
-          <h2 className="font-bold text-gray-700">{currentSection.label}</h2>
-          <p className="text-xs text-gray-400">{currentSection.desc}</p>
+      <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle">
+        <div className="bg-surface-2 px-6 py-4 border-b rounded-t-2xl">
+          <h2 className="font-bold text-fg-2">{currentSection.label}</h2>
+          <p className="text-xs text-fg-subtle">{currentSection.desc}</p>
         </div>
 
         <form onSubmit={handleUpdate} className="p-6 space-y-4">
@@ -583,20 +588,20 @@ function Settings() {
           <div className={SECTION_GROUP}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-600 mb-1">Store / Shop Name</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Store / Shop Name</label>
               <input
                 type="text"
                 required
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg font-medium"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-lg font-medium"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-600 mb-1">Store Logo</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Store Logo</label>
               <div className="flex gap-4 items-center">
                 {/* Preview — reads from logoUrl state, never from form */}
-                <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <div className="w-16 h-16 rounded-xl border-2 border-dashed border-line bg-surface-2 flex items-center justify-center overflow-hidden flex-shrink-0">
                   {logoUrl
                     ? <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
                     : <span className="text-2xl">🏪</span>
@@ -612,7 +617,7 @@ function Settings() {
                   />
                   <label
                     htmlFor="logo-upload"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer transition shadow-sm"
+                    className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-xs font-bold cursor-pointer transition shadow-sm"
                   >
                     {saving ? '⏳ Saving...' : '📁 Upload New Logo'}
                   </label>
@@ -632,32 +637,32 @@ function Settings() {
                           supabase.rpc('update_shop_settings', { p_shop_id: sid, p_logo_url: '' }).then(() => {})
                         }
                       }}
-                      className="text-xs text-red-500 hover:text-red-700 font-bold text-left"
+                      className="text-xs text-danger-fg hover:text-danger-strong font-bold text-left"
                     >
                       ✕ Remove Logo
                     </button>
                   )}
-                  <p className="text-[10px] text-gray-400 leading-relaxed">JPG, PNG, or SVG. Saved automatically on select.</p>
+                  <p className="text-[10px] text-fg-subtle leading-relaxed">JPG, PNG, or SVG. Saved automatically on select.</p>
                 </div>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-600 mb-1">Contact Phone</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Contact Phone</label>
               <input
                 type="text"
                 value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 placeholder="e.g. 0300-1234567"
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-600 mb-1">Location / City</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Location / City</label>
               <input
                 type="text"
                 value={form.address}
                 onChange={e => setForm({ ...form, address: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 placeholder="e.g. Lahore, Pakistan"
               />
             </div>
@@ -671,10 +676,10 @@ function Settings() {
           {/* Industry Preset & Business Type */}
           <div className="pt-5 border-t">
             <div className="flex items-center gap-2 mb-1.5">
-              <Store size={18} className="text-blue-600" />
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Business Type & Store Domain</h3>
+              <Store size={18} className="text-primary-fg" />
+              <h3 className="text-sm font-black text-fg uppercase tracking-wider">Business Type & Store Domain</h3>
             </div>
-            <p className="text-xs text-gray-500 mb-4">
+            <p className="text-xs text-fg-muted mb-4">
               Selecting your store type tailors item placeholders, default units, and suggested pricing structures across the system.
             </p>
 
@@ -693,16 +698,16 @@ function Settings() {
                     }}
                     className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
                       isSelected
-                        ? 'border-blue-600 bg-blue-50/50 shadow-sm'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        ? 'border-primary bg-primary-soft/50 shadow-sm'
+                        : 'border-line hover:border-line-strong bg-surface'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-black text-sm text-gray-800">{preset.name}</span>
-                        {isSelected && <span className="text-xs text-blue-600 font-black">✓ Active</span>}
+                        <span className="font-black text-sm text-fg">{preset.name}</span>
+                        {isSelected && <span className="text-xs text-primary-fg font-black">✓ Active</span>}
                       </div>
-                      <p className="text-[11px] text-gray-500 leading-snug">{preset.description}</p>
+                      <p className="text-[11px] text-fg-muted leading-snug">{preset.description}</p>
                     </div>
                   </div>
                 )
@@ -714,50 +719,50 @@ function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-5 border-t">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Tag size={16} className="text-blue-600" />
-                <label className="block text-sm font-bold text-gray-700">Secondary / Catalog Price Field</label>
+                <Tag size={16} className="text-primary-fg" />
+                <label className="block text-sm font-bold text-fg-2">Secondary / Catalog Price Field</label>
               </div>
               <select
                 value={form.pricing_mode}
                 onChange={e => setForm({ ...form, pricing_mode: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-sm"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none bg-surface font-semibold text-sm"
               >
                 <option value="hidden">Standard Retail (Only Cost & Sale Price)</option>
                 <option value="mrp">MRP / Printed List Price (Recommended for Grocery / Pharmacy / Mart)</option>
                 <option value="c_rate">Company Rate (C.Rate) with Discount Matrix (Hardware / Sanitary)</option>
                 <option value="custom">Custom Tag / Wholesale Price Label</option>
               </select>
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-[11px] text-fg-subtle mt-1">
                 Controls whether a catalog rate/MRP column is visible in Products, Inventory, and POS.
               </p>
             </div>
 
             {form.pricing_mode === 'custom' && (
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Custom Price Label Name</label>
+                <label className="block text-sm font-bold text-fg-2 mb-1">Custom Price Label Name</label>
                 <input
                   type="text"
                   value={form.custom_price_label}
                   onChange={e => setForm({ ...form, custom_price_label: e.target.value })}
                   placeholder="e.g. Tag Price / MSRP / Distributor Price"
-                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm"
                 />
               </div>
             )}
 
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Receipt size={16} className="text-blue-600" />
-                <label className="block text-sm font-bold text-gray-700">Tax / NTN / STRN No. (Optional)</label>
+                <Receipt size={16} className="text-primary-fg" />
+                <label className="block text-sm font-bold text-fg-2">Tax / NTN / STRN No. (Optional)</label>
               </div>
               <input
                 type="text"
                 value={form.tax_number}
                 onChange={e => setForm({ ...form, tax_number: e.target.value })}
                 placeholder="e.g. NTN: 1234567-8 or STRN / GST No."
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm"
               />
-              <p className="text-[11px] text-gray-400 mt-1">Printed at the top of customer receipts & invoices</p>
+              <p className="text-[11px] text-fg-subtle mt-1">Printed at the top of customer receipts & invoices</p>
             </div>
           </div>
 
@@ -769,11 +774,11 @@ function Settings() {
                   type="checkbox"
                   checked={!!form.wholesale_enabled}
                   onChange={e => setForm(prev => ({ ...prev, wholesale_enabled: e.target.checked }))}
-                  className="mt-1 h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-2 focus:ring-amber-500"
+                  className="mt-1 h-5 w-5 rounded border-line-strong text-wholesale-fg focus:ring-2 focus:ring-wholesale"
                 />
                 <span>
-                  <span className="block text-sm font-black text-gray-800 uppercase tracking-wider">Wholesale Mode</span>
-                  <span className="block text-xs text-gray-500 mt-0.5">
+                  <span className="block text-sm font-black text-fg uppercase tracking-wider">Wholesale Mode</span>
+                  <span className="block text-xs text-fg-muted mt-0.5">
                     Adds a Wholesale Price to products, a one-click Retail ⇄ Wholesale switch on POS (F8),
                     and a Retail/Wholesale type on customers. Each sale records which price tier was used.
                   </span>
@@ -791,9 +796,9 @@ function Settings() {
           <div className="pt-5 border-t">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-lg">🖥️</span>
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">POS Screen & Checkout Layout</h3>
+              <h3 className="text-sm font-black text-fg uppercase tracking-wider">POS Screen & Checkout Layout</h3>
             </div>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-fg-muted mb-3">
               Choose how the product cart and checkout controls are arranged on your POS register screen.
             </p>
 
@@ -802,19 +807,19 @@ function Settings() {
                 onClick={() => setForm(prev => ({ ...prev, pos_layout: 'two_stage' }))}
                 className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
                   (form.pos_layout || 'two_stage') === 'two_stage'
-                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                    ? 'border-primary bg-primary-soft/50 shadow-sm'
+                    : 'border-line hover:border-line-strong bg-surface'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-black text-sm text-gray-800">⚡ Two-Stage Flow</span>
+                    <span className="font-black text-sm text-fg">⚡ Two-Stage Flow</span>
                     {(form.pos_layout || 'two_stage') === 'two_stage' && (
-                      <span className="text-xs text-blue-600 font-black">✓ Active</span>
+                      <span className="text-xs text-primary-fg font-black">✓ Active</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-500 leading-snug">
-                    <strong className="text-gray-700">Shopify / Square style:</strong> Maximum vertical space for cart list (~15 items visible). Tapping "Charge (F4)" opens a slide-up tender sheet with quick cash note chips and online wallets.
+                  <p className="text-[11px] text-fg-muted leading-snug">
+                    <strong className="text-fg-2">Shopify / Square style:</strong> Maximum vertical space for cart list (~15 items visible). Tapping "Charge (F4)" opens a slide-up tender sheet with quick cash note chips and online wallets.
                   </p>
                 </div>
               </div>
@@ -823,19 +828,19 @@ function Settings() {
                 onClick={() => setForm(prev => ({ ...prev, pos_layout: 'bottom_dock' }))}
                 className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
                   form.pos_layout === 'bottom_dock'
-                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                    ? 'border-primary bg-primary-soft/50 shadow-sm'
+                    : 'border-line hover:border-line-strong bg-surface'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-black text-sm text-gray-800">🖥️ Global Bottom Dock</span>
+                    <span className="font-black text-sm text-fg">🖥️ Global Bottom Dock</span>
                     {form.pos_layout === 'bottom_dock' && (
-                      <span className="text-xs text-blue-600 font-black">✓ Active</span>
+                      <span className="text-xs text-primary-fg font-black">✓ Active</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-500 leading-snug">
-                    <strong className="text-gray-700">Supermarket / Register style:</strong> Tendered input, cash chips, and payment buttons span horizontally at the bottom of the screen. Right cart list is 100% full height.
+                  <p className="text-[11px] text-fg-muted leading-snug">
+                    <strong className="text-fg-2">Supermarket / Register style:</strong> Tendered input, cash chips, and payment buttons span horizontally at the bottom of the screen. Right cart list is 100% full height.
                   </p>
                 </div>
               </div>
@@ -844,19 +849,19 @@ function Settings() {
                 onClick={() => setForm(prev => ({ ...prev, pos_layout: 'compact_dock' }))}
                 className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
                   form.pos_layout === 'compact_dock'
-                    ? 'border-blue-600 bg-blue-50/50 shadow-sm'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                    ? 'border-primary bg-primary-soft/50 shadow-sm'
+                    : 'border-line hover:border-line-strong bg-surface'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-black text-sm text-gray-800">📱 Compact Sidebar</span>
+                    <span className="font-black text-sm text-fg">📱 Compact Sidebar</span>
                     {form.pos_layout === 'compact_dock' && (
-                      <span className="text-xs text-blue-600 font-black">✓ Active</span>
+                      <span className="text-xs text-primary-fg font-black">✓ Active</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-500 leading-snug">
-                    <strong className="text-gray-700">All-in-one Sidebar:</strong> All payment buttons, quick cash notes, and tender inputs stay inside the right sidebar below the cart.
+                  <p className="text-[11px] text-fg-muted leading-snug">
+                    <strong className="text-fg-2">All-in-one Sidebar:</strong> All payment buttons, quick cash notes, and tender inputs stay inside the right sidebar below the cart.
                   </p>
                 </div>
               </div>
@@ -865,22 +870,22 @@ function Settings() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
             <div>
-              <label className="block text-sm font-bold text-gray-600 mb-1">Invoice Footer (Urdu/Eng)</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Invoice Footer (Urdu/Eng)</label>
               <input
                 type="text"
                 value={form.invoice_footer}
                 onChange={e => setForm({ ...form, invoice_footer: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 placeholder="e.g. شکریہ! دوبارہ تشریف لائیں"
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-600 mb-1">Quotation Footer (Urdu/Eng)</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Quotation Footer (Urdu/Eng)</label>
               <input
                 type="text"
                 value={form.quotation_footer}
                 onChange={e => setForm({ ...form, quotation_footer: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 placeholder="e.g. یہ صرف قیمت نامہ ہے"
               />
             </div>
@@ -888,39 +893,39 @@ function Settings() {
 
           <div className="pt-4 border-t">
             <div className="max-w-xs">
-              <label className="block text-sm font-bold text-gray-600 mb-1">Invoice Number Prefix</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Invoice Number Prefix</label>
               <input
                 type="text"
                 value={form.invoice_prefix}
                 onChange={e => setForm({ ...form, invoice_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g, '').slice(0, 10) })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none font-mono"
                 placeholder="e.g. MALIK or INV"
                 maxLength={10}
               />
-              <p className="text-xs text-gray-400 mt-1">
-                Invoices will appear as: <span className="font-mono font-bold text-blue-600">{form.invoice_prefix || 'INV'}-00001234</span>
+              <p className="text-xs text-fg-subtle mt-1">
+                Invoices will appear as: <span className="font-mono font-bold text-primary-fg">{form.invoice_prefix || 'INV'}-00001234</span>
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
             <div>
-              <label className="block text-sm font-bold text-gray-600 mb-1">Print Size</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Print Size</label>
               <select
                 value={form.print_size}
                 onChange={e => setForm({ ...form, print_size: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-bold"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none bg-surface font-bold"
               >
                 <option value="thermal">Thermal (80mm)</option>
                 <option value="a4">A4 (Full Page)</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-600 mb-1">Print Flow</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">Print Flow</label>
               <select
                 value={form.print_mode}
                 onChange={e => setForm({ ...form, print_mode: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-bold"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none bg-surface font-bold"
               >
                 <option value="manual">Manual (Show Dialog)</option>
                 <option value="auto">Auto (Print Direct)</option>
@@ -935,40 +940,40 @@ function Settings() {
           <div className={SECTION_GROUP}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
             <div className="md:col-span-2">
-              <h3 className="text-sm font-black text-blue-600 uppercase tracking-wider mb-3">WhatsApp Messaging Templates</h3>
-              <p className="text-[10px] text-gray-400 mb-4">
-                Customer templates: <code className="bg-gray-100 px-1 rounded">[Name]</code> <code className="bg-gray-100 px-1 rounded">[Amount]</code> <code className="bg-gray-100 px-1 rounded">[Shop Name]</code> <code className="bg-gray-100 px-1 rounded">[ID]</code>
-                &nbsp;·&nbsp; Reorder template: <code className="bg-gray-100 px-1 rounded">[Supplier Name]</code> <code className="bg-gray-100 px-1 rounded">[Shop Name]</code> <code className="bg-gray-100 px-1 rounded">[Items]</code>
+              <h3 className="text-sm font-black text-primary-fg uppercase tracking-wider mb-3">WhatsApp Messaging Templates</h3>
+              <p className="text-[10px] text-fg-subtle mb-4">
+                Customer templates: <code className="bg-surface-3 px-1 rounded">[Name]</code> <code className="bg-surface-3 px-1 rounded">[Amount]</code> <code className="bg-surface-3 px-1 rounded">[Shop Name]</code> <code className="bg-surface-3 px-1 rounded">[ID]</code>
+                &nbsp;·&nbsp; Reorder template: <code className="bg-surface-3 px-1 rounded">[Supplier Name]</code> <code className="bg-surface-3 px-1 rounded">[Shop Name]</code> <code className="bg-surface-3 px-1 rounded">[Items]</code>
               </p>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-600 mb-1">💬 Debt Reminder Template</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">💬 Debt Reminder Template</label>
               <textarea
                 value={form.wa_reminder_template}
                 onChange={e => setForm({ ...form, wa_reminder_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-20"
                 placeholder="Hello [Name], your balance is Rs. [Amount]..."
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-600 mb-1">🧾 New Bill / Sale Template</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">🧾 New Bill / Sale Template</label>
               <textarea
                 value={form.wa_bill_template}
                 onChange={e => setForm({ ...form, wa_bill_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-20"
                 placeholder="Hello [Name], thank you for shopping! Bill #[ID] for Rs. [Amount]..."
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-gray-600 mb-1">📦 Low Stock Reorder Template (Inventory → Reorder WA)</label>
+              <label className="block text-sm font-bold text-fg-3 mb-1">📦 Low Stock Reorder Template (Inventory → Reorder WA)</label>
               <textarea
                 value={form.wa_reorder_template}
                 onChange={e => setForm({ ...form, wa_reorder_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm h-24"
+                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-24"
                 placeholder="Assalam-o-Alaikum *[Supplier Name]*!&#10;&#10;*[Shop Name]* se order:&#10;&#10;[Items]&#10;&#10;Meharbani farma kar supply karein."
               />
-              <p className="text-[10px] text-gray-400 mt-1">
-                <code className="bg-gray-100 px-1 rounded">[Items]</code> is auto-filled with low stock product names, current stock and suggested reorder quantity.
+              <p className="text-[10px] text-fg-subtle mt-1">
+                <code className="bg-surface-3 px-1 rounded">[Items]</code> is auto-filled with low stock product names, current stock and suggested reorder quantity.
               </p>
             </div>
           </div>
@@ -976,14 +981,14 @@ function Settings() {
           </div>
           )}
 
-          <div className="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white/95 backdrop-blur border-t rounded-b-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="text-[11px] text-gray-400 font-medium sm:max-w-[320px]">
+          <div className="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-surface/95 backdrop-blur border-t rounded-b-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-[11px] text-fg-subtle font-medium sm:max-w-[320px]">
               Saves Shop Profile, Business & Pricing, POS & Receipts and WhatsApp settings together.
             </div>
             <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-lg shadow-blue-100 disabled:opacity-50"
+              className="w-full sm:w-auto px-8 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition shadow-lg shadow-primary-muted disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save Settings'}
             </button>
@@ -992,14 +997,22 @@ function Settings() {
       </div>
       )}
 
+      {activeSection === 'appearance' && (
+        <AppearanceSection
+          title={currentSection.label}
+          desc={currentSection.desc}
+          onThemeChange={t => setForm(prev => ({ ...prev, theme_mode: t.mode, theme_accent: t.accent }))}
+        />
+      )}
+
       {activeSection === 'data' && (syncStatus.pending > 0 || syncStatus.failed > 0) && (
-        <div className={`rounded-2xl border p-4 ${syncStatus.failed > 0 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`} role="status">
+        <div className={`rounded-2xl border p-4 ${syncStatus.failed > 0 ? 'bg-danger-soft border-danger-line' : 'bg-warning-soft border-warning-line'}`} role="status">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className={`font-bold ${syncStatus.failed > 0 ? 'text-red-800' : 'text-amber-800'}`}>
+              <p className={`font-bold ${syncStatus.failed > 0 ? 'text-danger-strong' : 'text-warning-strong'}`}>
                 {syncStatus.pending} change(s) waiting to sync{syncStatus.failed > 0 ? ` · ${syncStatus.failed} failed` : ''}
               </p>
-              <p className="text-xs text-gray-600 mt-0.5">
+              <p className="text-xs text-fg-3 mt-0.5">
                 Offline sales, purchases and stock changes stay on this device until they reach the server. Failed items are kept — nothing is deleted.
               </p>
             </div>
@@ -1007,14 +1020,14 @@ function Settings() {
               <button
                 type="button"
                 onClick={async () => { await retryFailedSyncItems(); await refreshSyncStatus() }}
-                className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm"
+                className="w-full sm:w-auto px-4 py-2.5 bg-danger hover:bg-danger-hover text-white font-bold rounded-xl text-sm"
               >
                 Retry failed
               </button>
             )}
           </div>
           {syncStatus.failedItems.length > 0 && (
-            <ul className="mt-3 space-y-1 text-xs text-red-800 max-h-40 overflow-y-auto">
+            <ul className="mt-3 space-y-1 text-xs text-danger-strong max-h-40 overflow-y-auto">
               {syncStatus.failedItems.slice(0, 20).map(it => (
                 <li key={it.id} className="break-words"><b>{it.table}</b> {it.action}: {it.last_error || 'unknown error'}</li>
               ))}
@@ -1024,11 +1037,11 @@ function Settings() {
       )}
 
       {activeSection === 'data' && (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle p-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
           <div>
-            <h3 className="font-bold text-gray-800">Data Management & Backup</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Import, export or reset your local store data.</p>
+            <h3 className="font-bold text-fg">Data Management & Backup</h3>
+            <p className="text-xs text-fg-subtle mt-0.5">Import, export or reset your local store data.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {hasFeature('offline_sync') && <button
@@ -1089,7 +1102,7 @@ function Settings() {
                 }
               }}
               disabled={saving}
-              className="px-4 py-2 border border-green-200 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl transition font-bold text-sm shadow-sm disabled:opacity-50"
+              className="px-4 py-2 border border-success-line bg-success-soft hover:bg-success-muted text-success-strong rounded-xl transition font-bold text-sm shadow-sm disabled:opacity-50"
             >
               {saving ? '⏳ Downloading...' : '⬇️ Download All for Offline'}
             </button>}
@@ -1110,7 +1123,7 @@ function Settings() {
                   alert('Cache reset instructions complete.')
                 }
               }}
-              className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl transition font-bold text-sm shadow-sm"
+              className="px-4 py-2 border border-line hover:bg-surface-2 text-fg-2 rounded-xl transition font-bold text-sm shadow-sm"
             >
               🧹 Clear All Cache
             </button>
@@ -1120,7 +1133,7 @@ function Settings() {
                 alert('Sync process triggered! Check status in header.')
                 fetchShop()
               }}
-              className="px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition font-bold text-sm shadow-sm"
+              className="px-4 py-2 border border-primary-line bg-primary-soft hover:bg-primary-muted text-primary-strong rounded-xl transition font-bold text-sm shadow-sm"
             >
               🔄 Sync Now
             </button>}
@@ -1129,10 +1142,10 @@ function Settings() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {hasFeature('data_export') ? (
-          <div className="p-4 bg-green-50/50 rounded-2xl border border-green-100 flex flex-col gap-3">
+          <div className="p-4 bg-success-soft/50 rounded-2xl border border-success-muted flex flex-col gap-3">
             <div>
-              <p className="font-bold text-green-800 text-sm">Export All Data</p>
-              <p className="text-[10px] text-green-600">Save a complete backup of all products, customers, and suppliers.</p>
+              <p className="font-bold text-success-strong text-sm">Export All Data</p>
+              <p className="text-[10px] text-success-fg">Save a complete backup of all products, customers, and suppliers.</p>
             </div>
             <button
               onClick={async () => {
@@ -1168,7 +1181,7 @@ function Settings() {
                   alert('Backup failed: ' + err.message)
                 }
               }}
-              className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-bold text-xs shadow-md"
+              className="w-full py-2 bg-success hover:bg-success-hover text-white rounded-lg transition font-bold text-xs shadow-md"
             >
               📥 Download System Backup (.json)
             </button>
@@ -1208,24 +1221,24 @@ function Settings() {
                   alert('Excel Export failed: ' + err.message)
                 }
               }}
-              className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition font-bold text-xs shadow-md"
+              className="w-full py-2 bg-success hover:bg-success-hover text-white rounded-lg transition font-bold text-xs shadow-md"
             >
               📊 Export to Excel
             </button>
           </div>
           ) : (
-          <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-200 flex flex-col gap-3 opacity-60">
+          <div className="p-4 bg-surface-2/50 rounded-2xl border border-line flex flex-col gap-3 opacity-60">
             <div>
-              <p className="font-bold text-gray-500 text-sm flex items-center gap-2">Export All Data <span className="text-xs">🔒</span></p>
-              <p className="text-[10px] text-gray-400">Upgrade your plan to enable data export and backup.</p>
+              <p className="font-bold text-fg-muted text-sm flex items-center gap-2">Export All Data <span className="text-xs">🔒</span></p>
+              <p className="text-[10px] text-fg-subtle">Upgrade your plan to enable data export and backup.</p>
             </div>
           </div>
           )}
 
-          <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex flex-col gap-3">
+          <div className="p-4 bg-primary-soft/50 rounded-2xl border border-primary-muted flex flex-col gap-3">
             <div>
-              <p className="font-bold text-blue-800 text-sm">Import / Restore Data</p>
-              <p className="text-[10px] text-blue-600">Restore your database from a previous backup file.</p>
+              <p className="font-bold text-primary-strong text-sm">Import / Restore Data</p>
+              <p className="text-[10px] text-primary-fg">Restore your database from a previous backup file.</p>
             </div>
             <div className="relative">
               <input
@@ -1291,7 +1304,7 @@ function Settings() {
               />
               <label
                 htmlFor="import-backup"
-                className="flex items-center justify-center w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-bold text-xs cursor-pointer shadow-md"
+                className="flex items-center justify-center w-full py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition font-bold text-xs cursor-pointer shadow-md"
               >
                 📤 Upload & Restore
               </label>
@@ -1305,10 +1318,10 @@ function Settings() {
 
       {/* ── Billing Template Selector (shown under POS & Receipts) ── */}
       {activeSection === 'pos' && (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-gray-50 px-6 py-4 border-b">
-          <h2 className="font-bold text-gray-700">Billing Template</h2>
-          <p className="text-xs text-gray-400">Choose how your receipts and invoices look when printed. Works for both 80mm thermal and A4.</p>
+      <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle overflow-hidden">
+        <div className="bg-surface-2 px-6 py-4 border-b">
+          <h2 className="font-bold text-fg-2">Billing Template</h2>
+          <p className="text-xs text-fg-subtle">Choose how your receipts and invoices look when printed. Works for both 80mm thermal and A4.</p>
         </div>
         <div className="p-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[
@@ -1319,18 +1332,18 @@ function Settings() {
           ].map(t => (
             <div
               key={t.id}
-              className={`flex flex-col justify-between p-4 rounded-xl border-2 transition ${printTemplate === t.id ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200 hover:border-gray-300'}`}
+              className={`flex flex-col justify-between p-4 rounded-xl border-2 transition ${printTemplate === t.id ? 'border-primary bg-primary-soft/30' : 'border-line hover:border-line-strong'}`}
             >
               <div>
                 <div className="text-2xl mb-2">{t.icon}</div>
-                <div className="font-bold text-gray-800 flex items-center gap-2">
+                <div className="font-bold text-fg flex items-center gap-2">
                   {t.name}
-                  {printTemplate === t.id && <span className="text-[10px] font-black bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase">Active</span>}
+                  {printTemplate === t.id && <span className="text-[10px] font-black bg-primary text-white px-2 py-0.5 rounded-full uppercase">Active</span>}
                 </div>
-                <p className="text-xs text-gray-500 mt-1 leading-relaxed mb-4">{t.desc}</p>
+                <p className="text-xs text-fg-muted mt-1 leading-relaxed mb-4">{t.desc}</p>
               </div>
               
-              <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100">
+              <div className="flex gap-2 mt-auto pt-2 border-t border-line-subtle">
                 <button
                   type="button"
                   onClick={() => {
@@ -1350,7 +1363,7 @@ function Settings() {
                       }
                     }
                   }}
-                  className={`flex-1 text-center py-1.5 px-3 rounded-lg text-xs font-bold transition ${printTemplate === t.id ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                  className={`flex-1 text-center py-1.5 px-3 rounded-lg text-xs font-bold transition ${printTemplate === t.id ? 'bg-primary hover:bg-primary-hover text-white shadow-sm' : 'bg-surface-3 hover:bg-surface-4 text-fg-2'}`}
                 >
                   {printTemplate === t.id ? 'Selected' : 'Select'}
                 </button>
@@ -1360,7 +1373,7 @@ function Settings() {
                     setPreviewTemplateId(t.id)
                     setPreviewSize(form.print_size || 'thermal')
                   }}
-                  className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 px-2 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                  className="bg-surface hover:bg-surface-2 border border-line text-fg-3 px-2 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm"
                   title="Quick View Template"
                 >
                   👁️ Preview
@@ -1375,10 +1388,10 @@ function Settings() {
 
       {/* ── Sales Reports ── */}
       {activeSection === 'reports' && (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-gray-50 px-6 py-4 border-b">
-          <h2 className="font-bold text-gray-700">Print Sales Report</h2>
-          <p className="text-xs text-gray-400">Generate and print a daily, weekly, or monthly sales summary with revenue breakdown.</p>
+      <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle overflow-hidden">
+        <div className="bg-surface-2 px-6 py-4 border-b">
+          <h2 className="font-bold text-fg-2">Print Sales Report</h2>
+          <p className="text-xs text-fg-subtle">Generate and print a daily, weekly, or monthly sales summary with revenue breakdown.</p>
         </div>
         <div className="p-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
@@ -1392,7 +1405,7 @@ function Settings() {
                   key={p.id}
                   type="button"
                   onClick={() => setReportPeriod(p.id)}
-                  className={`px-4 py-2 rounded-xl border font-bold text-sm transition ${reportPeriod === p.id ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-xl border font-bold text-sm transition ${reportPeriod === p.id ? 'bg-primary text-white border-primary' : 'border-line text-fg-2 hover:bg-surface-2'}`}
                 >
                   {p.label}
                 </button>
@@ -1401,12 +1414,12 @@ function Settings() {
             <button
               onClick={printSalesReport}
               disabled={reportLoading}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-100 disabled:opacity-50 text-sm whitespace-nowrap"
+              className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition shadow-md shadow-primary-muted disabled:opacity-50 text-sm whitespace-nowrap"
             >
               {reportLoading ? '⏳ Loading...' : '🖨️ Print Report'}
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-4">Report includes: total revenue, cash/card/credit breakdown, outstanding balance, discount given, and full transaction list.</p>
+          <p className="text-xs text-fg-subtle mt-4">Report includes: total revenue, cash/card/credit breakdown, outstanding balance, discount given, and full transaction list.</p>
         </div>
       </div>
 
@@ -1414,44 +1427,44 @@ function Settings() {
 
       {/* Plan & Subscription */}
       {activeSection === 'plan' && !planInfo && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-sm text-gray-500">
+        <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle p-6 text-sm text-fg-muted">
           Plan details are not available right now. Connect to the internet and reopen this page.
         </div>
       )}
       {activeSection === 'plan' && planInfo && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="bg-blue-50 px-6 py-4 border-b">
-            <h2 className="font-bold text-blue-800">Plan & Subscription</h2>
-            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Your Current Service Tier</p>
+        <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle overflow-hidden">
+          <div className="bg-primary-soft px-6 py-4 border-b">
+            <h2 className="font-bold text-primary-strong">Plan & Subscription</h2>
+            <p className="text-[10px] text-primary-fg font-bold uppercase tracking-wider">Your Current Service Tier</p>
           </div>
           <div className="p-6">
             <div className="flex flex-col md:flex-row justify-between gap-6">
               <div className="space-y-4 flex-1">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Active Plan</label>
-                  <p className="text-xl font-black text-gray-800">{planInfo.plan_name} <span className="text-blue-600 italic">Tier</span></p>
+                  <label className="text-[10px] font-black text-fg-subtle uppercase tracking-widest block mb-1">Active Plan</label>
+                  <p className="text-xl font-black text-fg">{planInfo.plan_name} <span className="text-primary-fg italic">Tier</span></p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Product Limit</label>
-                    <p className="font-bold text-gray-800">{planInfo.product_limit} items</p>
+                    <label className="text-[10px] font-black text-fg-subtle uppercase tracking-widest block mb-1">Product Limit</label>
+                    <p className="font-bold text-fg">{planInfo.product_limit} items</p>
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Users Limit</label>
-                    <p className="font-bold text-gray-800">{planInfo.user_limit} accounts</p>
+                    <label className="text-[10px] font-black text-fg-subtle uppercase tracking-widest block mb-1">Users Limit</label>
+                    <p className="font-bold text-fg">{planInfo.user_limit} accounts</p>
                   </div>
                 </div>
               </div>
               
               <div className="md:border-l md:pl-6 space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Next Billing Date</label>
-                  <p className="font-mono font-black text-gray-800 bg-gray-50 px-3 py-1 rounded-lg border">
+                  <label className="text-[10px] font-black text-fg-subtle uppercase tracking-widest block mb-1">Next Billing Date</label>
+                  <p className="font-mono font-black text-fg bg-surface-2 px-3 py-1 rounded-lg border">
                     {planInfo.next_billing_date ? new Date(planInfo.next_billing_date).toLocaleDateString('en-PK', { dateStyle: 'long' }) : 'N/A'}
                   </p>
                 </div>
-                <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-                  <p className="text-[10px] text-blue-700 font-bold leading-tight">Need more capacity? Contact support to upgrade your plan.</p>
+                <div className="p-3 bg-primary-soft rounded-xl border border-primary-muted">
+                  <p className="text-[10px] text-primary-strong font-bold leading-tight">Need more capacity? Contact support to upgrade your plan.</p>
                 </div>
               </div>
             </div>
@@ -1460,14 +1473,14 @@ function Settings() {
       )}
 
       {activeSection === 'plan' && (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center justify-between">
+      <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle p-6 flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-gray-800">Software Updates</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Your POS is currently running the latest version v2.1.0-Premium</p>
+          <h3 className="font-bold text-fg">Software Updates</h3>
+          <p className="text-xs text-fg-subtle mt-0.5">Your POS is currently running the latest version v2.1.0-Premium</p>
         </div>
         <div className="flex -space-x-2">
-          <span className="w-8 h-8 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-blue-600">AS</span>
-          <span className="w-8 h-8 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-indigo-600">SM</span>
+          <span className="w-8 h-8 rounded-full bg-primary-muted border-2 border-surface flex items-center justify-center text-[10px] font-bold text-primary-fg">AS</span>
+          <span className="w-8 h-8 rounded-full bg-primary-muted border-2 border-surface flex items-center justify-center text-[10px] font-bold text-primary-fg">SM</span>
         </div>
       </div>
 
@@ -1475,26 +1488,26 @@ function Settings() {
 
       {/* Danger Zone */}
       {activeSection === 'danger' && (
-      <div className="bg-red-50 rounded-2xl shadow-sm border-2 border-red-200 p-6">
+      <div className="bg-danger-soft rounded-2xl shadow-sm border-2 border-danger-line p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-danger-muted rounded-full flex items-center justify-center">
             <span className="text-xl">⚠️</span>
           </div>
           <div>
-            <h3 className="font-bold text-red-800 text-lg">Danger Zone</h3>
-            <p className="text-xs text-red-500">Irreversible actions — proceed with extreme caution</p>
+            <h3 className="font-bold text-danger-strong text-lg">Danger Zone</h3>
+            <p className="text-xs text-danger-fg">Irreversible actions — proceed with extreme caution</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-red-100">
+        <div className="bg-surface rounded-xl p-4 border border-danger-muted">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <p className="font-bold text-gray-800">🗑️ Clear All Shop Data</p>
-              <p className="text-xs text-gray-500 mt-1">Permanently delete ALL products, suppliers, customers, sales, purchases, expenses, and payments for this shop. This cannot be undone!</p>
+              <p className="font-bold text-fg">🗑️ Clear All Shop Data</p>
+              <p className="text-xs text-fg-muted mt-1">Permanently delete ALL products, suppliers, customers, sales, purchases, expenses, and payments for this shop. This cannot be undone!</p>
             </div>
             <button
               onClick={() => setShowPasswordModal(true)}
               disabled={clearing}
-              className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition whitespace-nowrap shadow-lg shadow-red-200 disabled:opacity-50"
+              className="px-6 py-3 bg-danger hover:bg-danger-hover text-white font-bold rounded-xl transition whitespace-nowrap shadow-lg shadow-danger-line disabled:opacity-50"
             >
               {clearing ? 'Clearing...' : '🔥 Clear All Data'}
             </button>
@@ -1558,20 +1571,20 @@ function Settings() {
 
       {/* ── Billing Template Quick View Modal ── */}
       {previewTemplateId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-line-subtle">
             {/* Header */}
-            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+            <div className="bg-contrast text-white px-6 py-4 flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-lg flex items-center gap-2">
                   <span>✨</span> Quick View Template Preview
                 </h3>
-                <p className="text-xs text-slate-400">See exactly how your invoice will print.</p>
+                <p className="text-xs text-fg-subtle">See exactly how your invoice will print.</p>
               </div>
               <button
                 type="button"
                 onClick={() => setPreviewTemplateId(null)}
-                className="text-slate-400 hover:text-white transition text-xl p-1 font-bold"
+                className="text-fg-subtle hover:text-white transition text-xl p-1 font-bold"
               >
                 ✕
               </button>
@@ -1580,38 +1593,38 @@ function Settings() {
             {/* Content Area */}
             <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
               {/* Left Control Column */}
-              <div className="w-full md:w-80 bg-slate-50 border-r border-slate-100 p-6 flex flex-col justify-between overflow-y-auto">
+              <div className="w-full md:w-80 bg-surface-2 border-r border-line-subtle p-6 flex flex-col justify-between overflow-y-auto">
                 <div className="space-y-6">
                   <div>
-                    <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block mb-2">Select Format Size</span>
+                    <span className="text-[10px] uppercase font-black tracking-wider text-fg-subtle block mb-2">Select Format Size</span>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setPreviewSize('thermal')}
-                        className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition ${previewSize === 'thermal' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                        className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition ${previewSize === 'thermal' ? 'bg-primary text-white border-primary' : 'bg-surface border-line text-fg-3 hover:border-line-strong'}`}
                       >
                         📟 Thermal (80mm)
                       </button>
                       <button
                         type="button"
                         onClick={() => setPreviewSize('a4')}
-                        className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition ${previewSize === 'a4' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                        className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition ${previewSize === 'a4' ? 'bg-primary text-white border-primary' : 'bg-surface border-line text-fg-3 hover:border-line-strong'}`}
                       >
                         📄 A4 Page
                       </button>
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-sm">
-                    <h4 className="font-extrabold text-slate-800 text-sm mb-2">Template Specs</h4>
-                    <ul className="text-xs text-slate-500 space-y-2">
-                      <li className="flex justify-between"><span className="text-slate-400">Option:</span> <span className="font-semibold text-slate-700">{previewTemplateId === '1' ? 'Simple' : previewTemplateId === '2' ? 'Classic' : previewTemplateId === '3' ? 'Professional' : 'Modern'}</span></li>
-                      <li className="flex justify-between"><span className="text-slate-400">Paper Width:</span> <span className="font-semibold text-slate-700">{previewSize === 'thermal' ? '80mm (Thermal)' : '210mm (A4)'}</span></li>
-                      <li className="flex justify-between"><span className="text-slate-400">Layout type:</span> <span className="font-semibold text-slate-700">{previewSize === 'thermal' ? 'Continuous Roll' : 'Portrait Sheet'}</span></li>
+                  <div className="bg-surface rounded-xl border border-line/60 p-4 shadow-sm">
+                    <h4 className="font-extrabold text-fg text-sm mb-2">Template Specs</h4>
+                    <ul className="text-xs text-fg-muted space-y-2">
+                      <li className="flex justify-between"><span className="text-fg-subtle">Option:</span> <span className="font-semibold text-fg-2">{previewTemplateId === '1' ? 'Simple' : previewTemplateId === '2' ? 'Classic' : previewTemplateId === '3' ? 'Professional' : 'Modern'}</span></li>
+                      <li className="flex justify-between"><span className="text-fg-subtle">Paper Width:</span> <span className="font-semibold text-fg-2">{previewSize === 'thermal' ? '80mm (Thermal)' : '210mm (A4)'}</span></li>
+                      <li className="flex justify-between"><span className="text-fg-subtle">Layout type:</span> <span className="font-semibold text-fg-2">{previewSize === 'thermal' ? 'Continuous Roll' : 'Portrait Sheet'}</span></li>
                     </ul>
                   </div>
 
-                  <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100/50 text-[11px] text-blue-700 leading-relaxed">
+                  <div className="p-3 bg-primary-soft/50 rounded-xl border border-primary-muted/50 text-[11px] text-primary-strong leading-relaxed">
                     💡 <strong>Tip:</strong> The printed layout is dynamic and will adjust perfectly according to the printer size defined in settings.
                   </div>
                 </div>
@@ -1638,14 +1651,14 @@ function Settings() {
                       setPreviewTemplateId(null)
                       alert('Template applied successfully!')
                     }}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-bold transition shadow-lg shadow-primary-muted flex items-center justify-center gap-2"
                   >
                     <span>✓</span> Apply This Template
                   </button>
                   <button
                     type="button"
                     onClick={() => setPreviewTemplateId(null)}
-                    className="w-full py-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                    className="w-full py-3 bg-surface hover:bg-surface-3 border border-line text-fg-2 rounded-xl text-xs font-bold transition"
                   >
                     Cancel
                   </button>
@@ -1653,9 +1666,9 @@ function Settings() {
               </div>
 
               {/* Right Iframe Preview Area */}
-              <div className="flex-1 bg-slate-200 p-6 flex items-center justify-center overflow-y-auto">
+              <div className="flex-1 bg-surface-4 p-6 flex items-center justify-center overflow-y-auto">
                 <div 
-                  className="bg-white shadow-2xl transition-all duration-300 overflow-hidden border border-slate-300 rounded"
+                  className="bg-surface shadow-2xl transition-all duration-300 overflow-hidden border border-line-strong rounded"
                   style={{
                     width: previewSize === 'thermal' ? '320px' : '650px',
                     height: previewSize === 'thermal' ? '500px' : '750px',
@@ -1664,7 +1677,7 @@ function Settings() {
                 >
                   <iframe
                     srcDoc={getPreviewHTML(previewTemplateId, previewSize)}
-                    className="w-full h-full border-none bg-white"
+                    className="w-full h-full border-none bg-surface"
                     title="Invoice Template Preview"
                     sandbox="allow-same-origin"
                   />

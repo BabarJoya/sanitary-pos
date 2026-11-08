@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import Layout from './components/Layout'
@@ -45,8 +46,8 @@ const ResetPassword = lazy(() => import('./pages/admin/ResetPassword'))
 
 function PageFallback() {
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-50">
-      <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-blue-600" />
+    <div className="flex h-dvh items-center justify-center bg-app">
+      <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
     </div>
   )
 }
@@ -54,6 +55,7 @@ function PageFallback() {
 function App() {
   return (
     <AuthProvider>
+      <ThemeProvider>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PWAInstallPrompt />
         <Suspense fallback={<PageFallback />}>
@@ -113,6 +115,7 @@ function App() {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </ThemeProvider>
     </AuthProvider>
   )
 }

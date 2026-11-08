@@ -350,16 +350,16 @@ function Sales() {
   const renderPaymentBadge = (sale) => {
     const pt = (sale.payment_type || sale.payment_method || 'cash').toLowerCase()
     if (pt === 'cash') {
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700">💵 Cash</span>
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface-3 text-fg-2">💵 Cash</span>
     }
     if (pt === 'credit') {
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700">📒 Credit</span>
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-warning-muted text-warning-strong">📒 Credit</span>
     }
     if (pt === 'split') {
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">🔀 Split</span>
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-info-muted text-info-strong">🔀 Split</span>
     }
     const label = pt.charAt(0).toUpperCase() + pt.slice(1)
-    return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800">📱 {label}</span>
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary-muted text-primary-strong">📱 {label}</span>
   }
 
   const filtered = sales.filter(s => {
@@ -475,22 +475,22 @@ function Sales() {
     <>
       <div>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">📜 Sales History</h1>
+          <h1 className="text-2xl font-bold text-fg">📜 Sales History</h1>
           <div className="flex gap-2 flex-wrap items-center">
             {selected.length > 0 && (
-              <button onClick={() => requestDelete(selected)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition font-bold text-sm">
+              <button onClick={() => requestDelete(selected)} className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-xl transition font-bold text-sm">
                 🗑️ Delete Selected ({selected.length})
               </button>
             )}
           </div>
         </div>
         {/* Filters */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
+        <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
           <div className="flex gap-4 w-full sm:w-auto">
             <input
               type="text"
               placeholder="Search invoice or customer..."
-              className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -501,7 +501,7 @@ function Sales() {
               <option value="quotation">Quotations Only</option>
               <option value="sale">Sales Only</option>
             </select>
-            <select className="px-4 py-2 border rounded-lg outline-none flex-shrink-0 bg-white text-sm" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}>
+            <select className="px-4 py-2 border rounded-lg outline-none flex-shrink-0 bg-surface text-sm" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}>
               <option value="all">All Payments</option>
               <option value="cash">💵 Cash Only</option>
               <option value="online">📱 Online / Bank</option>
@@ -509,7 +509,7 @@ function Sales() {
               <option value="split">🔀 Split Payment</option>
             </select>
             {wholesaleEnabled && (
-              <select aria-label="Price tier" className="px-4 py-2 border rounded-lg outline-none flex-shrink-0 bg-white text-sm" value={tierFilter} onChange={e => setTierFilter(e.target.value)}>
+              <select aria-label="Price tier" className="px-4 py-2 border rounded-lg outline-none flex-shrink-0 bg-surface text-sm" value={tierFilter} onChange={e => setTierFilter(e.target.value)}>
                 <option value="all">Retail + Wholesale</option>
                 <option value="retail">Retail Only</option>
                 <option value="wholesale">Wholesale Only</option>
@@ -525,44 +525,44 @@ function Sales() {
         </div>
 
         {loading ? (
-          <p className="text-gray-500">Loading sales...</p>
+          <p className="text-fg-muted">Loading sales...</p>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400 text-lg">No sales found</p>
+            <p className="text-fg-subtle text-lg">No sales found</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow overflow-hidden">
-            <div className="divide-y divide-gray-100 md:hidden">
+          <div className="bg-surface rounded-xl shadow overflow-hidden">
+            <div className="divide-y divide-line-subtle md:hidden">
               {filtered.map(sale => (
-                <div key={sale.id} className={`p-4 ${selected.includes(sale.id) ? 'bg-blue-50' : ''}`}>
+                <div key={sale.id} className={`p-4 ${selected.includes(sale.id) ? 'bg-primary-soft' : ''}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-mono text-xs font-bold text-gray-500">
+                      <p className="font-mono text-xs font-bold text-fg-muted">
                         {sale.sale_type === 'quotation' ? 'QT-' : '#'}{String(sale.id).slice(-8)}
                       </p>
-                      <p className="mt-1 truncate font-bold text-gray-900">
+                      <p className="mt-1 truncate font-bold text-fg">
                         {sale.customers?.name || sale.customer_name || 'Walk-in'}
                       </p>
-                      <p className="mt-1 text-xs text-gray-400">{new Date(sale.created_at).toLocaleDateString('en-PK')}</p>
+                      <p className="mt-1 text-xs text-fg-subtle">{new Date(sale.created_at).toLocaleDateString('en-PK')}</p>
                     </div>
                     <input type="checkbox" checked={selected.includes(sale.id)} onChange={() => toggleSelect(sale.id)} className="mt-1 h-4 w-4 rounded" />
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-lg font-black text-gray-900">
+                      <p className="text-lg font-black text-fg">
                         Rs. {(Number(sale.total_amount) - Number(sale.discount || 0)).toFixed(0)}
                       </p>
                       <div className="mt-1 flex flex-wrap gap-1.5 items-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sale.sale_type === 'quotation' ? 'bg-info-muted text-info-strong' : 'bg-success-muted text-success-strong'}`}>
                           {sale.sale_type === 'quotation' ? '📄 Quotation' : '🧾 Sale'}
                         </span>
-                        {sale.price_tier === 'wholesale' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Wholesale</span>}
+                        {sale.price_tier === 'wholesale' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-wholesale-muted text-wholesale-strong">Wholesale</span>}
                         {renderPaymentBadge(sale)}
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => openSale(sale)} className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">View</button>
-                      <button onClick={() => requestDelete([sale.id])} className="rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-600">Delete</button>
+                      <button onClick={() => openSale(sale)} className="rounded-lg bg-primary-soft px-3 py-2 text-sm font-bold text-primary-fg">View</button>
+                      <button onClick={() => requestDelete([sale.id])} className="rounded-lg bg-danger-soft px-3 py-2 text-sm font-bold text-danger-fg">Delete</button>
                     </div>
                   </div>
                 </div>
@@ -570,46 +570,46 @@ function Sales() {
             </div>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-surface-2 border-b">
                   <tr>
                     <th className="px-4 py-3 w-10"><input type="checkbox" checked={selected.length === filtered.length && filtered.length > 0} onChange={toggleSelectAll} className="w-4 h-4 rounded" /></th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Invoice ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Total</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Type / Payment</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Invoice ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Customer</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Total</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Type / Payment</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-line">
                   {filtered.map(sale => (
-                    <tr key={sale.id} className={`hover:bg-gray-50 ${selected.includes(sale.id) ? 'bg-blue-50' : ''}`}>
+                    <tr key={sale.id} className={`hover:bg-surface-2 ${selected.includes(sale.id) ? 'bg-primary-soft' : ''}`}>
                       <td className="px-4 py-3"><input type="checkbox" checked={selected.includes(sale.id)} onChange={() => toggleSelect(sale.id)} className="w-4 h-4 rounded" /></td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                      <td className="px-4 py-3 font-mono text-xs text-fg-3">
                         {sale.sale_type === 'quotation' ? 'QT-' : '#'}{String(sale.id).slice(-8)}
                       </td>
-                      <td className="px-4 py-3 text-gray-800">
-                        {sale.customers?.name || sale.customer_name || <span className="text-gray-400 italic">Walk-in</span>}
+                      <td className="px-4 py-3 text-fg">
+                        {sale.customers?.name || sale.customer_name || <span className="text-fg-subtle italic">Walk-in</span>}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-800">
+                      <td className="px-4 py-3 font-medium text-fg">
                         Rs. {(Number(sale.total_amount) - Number(sale.discount || 0)).toFixed(0)}
-                        {sale.discount > 0 && <span className="text-xs text-gray-400 ml-1">(disc: {sale.discount})</span>}
+                        {sale.discount > 0 && <span className="text-xs text-fg-subtle ml-1">(disc: {sale.discount})</span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium w-fit ${sale.sale_type === 'quotation' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium w-fit ${sale.sale_type === 'quotation' ? 'bg-info-muted text-info-strong' : 'bg-success-muted text-success-strong'}`}>
                             {sale.sale_type === 'quotation' ? '📄 Quotation' : '🧾 Sale'}
                           </span>
-                          {sale.price_tier === 'wholesale' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold w-fit bg-amber-100 text-amber-800">Wholesale</span>}
+                          {sale.price_tier === 'wholesale' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold w-fit bg-wholesale-muted text-wholesale-strong">Wholesale</span>}
                           {renderPaymentBadge(sale)}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-sm">{new Date(sale.created_at).toLocaleDateString('en-PK')}</td>
+                      <td className="px-4 py-3 text-fg-muted text-sm">{new Date(sale.created_at).toLocaleDateString('en-PK')}</td>
                       <td className="px-4 py-3 flex gap-2">
                         <button onClick={() => openSale(sale)}
-                          className="text-blue-500 hover:text-blue-700 text-sm font-medium">View</button>
+                          className="text-primary-fg hover:text-primary-strong text-sm font-medium">View</button>
                         <button onClick={() => requestDelete([sale.id])}
-                          className="text-red-500 hover:text-red-700 text-sm font-medium">Delete</button>
+                          className="text-danger-fg hover:text-danger-strong text-sm font-medium">Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -624,40 +624,40 @@ function Sales() {
         {
           selectedSale && (
             <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-              <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
+              <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-800">
+                    <h2 className="text-lg font-bold text-fg">
                       {selectedSale.sale_type === 'quotation' ? 'Quotation QT-' : 'Invoice #'}
                       {String(selectedSale.id).slice(-8)}
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-fg-muted">
                       {new Date(selectedSale.created_at).toLocaleString('en-PK')} |
                       {selectedSale.customers?.name || selectedSale.customer_name || ' Walk-in'} |
-                      <span className={selectedSale.payment_type === 'cash' ? ' text-green-600' : ' text-orange-600'}>
+                      <span className={selectedSale.payment_type === 'cash' ? ' text-success-fg' : ' text-warning-fg'}>
                         {' '}{selectedSale.payment_type?.toUpperCase()}
                       </span>
                     </p>
                   </div>
-                  <button onClick={() => setSelectedSale(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                  <button onClick={() => setSelectedSale(null)} className="text-fg-subtle hover:text-fg-3 text-xl">×</button>
                 </div>
 
-                {loadingItems ? <p className="text-gray-500 text-center py-8">Loading...</p> : (
+                {loadingItems ? <p className="text-fg-muted text-center py-8">Loading...</p> : (
                   <>
                     <div className="overflow-x-auto">
                       <table className="w-full mb-4 text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-surface-2">
                           <tr>
-                            <th className="px-3 py-2 text-left text-xs text-gray-500 whitespace-nowrap">Product</th>
-                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Orig. Qty</th>
-                            <th className="px-3 py-2 text-right text-xs text-red-400 whitespace-nowrap">Returned</th>
-                            <th className="px-3 py-2 text-right text-xs text-green-600 whitespace-nowrap">Net Qty</th>
-                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Rate</th>
-                            <th className="px-3 py-2 text-right text-xs text-gray-500 whitespace-nowrap">Net Amount</th>
-                            <th className="px-3 py-2 text-center text-xs text-gray-500 whitespace-nowrap">Return Qty</th>
+                            <th className="px-3 py-2 text-left text-xs text-fg-muted whitespace-nowrap">Product</th>
+                            <th className="px-3 py-2 text-right text-xs text-fg-muted whitespace-nowrap">Orig. Qty</th>
+                            <th className="px-3 py-2 text-right text-xs text-danger-fg whitespace-nowrap">Returned</th>
+                            <th className="px-3 py-2 text-right text-xs text-success-fg whitespace-nowrap">Net Qty</th>
+                            <th className="px-3 py-2 text-right text-xs text-fg-muted whitespace-nowrap">Rate</th>
+                            <th className="px-3 py-2 text-right text-xs text-fg-muted whitespace-nowrap">Net Amount</th>
+                            <th className="px-3 py-2 text-center text-xs text-fg-muted whitespace-nowrap">Return Qty</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-line-subtle">
                           {saleItems.map(item => {
                             const returnedQty = item.returned_qty || 0
                             const netQty = item.quantity - returnedQty
@@ -665,21 +665,21 @@ function Sales() {
                             const maxReturn = netQty
                             const fullyReturned = netQty <= 0
                             return (
-                              <tr key={item.id} className={fullyReturned ? 'bg-red-50/40 opacity-60' : ''}>
-                                <td className="px-3 py-2 text-gray-800 whitespace-nowrap">
+                              <tr key={item.id} className={fullyReturned ? 'bg-danger-soft/40 opacity-60' : ''}>
+                                <td className="px-3 py-2 text-fg whitespace-nowrap">
                                   {item.product_name}
-                                  {fullyReturned && <span className="ml-1 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold uppercase">Fully Returned</span>}
+                                  {fullyReturned && <span className="ml-1 text-[10px] bg-danger-muted text-danger-fg px-1.5 py-0.5 rounded font-bold uppercase">Fully Returned</span>}
                                 </td>
-                                <td className="px-3 py-2 text-right text-gray-400 whitespace-nowrap">{item.quantity}</td>
-                                <td className="px-3 py-2 text-right text-red-500 font-medium whitespace-nowrap">
+                                <td className="px-3 py-2 text-right text-fg-subtle whitespace-nowrap">{item.quantity}</td>
+                                <td className="px-3 py-2 text-right text-danger-fg font-medium whitespace-nowrap">
                                   {returnedQty > 0 ? `- ${returnedQty}` : '—'}
                                 </td>
-                                <td className="px-3 py-2 text-right font-bold text-gray-800 whitespace-nowrap">{netQty}</td>
-                                <td className="px-3 py-2 text-right text-gray-600 whitespace-nowrap">Rs. {Number(item.unit_price).toFixed(0)}</td>
+                                <td className="px-3 py-2 text-right font-bold text-fg whitespace-nowrap">{netQty}</td>
+                                <td className="px-3 py-2 text-right text-fg-3 whitespace-nowrap">Rs. {Number(item.unit_price).toFixed(0)}</td>
                                 <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">
                                   Rs. {netAmount.toFixed(0)}
                                   {returnedQty > 0 && (
-                                    <div className="text-[10px] text-gray-400 font-normal">
+                                    <div className="text-[10px] text-fg-subtle font-normal">
                                       orig: Rs. {(item.quantity * Number(item.unit_price)).toFixed(0)}
                                     </div>
                                   )}
@@ -690,7 +690,7 @@ function Sales() {
                                       value={returnQtys[item.id] || ''}
                                       onChange={e => setReturnQtys(prev => ({ ...prev, [item.id]: e.target.value }))}
                                       className="w-16 border rounded px-2 py-1 text-center text-sm" placeholder="0" />
-                                  ) : <span className="text-xs text-gray-400">Done</span>}
+                                  ) : <span className="text-xs text-fg-subtle">Done</span>}
                                 </td>
                               </tr>
                             )
@@ -700,21 +700,21 @@ function Sales() {
                     </div>
 
                     <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:justify-between sm:items-center">
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-fg-3">
                         <p>Total: <b>Rs. {(Number(selectedSale.total_amount) - Number(selectedSale.discount || 0)).toFixed(0)}</b></p>
-                        {selectedSale.discount > 0 && <p className="text-xs text-gray-400">Discount: Rs. {selectedSale.discount}</p>}
+                        {selectedSale.discount > 0 && <p className="text-xs text-fg-subtle">Discount: Rs. {selectedSale.discount}</p>}
                       </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                         {selectedSale.sale_type !== 'quotation' && (
-                          <div className="flex flex-wrap items-center gap-3 bg-gray-50 border px-3 py-1.5 rounded-lg sm:mr-2">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase">Refund Type:</span>
+                          <div className="flex flex-wrap items-center gap-3 bg-surface-2 border px-3 py-1.5 rounded-lg sm:mr-2">
+                            <span className="text-[10px] font-bold text-fg-subtle uppercase">Refund Type:</span>
                             <label className="flex items-center gap-1 text-sm cursor-pointer">
-                              <input type="radio" checked={refundType === 'cash'} onChange={() => setRefundType('cash')} className="w-4 h-4 text-blue-600" />
+                              <input type="radio" checked={refundType === 'cash'} onChange={() => setRefundType('cash')} className="w-4 h-4 text-primary-fg" />
                               💵 Cash
                             </label>
                             {selectedSale.customer_id && (
                               <label className="flex items-center gap-1 text-sm cursor-pointer">
-                                <input type="radio" checked={refundType === 'credit'} onChange={() => setRefundType('credit')} className="w-4 h-4 text-orange-600" />
+                                <input type="radio" checked={refundType === 'credit'} onChange={() => setRefundType('credit')} className="w-4 h-4 text-warning-fg" />
                                 📒 Ledger
                               </label>
                             )}
@@ -722,22 +722,22 @@ function Sales() {
                         )}
                         {selectedSale.sale_type === 'quotation' && (
                           <button onClick={() => navigate(`/pos?convertQuote=${selectedSale.id}`)}
-                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition font-bold">
+                            className="px-4 py-2 bg-info hover:bg-info-hover text-white rounded-lg text-sm transition font-bold">
                             🛒 Convert to Sale
                           </button>
                         )}
                         <button onClick={() => printInvoice(selectedSale, saleItems)}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition">
+                          className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm transition">
                           🖨️ Print {selectedSale.sale_type === 'quotation' ? 'Quotation' : 'Invoice'}
                         </button>
                         {selectedSale.sale_type !== 'quotation' && (
                           <button onClick={handleReturn} disabled={returning}
-                            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition disabled:opacity-50">
+                            className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-lg text-sm transition disabled:opacity-50">
                             {returning ? 'Processing...' : '↩️ Process Return'}
                           </button>
                         )}
                         <button onClick={() => setSelectedSale(null)}
-                          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition">
+                          className="px-4 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg text-sm transition">
                           Close
                         </button>
                       </div>
