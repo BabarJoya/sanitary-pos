@@ -55,7 +55,7 @@ export default function AppearanceSection({ title, desc, onThemeChange }) {
 
           <fieldset>
             <legend className="label">Brand colour</legend>
-            <div role="radiogroup" aria-label="Brand colour" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div role="radiogroup" aria-label="Brand colour" className="grid grid-cols-2 2xl:grid-cols-4 gap-2">
               {THEME_ACCENTS.map(a => {
                 const active = accent === a.id
                 return (
@@ -64,6 +64,7 @@ export default function AppearanceSection({ title, desc, onThemeChange }) {
                     type="button"
                     role="radio"
                     aria-checked={active}
+                    aria-label={a.label}
                     onClick={() => update({ accent: a.id })}
                     className={`min-h-14 rounded-control border-2 px-3 py-2 flex items-center gap-2.5 text-sm font-bold transition cursor-pointer ${
                       active ? 'border-primary bg-primary-soft text-fg' : 'border-line bg-surface text-fg-3 hover:border-line-strong hover:text-fg'

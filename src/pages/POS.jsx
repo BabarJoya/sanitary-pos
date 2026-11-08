@@ -1391,7 +1391,7 @@ function POS() {
       {showMobileCart && (
         <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setShowMobileCart(false)} />
       )}
-      <div className={`${showMobileCart ? 'fixed inset-x-2 top-2 bottom-2 z-50 flex max-h-[calc(100dvh-1rem)]' : 'hidden md:flex'} md:static md:w-96 lg:w-[410px] xl:w-[430px] flex-col gap-2 bg-gradient-to-b from-primary-soft/95 via-primary-soft/40 to-primary-soft/80 rounded-2xl shadow-xl border-2 border-primary-line/90 p-3 h-full min-h-0 overflow-hidden shrink-0`}>
+      <div className={`${showMobileCart ? 'fixed inset-x-2 top-2 bottom-2 z-50 flex max-h-[calc(100dvh-1rem)]' : 'hidden md:flex'} md:static md:w-96 lg:w-[410px] xl:w-[430px] flex-col gap-2 bg-surface bg-gradient-to-b from-primary-soft/95 via-primary-soft/40 to-primary-soft/80 rounded-2xl shadow-xl border-2 border-primary-line/90 p-3 h-full min-h-0 overflow-hidden shrink-0`}>
 
         {/* Mobile close button */}
         <button onClick={() => setShowMobileCart(false)} className="md:hidden self-end text-fg-subtle hover:text-fg-2 text-xl font-bold -mt-1 -mr-1 p-1">✕</button>
