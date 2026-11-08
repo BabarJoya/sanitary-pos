@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { recordAuditLog } from '../services/auditService'
 import { db, addToSyncQueue } from '../services/db'
+import { adjustStock } from '../services/integrity'
 import * as XLSX from 'xlsx'
 import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
@@ -437,8 +438,8 @@ function Inventory() {
         currentStock = localProd?.stock_quantity || 0
         const newTotal = currentStock + qty
 
-        await db.products.update(returnProduct.id, { stock_quantity: newTotal })
-        await addToSyncQueue('products', 'UPDATE', { ...returnProduct, stock_quantity: newTotal })
+        // Queue only the stock change — replaying the whole product row would overwrite newer prices/stock
+        await adjustStock(returnProduct.id, qty)
 
         alert(`Offline mode: ${qty} units returned locally. New stock: ${newTotal}. Will sync later! 🔄`)
         setReturnProduct(null)

@@ -4,6 +4,7 @@ import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
+import { adjustStock, adjustSupplierBalance } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
@@ -154,15 +155,9 @@ function PurchaseHistory() {
                     .update({ returned_qty: (item.returned_qty || 0) + returnQty })
                     .eq('id', item.id)
 
-                // Reduce stock — fetch live stock first
-                const { data: liveProduct } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).maybeSingle()
-                const currentStock = liveProduct?.stock_quantity ?? 0
-                const newStock = Math.max(0, currentStock - returnQty)
-                await supabase.from('products')
-                    .update({ stock_quantity: newStock })
-                    .eq('id', item.product_id)
-                // Keep local DB in sync
-                await db.products.update(item.product_id, { stock_quantity: newStock })
+                // Reduce stock as an atomic change (local copy updated by the helper)
+                const sr = await adjustStock(item.product_id, -returnQty)
+                if (!sr.ok) throw sr.error || new Error(`Stock update failed for ${item.product_name}`)
             }
 
             // Update purchase record total
@@ -171,9 +166,8 @@ function PurchaseHistory() {
 
             // If credit purchase, reduce supplier balance
             if (selectedPurchase.payment_type === 'credit' && selectedPurchase.supplier_id) {
-                const { data: sup } = await supabase.from('suppliers').select('outstanding_balance').eq('id', selectedPurchase.supplier_id).maybeSingle()
-                const newBal = Math.max(0, (sup?.outstanding_balance || 0) - totalReturnAmount)
-                await supabase.from('suppliers').update({ outstanding_balance: newBal }).eq('id', selectedPurchase.supplier_id)
+                const br = await adjustSupplierBalance(selectedPurchase.supplier_id, -totalReturnAmount)
+                if (!br.ok) throw br.error || new Error('Supplier balance update failed')
 
                 // Log payment return in supplier_payments
                 await supabase.from('supplier_payments').insert([{
@@ -222,10 +216,8 @@ function PurchaseHistory() {
                     await db.sync_queue.add({ table: 'purchase_items', action: 'UPDATE', data: { id: item.id, returned_qty: newRetQty }, timestamp: new Date().toISOString() })
 
                     // 2. Update local stock (subtract for purchase return)
-                    const localProd = await db.products.get(item.product_id)
-                    const newStock = Math.max(0, (localProd?.stock_quantity || 0) - returnQty)
-                    await db.products.update(item.product_id, { stock_quantity: newStock })
-                    await db.sync_queue.add({ table: 'products', action: 'UPDATE', data: { id: item.product_id, stock_quantity: newStock }, timestamp: new Date().toISOString() })
+                    // queued as an atomic change (never replays a stale absolute stock value)
+                    await adjustStock(item.product_id, -returnQty)
                 }
 
                 // Update local purchase total
