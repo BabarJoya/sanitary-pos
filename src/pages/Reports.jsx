@@ -310,15 +310,15 @@ function Reports() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">📊 Business Analytics</h1>
-          <p className="text-gray-500 text-sm">Profit, Loss and Sales performance</p>
+          <h1 className="text-2xl font-bold text-fg">📊 Business Analytics</h1>
+          <p className="text-fg-muted text-sm">Profit, Loss and Sales performance</p>
         </div>
-        <div className="flex bg-white rounded-xl shadow-sm border p-1">
+        <div className="flex bg-surface rounded-xl shadow-sm border p-1">
           {['today', 'week', 'month', 'year', 'all'].map(r => (
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${range === r ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${range === r ? 'bg-primary text-white shadow' : 'text-fg-muted hover:bg-surface-2'}`}
             >
               {r.charAt(0).toUpperCase() + r.slice(1)}
             </button>
@@ -326,23 +326,23 @@ function Reports() {
         </div>
         <button
           onClick={handlePrintSummary}
-          className="ml-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-bold text-sm shadow-sm flex items-center gap-2"
+          className="ml-4 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl transition font-bold text-sm shadow-sm flex items-center gap-2"
         >
           🖨️ Print Summary
         </button>
       </div>
 
       {loading ? (
-        <div className="py-20 text-center text-gray-400 animate-pulse text-lg">Calculating statistics...</div>
+        <div className="py-20 text-center text-fg-subtle animate-pulse text-lg">Calculating statistics...</div>
       ) : (
         <>
           {fromCache && (
-            <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div role="status" className="rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span>
                 ⚠️ Showing figures saved on this device — {fromCache === 'offline' ? 'you are offline' : fromCache === 'timeout' ? 'the server took too long to answer' : 'the server could not be reached'}.
                 Numbers may be incomplete.
               </span>
-              <button type="button" onClick={fetchReportData} className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white hover:bg-amber-700">Try again</button>
+              <button type="button" onClick={fetchReportData} className="shrink-0 rounded-lg bg-warning px-3 py-1.5 font-bold text-white hover:bg-warning-hover">Try again</button>
             </div>
           )}
 
@@ -357,13 +357,13 @@ function Reports() {
           {/* Retail vs Wholesale split */}
           {wholesaleEnabled && tierSplit && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[['retail', 'Retail', 'border-blue-200 bg-blue-50/50 text-blue-800'], ['wholesale', 'Wholesale', 'border-amber-200 bg-amber-50/60 text-amber-800']].map(([key, label, cls]) => {
+              {[['retail', 'Retail', 'border-primary-line bg-primary-soft/50 text-primary-strong'], ['wholesale', 'Wholesale', 'border-wholesale-line bg-wholesale-soft/60 text-wholesale-strong']].map(([key, label, cls]) => {
                 const t = tierSplit[key]
                 const margin = t.sales > 0 ? (t.profit / t.sales) * 100 : 0
                 return (
                   <div key={key} className={`rounded-2xl border p-4 ${cls}`}>
                     <p className="text-xs font-black uppercase tracking-wider">{label} Sales · {t.count} bill(s)</p>
-                    <p className="mt-1 text-2xl font-black text-gray-900">Rs. {Math.round(t.sales).toLocaleString()}</p>
+                    <p className="mt-1 text-2xl font-black text-fg">Rs. {Math.round(t.sales).toLocaleString()}</p>
                     <p className="mt-0.5 text-sm font-semibold">
                       Gross profit Rs. {Math.round(t.profit).toLocaleString()} · {margin.toFixed(1)}% margin
                     </p>
@@ -375,9 +375,9 @@ function Reports() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sales Trend Chart */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+            <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle p-6">
+              <h3 className="font-bold text-fg mb-6 flex items-center gap-2">
+                <span className="w-2 h-6 bg-primary rounded-full"></span>
                 Sales Trend
               </h3>
               <div className="h-64 w-full">
@@ -397,9 +397,9 @@ function Reports() {
             </div>
 
             {/* Category Pie Chart */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <span className="w-2 h-6 bg-purple-600 rounded-full"></span>
+            <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle p-6">
+              <h3 className="font-bold text-fg mb-6 flex items-center gap-2">
+                <span className="w-2 h-6 bg-info rounded-full"></span>
                 Profit by Category
               </h3>
               <div className="h-64 w-full">
@@ -428,39 +428,39 @@ function Reports() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Net Breakdown */}
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+            <div className="lg:col-span-2 bg-surface rounded-2xl shadow-sm border border-line-subtle p-6">
+              <h3 className="font-bold text-fg mb-6 flex items-center gap-2">
+                <span className="w-2 h-6 bg-primary rounded-full"></span>
                 Detailed Summary
               </h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center pb-2 border-b border-dashed">
-                  <span className="text-gray-600">Total Sales (Inc. Discount)</span>
+                  <span className="text-fg-3">Total Sales (Inc. Discount)</span>
                   <span className="font-bold">Rs. {stats.grossSales.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-dashed">
-                  <span className="text-gray-600">Total Discounts Given</span>
-                  <span className="font-bold text-red-500">- Rs. {stats.totalDiscount.toLocaleString()}</span>
+                  <span className="text-fg-3">Total Discounts Given</span>
+                  <span className="font-bold text-danger-fg">- Rs. {stats.totalDiscount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-dashed">
-                  <span className="text-gray-600 font-bold">Net Sales Value</span>
-                  <span className="font-bold text-blue-600">Rs. {(stats.grossSales - stats.totalDiscount).toLocaleString()}</span>
+                  <span className="text-fg-3 font-bold">Net Sales Value</span>
+                  <span className="font-bold text-primary-fg">Rs. {(stats.grossSales - stats.totalDiscount).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-dashed">
-                  <span className="text-gray-600">Cost of Goods Sold (COGS)</span>
-                  <span className="font-bold text-orange-600">- Rs. {stats.costOfSales.toLocaleString()}</span>
+                  <span className="text-fg-3">Cost of Goods Sold (COGS)</span>
+                  <span className="font-bold text-warning-fg">- Rs. {stats.costOfSales.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-dashed">
-                  <span className="text-gray-600 font-bold text-lg">Gross Profit</span>
-                  <span className="font-bold text-emerald-600 text-lg">Rs. {stats.grossProfit.toLocaleString()}</span>
+                  <span className="text-fg-3 font-bold text-lg">Gross Profit</span>
+                  <span className="font-bold text-success-fg text-lg">Rs. {stats.grossProfit.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-dashed">
-                  <span className="text-gray-600">Total Operating Expenses</span>
-                  <span className="font-bold text-red-500">- Rs. {stats.expenses.toLocaleString()}</span>
+                  <span className="text-fg-3">Total Operating Expenses</span>
+                  <span className="font-bold text-danger-fg">- Rs. {stats.expenses.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
-                  <span className="text-xl font-black text-gray-800 uppercase tracking-tight">Net Business Profit</span>
-                  <span className={`text-2xl font-black ${stats.netProfit >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                  <span className="text-xl font-black text-fg uppercase tracking-tight">Net Business Profit</span>
+                  <span className={`text-2xl font-black ${stats.netProfit >= 0 ? 'text-primary-strong' : 'text-danger-strong'}`}>
                     Rs. {stats.netProfit.toLocaleString()}
                   </span>
                 </div>
@@ -469,42 +469,42 @@ function Reports() {
 
             {/* Expenses Side */}
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="font-bold text-gray-800 mb-4">Expense Breakdown</h3>
+              <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle p-6">
+                <h3 className="font-bold text-fg mb-4">Expense Breakdown</h3>
                 <div className="space-y-3">
                   {expenseBreakdown.map(e => (
                     <div key={e.cat} className="flex flex-col gap-1">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 font-medium">{e.cat}</span>
+                        <span className="text-fg-3 font-medium">{e.cat}</span>
                         <span className="font-bold">Rs. {e.val.toLocaleString()}</span>
                       </div>
-                      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-surface-3 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-red-400"
+                          className="h-full bg-danger"
                           style={{ width: `${(e.val / stats.expenses) * 100}%` }}
                         ></div>
                       </div>
                     </div>
                   ))}
-                  {expenseBreakdown.length === 0 && <p className="text-center text-gray-400 py-4 text-sm italic">No expenses in this period</p>}
+                  {expenseBreakdown.length === 0 && <p className="text-center text-fg-subtle py-4 text-sm italic">No expenses in this period</p>}
                 </div>
               </div>
 
-              <div className="bg-blue-600 rounded-2xl shadow-lg p-6 text-white">
+              <div className="bg-primary rounded-2xl shadow-lg p-6 text-white">
                 <h3 className="font-bold mb-1">New Purchases</h3>
-                <p className="text-xs text-blue-100 mb-4">Inventory added in this period</p>
+                <p className="text-xs text-white/80 mb-4">Inventory added in this period</p>
                 <p className="text-2xl font-black">Rs. {stats.purchases.toLocaleString()}</p>
               </div>
             </div>
           </div>
 
           {/* Top Products */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="font-bold text-gray-800 mb-6">Top Selling Products (by Revenue)</h3>
+          <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle p-6">
+            <h3 className="font-bold text-fg mb-6">Top Selling Products (by Revenue)</h3>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="text-left text-xs text-gray-400 uppercase tracking-widest border-b">
+                  <tr className="text-left text-xs text-fg-subtle uppercase tracking-widest border-b">
                     <th className="pb-3">Product Name</th>
                     <th className="pb-3 text-center">Qty Sold</th>
                     <th className="pb-3 text-right">Revenue</th>
@@ -513,18 +513,18 @@ function Reports() {
                 </thead>
                 <tbody className="divide-y">
                   {topProducts.map(p => (
-                    <tr key={p.name} className="hover:bg-gray-50 group transition">
-                      <td className="py-4 font-bold text-gray-700">{p.name}</td>
-                      <td className="py-4 text-center font-medium text-gray-500">{p.qty}</td>
-                      <td className="py-4 text-right font-black text-gray-800">Rs. {p.revenue.toLocaleString()}</td>
+                    <tr key={p.name} className="hover:bg-surface-2 group transition">
+                      <td className="py-4 font-bold text-fg-2">{p.name}</td>
+                      <td className="py-4 text-center font-medium text-fg-muted">{p.qty}</td>
+                      <td className="py-4 text-right font-black text-fg">Rs. {p.revenue.toLocaleString()}</td>
                       <td className="py-4 text-right">
-                        <span className="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded">
+                        <span className="px-2 py-1 bg-primary-soft text-primary-fg text-[10px] font-bold rounded">
                           {((p.revenue / (stats.grossSales || 1)) * 100).toFixed(1)}%
                         </span>
                       </td>
                     </tr>
                   ))}
-                  {topProducts.length === 0 && <tr><td colSpan="4" className="py-10 text-center text-gray-400 italic">No sales recorded</td></tr>}
+                  {topProducts.length === 0 && <tr><td colSpan="4" className="py-10 text-center text-fg-subtle italic">No sales recorded</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -537,17 +537,17 @@ function Reports() {
 
 function StatCard({ title, value, sub, color, highlight }) {
   const colors = {
-    blue: 'border-blue-100 text-blue-600',
-    orange: 'border-orange-100 text-orange-600',
-    emerald: 'border-emerald-100 text-emerald-600',
-    indigo: 'border-indigo-100 text-indigo-700 bg-indigo-50'
+    blue: 'border-primary-muted text-primary-fg',
+    orange: 'border-warning-muted text-warning-fg',
+    emerald: 'border-success-muted text-success-fg',
+    indigo: 'border-primary-muted text-primary-strong bg-primary-soft'
   }
 
   return (
-    <div className={`bg-white p-5 rounded-2xl shadow-sm border ${colors[color] || 'border-gray-100'} ${highlight ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}>
-      <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">{title}</p>
+    <div className={`bg-surface p-5 rounded-2xl shadow-sm border ${colors[color] || 'border-line-subtle'} ${highlight ? 'ring-2 ring-primary ring-offset-2' : ''}`}>
+      <p className="text-xs font-bold uppercase tracking-wider text-fg-subtle mb-1">{title}</p>
       <p className="text-2xl font-black">Rs. {value.toLocaleString()}</p>
-      <p className="text-[10px] text-gray-400 mt-1 font-medium">{sub}</p>
+      <p className="text-[10px] text-fg-subtle mt-1 font-medium">{sub}</p>
     </div>
   )
 }

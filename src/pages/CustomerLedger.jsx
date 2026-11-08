@@ -505,20 +505,20 @@ function CustomerLedger() {
     }
 
     if (loading) return <div className="p-8">Loading ledger...</div>
-    if (!customer) return <div className="p-8 text-red-500">Customer not found!</div>
+    if (!customer) return <div className="p-8 text-danger-fg">Customer not found!</div>
 
     return (
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
-                    <button onClick={() => navigate('/customers')} className="text-blue-500 mb-2 hover:underline text-sm font-semibold">← Back to Customers</button>
-                    <h1 className="text-3xl font-bold text-gray-800">{customer.name}</h1>
-                    <p className="text-gray-500">{customer.phone} | {customer.address}</p>
+                    <button onClick={() => navigate('/customers')} className="text-primary-fg mb-2 hover:underline text-sm font-semibold">← Back to Customers</button>
+                    <h1 className="text-3xl font-bold text-fg">{customer.name}</h1>
+                    <p className="text-fg-muted">{customer.phone} | {customer.address}</p>
                 </div>
                 <div className="w-full sm:w-auto text-left sm:text-right flex flex-col sm:items-end gap-3">
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex-1 w-full sm:w-auto">
-                        <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Total Outstanding</p>
-                        <p className={`text-3xl font-bold ${customer.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle flex-1 w-full sm:w-auto">
+                        <p className="text-sm text-fg-muted uppercase tracking-wider font-semibold">Total Outstanding</p>
+                        <p className={`text-3xl font-bold ${customer.outstanding_balance > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>
                             Rs. {customer.outstanding_balance || 0}
                         </p>
                     </div>
@@ -558,21 +558,21 @@ function CustomerLedger() {
                                         btn.innerHTML = '<span>💬</span> WhatsApp Reminder'
                                     }
                                 }}
-                                className="w-full sm:w-auto px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition font-semibold shadow-lg flex items-center justify-center gap-2"
+                                className="w-full sm:w-auto px-4 py-2.5 bg-success hover:bg-success-hover text-white rounded-lg transition font-semibold shadow-lg flex items-center justify-center gap-2"
                             >
                                 <span>💬</span> WhatsApp Reminder
                             </button>
                         )}
                         <button
                             onClick={handleReconcileBalance}
-                            className="w-full sm:w-auto px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition font-semibold shadow-lg flex items-center justify-center gap-1.5"
+                            className="w-full sm:w-auto px-4 py-2.5 bg-warning hover:bg-warning-hover text-white rounded-lg transition font-semibold shadow-lg flex items-center justify-center gap-1.5"
                             title="Recalculate customer balance from transaction ledger sum"
                         >
                             ⚡ Reconcile
                         </button>
                         <button
                             onClick={() => setShowTxModal(true)}
-                            className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-semibold shadow-lg">
+                            className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg transition font-semibold shadow-lg">
                             ➕ Add Transaction
                         </button>
                     </div>
@@ -580,60 +580,60 @@ function CustomerLedger() {
             </div>
 
             {selectedIds.size > 0 && (
-                <div className="mb-3 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                    <span className="text-sm font-bold text-red-700">{selectedIds.size} selected</span>
+                <div className="mb-3 flex items-center gap-3 bg-danger-soft border border-danger-line rounded-xl px-4 py-3">
+                    <span className="text-sm font-bold text-danger-strong">{selectedIds.size} selected</span>
                     <button
                         onClick={handleBulkDelete}
-                        className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition"
+                        className="px-4 py-1.5 bg-danger hover:bg-danger-hover text-white rounded-lg text-sm font-bold transition"
                     >🗑️ Delete Selected</button>
                     <button
                         onClick={() => setSelectedIds(new Set())}
-                        className="px-3 py-1.5 bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-lg text-sm transition"
+                        className="px-3 py-1.5 bg-surface border border-line text-fg-muted hover:bg-surface-2 rounded-lg text-sm transition"
                     >✕ Clear</button>
                 </div>
             )}
 
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-                <div className="divide-y divide-gray-100 md:hidden">
+            <div className="bg-surface rounded-2xl shadow-xl overflow-hidden border border-line-subtle">
+                <div className="divide-y divide-line-subtle md:hidden">
                     {ledger.length === 0 ? (
-                        <p className="p-6 text-center text-gray-400 text-sm">No transactions found for this customer.</p>
+                        <p className="p-6 text-center text-fg-subtle text-sm">No transactions found for this customer.</p>
                     ) : (
                         ledger.map((item, idx) => (
-                            <div key={idx} className={`p-4 ${selectedIds.has(item.id) ? 'bg-red-50/40' : ''}`}>
+                            <div key={idx} className={`p-4 ${selectedIds.has(item.id) ? 'bg-danger-soft/40' : ''}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                        <p className="text-xs text-gray-400">{new Date(item.date).toLocaleDateString('en-PK')}</p>
+                                        <p className="text-xs text-fg-subtle">{new Date(item.date).toLocaleDateString('en-PK')}</p>
                                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-semibold text-gray-800">{item.note}</span>
+                                            <span className="font-semibold text-fg">{item.note}</span>
                                             {item.bill_number && (
-                                                <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">Bill #{item.bill_number}</span>
+                                                <span className="bg-primary-soft text-primary-strong border border-primary-line px-2 py-0.5 rounded text-[10px] font-bold">Bill #{item.bill_number}</span>
                                             )}
                                         </div>
-                                        {item.details && <p className="mt-1 text-xs text-gray-500">{item.details}</p>}
+                                        {item.details && <p className="mt-1 text-xs text-fg-muted">{item.details}</p>}
                                         
                                         <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                                             {item.payment_mode && (
-                                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
+                                                <span className="bg-surface-3 text-fg-3 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
                                             )}
                                             {item.transaction_ref && (
-                                                <span className="text-[10px] text-gray-400">Ref: {item.transaction_ref}</span>
+                                                <span className="text-[10px] text-fg-subtle">Ref: {item.transaction_ref}</span>
                                             )}
                                             {item.type === 'payment' && (
                                                 <button
                                                     onClick={() => printPaymentVoucher(item.amount, item.note, item.date)}
-                                                    className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-tighter"
+                                                    className="text-[10px] text-primary-fg hover:underline font-bold uppercase tracking-tighter"
                                                 >🖨️ Print</button>
                                             )}
                                             {item.type === 'sale' && (
                                                 <button
                                                     onClick={() => setExpandedSale(expandedSale === item.id ? null : item.id)}
-                                                    className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-tighter"
+                                                    className="text-[10px] text-primary-fg hover:underline font-bold uppercase tracking-tighter"
                                                 >
                                                     {expandedSale === item.id ? 'Collapse ▲' : 'Details ▼'}
                                                 </button>
                                             )}
-                                            {item.type === 'return' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold">Return</span>}
-                                            {item.type === 'debit' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] uppercase font-bold">Manual Sale</span>}
+                                            {item.type === 'return' && <span className="px-2 py-0.5 bg-danger-muted text-danger-strong rounded-full text-[10px] uppercase font-bold">Return</span>}
+                                            {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">Manual Sale</span>}
                                         </div>
                                     </div>
                                     
@@ -646,7 +646,7 @@ function CustomerLedger() {
                                             <button
                                                 onClick={() => handleDeleteTransaction(item)}
                                                 title="Delete transaction"
-                                                className="p-1 text-gray-400 hover:text-red-500 rounded transition text-xs"
+                                                className="p-1 text-fg-subtle hover:text-danger-fg rounded transition text-xs"
                                             >🗑️</button>
                                         )}
                                     </div>
@@ -654,32 +654,32 @@ function CustomerLedger() {
 
                                 <div className="mt-3 grid grid-cols-3 gap-2 text-right text-xs">
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Debit (+)</p>
-                                        <p className="font-bold text-red-600">{(item.type === 'sale' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toFixed(0)}` : '—'}</p>
+                                        <p className="text-[10px] font-bold uppercase text-fg-subtle text-left">Debit (+)</p>
+                                        <p className="font-bold text-danger-fg">{(item.type === 'sale' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toFixed(0)}` : '—'}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Credit (-)</p>
-                                        <p className="font-bold text-green-600">{(item.type === 'payment' || item.type === 'return') ? `- Rs. ${Math.abs(item.amount).toFixed(0)}` : '—'}</p>
+                                        <p className="text-[10px] font-bold uppercase text-fg-subtle text-left">Credit (-)</p>
+                                        <p className="font-bold text-success-fg">{(item.type === 'payment' || item.type === 'return') ? `- Rs. ${Math.abs(item.amount).toFixed(0)}` : '—'}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Balance</p>
-                                        <p className="font-black text-gray-900">Rs. {item.balance.toFixed(0)}</p>
+                                        <p className="text-[10px] font-bold uppercase text-fg-subtle text-left">Balance</p>
+                                        <p className="font-black text-fg">Rs. {item.balance.toFixed(0)}</p>
                                     </div>
                                 </div>
 
                                 {item.type === 'sale' && expandedSale === item.id && (
-                                    <div className="mt-3 bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
+                                    <div className="mt-3 bg-primary-soft/50 p-3 rounded-lg border border-primary-muted/50">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
-                                            <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                            <span className="text-[10px] text-fg-subtle uppercase font-bold tracking-widest">Payment:</span>
+                                            <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-success-muted text-success-strong' : 'bg-warning-muted text-warning-strong'}`}>
                                                 {item.payment_type}
                                             </span>
                                         </div>
                                         <div className="flex flex-col gap-1.5">
                                             {(item.items || []).map((it, iidx) => (
-                                                <div key={iidx} className="flex justify-between text-xs bg-white/60 p-2 rounded border border-blue-100/30">
-                                                    <span className="text-gray-700 font-medium">{it.product_name}</span>
-                                                    <span className="text-gray-500 font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
+                                                <div key={iidx} className="flex justify-between text-xs bg-surface/60 p-2 rounded border border-primary-muted/30">
+                                                    <span className="text-fg-2 font-medium">{it.product_name}</span>
+                                                    <span className="text-fg-muted font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -691,77 +691,77 @@ function CustomerLedger() {
                 </div>
                 <div className="hidden overflow-x-auto md:block">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-surface-2 border-b">
                             <tr>
                                 <th className="px-4 py-4 w-10">
                                     <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
                                         className="w-4 h-4 rounded cursor-pointer" />
                                 </th>
-                                <th className="px-6 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Date</th>
-                                <th className="px-6 py-4 text-left font-semibold text-gray-600 min-w-[200px]">Description</th>
-                                <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Debit (Sale)</th>
-                                <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Credit (Payment)</th>
-                                <th className="px-6 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Balance</th>
-                                <th className="px-4 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Action</th>
+                                <th className="px-6 py-4 text-left font-semibold text-fg-3 whitespace-nowrap">Date</th>
+                                <th className="px-6 py-4 text-left font-semibold text-fg-3 min-w-[200px]">Description</th>
+                                <th className="px-6 py-4 text-right font-semibold text-fg-3 whitespace-nowrap">Debit (Sale)</th>
+                                <th className="px-6 py-4 text-right font-semibold text-fg-3 whitespace-nowrap">Credit (Payment)</th>
+                                <th className="px-6 py-4 text-right font-semibold text-fg-3 whitespace-nowrap">Balance</th>
+                                <th className="px-4 py-4 text-right font-semibold text-fg-3 whitespace-nowrap">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-line-subtle">
                         {ledger.length === 0 && (
-                            <tr><td colSpan="7" className="px-6 py-12 text-center text-gray-400 text-sm">No transactions found for this customer.</td></tr>
+                            <tr><td colSpan="7" className="px-6 py-12 text-center text-fg-subtle text-sm">No transactions found for this customer.</td></tr>
                         )}
                         {ledger.map((item, idx) => (
                             <React.Fragment key={idx}>
-                                <tr className={`hover:bg-gray-50 transition ${selectedIds.has(item.id) ? 'bg-red-50/40' : ''}`}>
+                                <tr className={`hover:bg-surface-2 transition ${selectedIds.has(item.id) ? 'bg-danger-soft/40' : ''}`}>
                                     <td className="px-4 py-4">
                                         {item.id !== 'opening' && (
                                             <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)}
                                                 className="w-4 h-4 rounded cursor-pointer" />
                                         )}
                                     </td>
-                                    <td className="px-6 py-4 text-gray-500 font-normal">{new Date(item.date).toLocaleDateString('en-PK')}</td>
+                                    <td className="px-6 py-4 text-fg-muted font-normal">{new Date(item.date).toLocaleDateString('en-PK')}</td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-0.5">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="font-medium text-gray-800">{item.note}</span>
+                                                <span className="font-medium text-fg">{item.note}</span>
                                                 {item.bill_number && (
-                                                    <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[10px] font-bold">Bill #{item.bill_number}</span>
+                                                    <span className="bg-primary-soft text-primary-strong border border-primary-line px-2 py-0.5 rounded text-[10px] font-bold">Bill #{item.bill_number}</span>
                                                 )}
                                                 {item.type === 'sale' && (
                                                     <button
                                                         onClick={() => setExpandedSale(expandedSale === item.id ? null : item.id)}
-                                                        className="text-[10px] text-blue-600 hover:text-blue-800 font-bold uppercase tracking-tighter"
+                                                        className="text-[10px] text-primary-fg hover:text-primary-strong font-bold uppercase tracking-tighter"
                                                     >
                                                         {expandedSale === item.id ? 'Collapse ▲' : 'Details ▼'}
                                                     </button>
                                                 )}
                                             </div>
-                                            {item.details && <span className="text-xs text-gray-500 truncate max-w-xs">{item.details}</span>}
+                                            {item.details && <span className="text-xs text-fg-muted truncate max-w-xs">{item.details}</span>}
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                 {item.payment_mode && (
-                                                    <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
+                                                    <span className="bg-surface-3 text-fg-3 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
                                                 )}
                                                 {item.transaction_ref && (
-                                                    <span className="text-[10px] text-gray-400">Ref: {item.transaction_ref}</span>
+                                                    <span className="text-[10px] text-fg-subtle">Ref: {item.transaction_ref}</span>
                                                 )}
                                                 {item.type === 'payment' && (
                                                     <button
                                                         onClick={() => printPaymentVoucher(item.amount, item.note, item.date)}
-                                                        className="text-[10px] text-gray-400 hover:text-green-600 font-medium transition"
+                                                        className="text-[10px] text-fg-subtle hover:text-success-fg font-medium transition"
                                                         title="Print Payment Voucher"
                                                     >🖨️ Print</button>
                                                 )}
-                                                {item.type === 'return' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold">Return</span>}
-                                                {item.type === 'debit' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] uppercase font-bold">Manual Sale</span>}
+                                                {item.type === 'return' && <span className="px-2 py-0.5 bg-danger-muted text-danger-strong rounded-full text-[10px] uppercase font-bold">Return</span>}
+                                                {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">Manual Sale</span>}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-right text-red-600 font-semibold">
+                                    <td className="px-6 py-4 text-right text-danger-fg font-semibold">
                                         {(item.type === 'sale' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toFixed(0)}` : ''}
                                     </td>
-                                    <td className="px-6 py-4 text-right text-green-600 font-semibold">
+                                    <td className="px-6 py-4 text-right text-success-fg font-semibold">
                                         {(item.type === 'payment' || item.type === 'return') ? `- Rs. ${Math.abs(item.amount).toFixed(0)}` : ''}
                                     </td>
-                                    <td className="px-6 py-4 text-right font-bold text-gray-900">
+                                    <td className="px-6 py-4 text-right font-bold text-fg">
                                         Rs. {item.balance.toFixed(0)}
                                     </td>
                                     <td className="px-4 py-4 text-right">
@@ -769,26 +769,26 @@ function CustomerLedger() {
                                             <button
                                                 onClick={() => handleDeleteTransaction(item)}
                                                 title="Delete transaction"
-                                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs"
+                                                className="p-1.5 text-fg-faint hover:text-danger-fg hover:bg-danger-soft rounded-lg transition text-xs"
                                             >🗑️</button>
                                         )}
                                     </td>
                                 </tr>
                                 {item.type === 'sale' && expandedSale === item.id && (
-                                    <tr className="bg-blue-50/50 border-b border-gray-100">
+                                    <tr className="bg-primary-soft/50 border-b border-line-subtle">
                                         <td colSpan="7" className="px-6 py-3">
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
-                                                    <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                    <span className="text-[10px] text-fg-subtle uppercase font-bold tracking-widest">Payment:</span>
+                                                    <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-success-muted text-success-strong' : 'bg-warning-muted text-warning-strong'}`}>
                                                         {item.payment_type}
                                                     </span>
                                                 </div>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                                     {(item.items || []).map((it, iidx) => (
-                                                        <div key={iidx} className="flex justify-between text-xs bg-white/60 p-2 rounded-lg border border-blue-100/50 shadow-sm">
-                                                            <span className="text-gray-700 font-medium">{it.product_name}</span>
-                                                            <span className="text-gray-500 font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
+                                                        <div key={iidx} className="flex justify-between text-xs bg-surface/60 p-2 rounded-lg border border-primary-muted/50 shadow-sm">
+                                                            <span className="text-fg-2 font-medium">{it.product_name}</span>
+                                                            <span className="text-fg-muted font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -805,14 +805,14 @@ function CustomerLedger() {
 
             {/* Payment Success Banner */}
             {lastPayment && (
-                <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white rounded-2xl shadow-2xl p-4 flex items-center gap-4 animate-bounce-once max-w-sm">
+                <div className="fixed bottom-6 right-6 z-50 bg-success text-white rounded-2xl shadow-2xl p-4 flex items-center gap-4 animate-bounce-once max-w-sm">
                     <div>
                         <p className="font-bold text-sm">✅ Payment Recorded!</p>
                         <p className="text-xs opacity-90">Rs. {Number(lastPayment.amount).toLocaleString()} — {lastPayment.note}</p>
                     </div>
                     <button
                         onClick={() => printPaymentVoucher(lastPayment.amount, lastPayment.note, lastPayment.date)}
-                        className="bg-white text-green-700 font-bold text-xs px-3 py-2 rounded-xl hover:bg-green-50 transition whitespace-nowrap"
+                        className="bg-surface text-success-strong font-bold text-xs px-3 py-2 rounded-xl hover:bg-success-soft transition whitespace-nowrap"
                     >
                         🖨️ Print
                     </button>
@@ -827,92 +827,92 @@ function CustomerLedger() {
                 const payAmt = parseFloat(txForm.payment_amount) || 0
                 const newBalance = prevBalance + saleAmt - payAmt
                 return (
-                    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-                            <h2 className="text-xl font-bold text-gray-800 mb-1">➕ Add Transaction</h2>
-                            <p className="text-xs text-gray-400 mb-4">Sale aur payment ek saath ya alag alag darj karein</p>
+                    <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+                        <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-md">
+                            <h2 className="text-xl font-bold text-fg mb-1">➕ Add Transaction</h2>
+                            <p className="text-xs text-fg-subtle mb-4">Sale aur payment ek saath ya alag alag darj karein</p>
                             <form onSubmit={handleAddTransaction} className="space-y-4">
 
                                 {/* Date + Bill # */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Date</label>
+                                        <label className="block text-fg-2 font-medium mb-1 text-sm">Date</label>
                                         <input type="date" value={txForm.date}
                                             onChange={e => setTxForm(f => ({ ...f, date: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                                            className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm" />
                                     </div>
                                     <div>
-                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Bill # (Optional)</label>
+                                        <label className="block text-fg-2 font-medium mb-1 text-sm">Bill # (Optional)</label>
                                         <input type="text" value={txForm.bill_number}
                                             onChange={e => setTxForm(f => ({ ...f, bill_number: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                            className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
                                             placeholder="e.g. INV-001" />
                                     </div>
                                 </div>
 
                                 {/* Sale Amount (Debit) */}
                                 <div>
-                                    <label className="block font-semibold mb-1 text-sm text-orange-600">🛒 Sale Amount / Debit</label>
+                                    <label className="block font-semibold mb-1 text-sm text-warning-fg">🛒 Sale Amount / Debit</label>
                                     <input type="number" min="0" step="any" value={txForm.sale_amount}
                                         onChange={e => setTxForm(f => ({ ...f, sale_amount: e.target.value }))}
-                                        className="w-full px-4 py-2.5 border border-orange-200 bg-orange-50 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                                        className="w-full px-4 py-2.5 border border-warning-line bg-warning-soft rounded-lg focus:ring-2 focus:ring-warning outline-none text-sm"
                                         placeholder="0  — kitna maal becha (Rs.)" />
-                                    <p className="text-xs text-gray-400 mt-0.5">Customer ko jo maal diya uski value</p>
+                                    <p className="text-xs text-fg-subtle mt-0.5">Customer ko jo maal diya uski value</p>
                                 </div>
 
                                 {/* Payment Received (Credit) */}
                                 <div>
-                                    <label className="block font-semibold mb-1 text-sm text-green-600">💵 Payment Received / Credit</label>
+                                    <label className="block font-semibold mb-1 text-sm text-success-fg">💵 Payment Received / Credit</label>
                                     <input type="number" min="0" step="any" value={txForm.payment_amount}
                                         onChange={e => setTxForm(f => ({ ...f, payment_amount: e.target.value }))}
-                                        className="w-full px-4 py-2.5 border border-green-200 bg-green-50 rounded-lg focus:ring-2 focus:ring-green-400 outline-none text-sm"
+                                        className="w-full px-4 py-2.5 border border-success-line bg-success-soft rounded-lg focus:ring-2 focus:ring-success outline-none text-sm"
                                         placeholder="0  — kitni payment ayi (Rs.)" />
-                                    <p className="text-xs text-gray-400 mt-0.5">Customer sy jo payment mili</p>
+                                    <p className="text-xs text-fg-subtle mt-0.5">Customer sy jo payment mili</p>
                                 </div>
 
                                 {/* Balance Preview */}
-                                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
-                                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wide mb-2">Balance Calculation</p>
+                                <div className="bg-surface-2 rounded-xl p-3 border border-line">
+                                    <p className="text-xs text-fg-muted uppercase font-bold tracking-wide mb-2">Balance Calculation</p>
                                     <div className="flex flex-col gap-1 text-sm">
-                                        <div className="flex justify-between text-gray-600">
+                                        <div className="flex justify-between text-fg-3">
                                             <span>Previous Balance</span>
                                             <span className="font-semibold">Rs. {Number(prevBalance).toLocaleString()}</span>
                                         </div>
                                         {saleAmt > 0 && (
-                                            <div className="flex justify-between text-orange-600">
+                                            <div className="flex justify-between text-warning-fg">
                                                 <span>+ Sale (Debit)</span>
                                                 <span className="font-semibold">Rs. {saleAmt.toLocaleString()}</span>
                                             </div>
                                         )}
                                         {payAmt > 0 && (
-                                            <div className="flex justify-between text-green-600">
+                                            <div className="flex justify-between text-success-fg">
                                                 <span>− Payment (Credit)</span>
                                                 <span className="font-semibold">Rs. {payAmt.toLocaleString()}</span>
                                             </div>
                                         )}
-                                        <div className="border-t border-gray-300 mt-1 pt-1 flex justify-between font-bold text-base">
-                                            <span className="text-gray-800">New Balance</span>
-                                            <span className={newBalance > 0 ? 'text-red-600' : 'text-green-700'}>Rs. {newBalance.toLocaleString()}</span>
+                                        <div className="border-t border-line-strong mt-1 pt-1 flex justify-between font-bold text-base">
+                                            <span className="text-fg">New Balance</span>
+                                            <span className={newBalance > 0 ? 'text-danger-fg' : 'text-success-strong'}>Rs. {newBalance.toLocaleString()}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Details */}
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Details (Optional)</label>
+                                    <label className="block text-fg-2 font-medium mb-1 text-sm">Details (Optional)</label>
                                     <textarea rows="2" value={txForm.details}
                                         onChange={e => setTxForm(f => ({ ...f, details: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"
+                                        className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm resize-none"
                                         placeholder="Saman ki tafseel ya bill link..." />
                                 </div>
 
                                 {/* Payment Mode + Transaction Ref */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Payment Mode</label>
+                                        <label className="block text-fg-2 font-medium mb-1 text-sm">Payment Mode</label>
                                         <select value={txForm.payment_mode}
                                             onChange={e => setTxForm(f => ({ ...f, payment_mode: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                            className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm bg-surface">
                                             <option value="cash">Cash</option>
                                             <option value="bank">Bank Transfer</option>
                                             <option value="cheque">Cheque</option>
@@ -921,30 +921,30 @@ function CustomerLedger() {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-gray-700 font-medium mb-1 text-sm">Transaction Ref</label>
+                                        <label className="block text-fg-2 font-medium mb-1 text-sm">Transaction Ref</label>
                                         <input type="text" value={txForm.transaction_ref}
                                             onChange={e => setTxForm(f => ({ ...f, transaction_ref: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                            className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
                                             placeholder="Cheque # / Txn ID" />
                                     </div>
                                 </div>
 
                                 {/* Note */}
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Note (Optional)</label>
+                                    <label className="block text-fg-2 font-medium mb-1 text-sm">Note (Optional)</label>
                                     <textarea rows="2" value={txForm.note}
                                         onChange={e => setTxForm(f => ({ ...f, note: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"
+                                        className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm resize-none"
                                         placeholder="e.g. Advance payment / Credit sale..." />
                                 </div>
 
                                 <div className="flex gap-3 pt-1">
                                     <button type="submit" disabled={saving}
-                                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:opacity-50">
+                                        className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition disabled:opacity-50">
                                         {saving ? 'Saving...' : '✅ Save Transaction'}
                                     </button>
                                     <button type="button" onClick={resetTxForm}
-                                        className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition">
+                                        className="flex-1 py-3 bg-surface-3 hover:bg-surface-4 text-fg-2 font-bold rounded-lg transition">
                                         Cancel
                                     </button>
                                 </div>

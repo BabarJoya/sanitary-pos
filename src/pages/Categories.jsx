@@ -275,7 +275,7 @@ function Categories() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">🗂️ Categories</h1>
+        <h1 className="text-2xl font-bold text-fg">🗂️ Categories</h1>
         <div className="flex gap-2 w-full sm:w-auto flex-wrap">
           <input
             type="file"
@@ -286,19 +286,19 @@ function Categories() {
           />
           <button
             onClick={() => fileInputRef.current.click()}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
+            className="px-4 py-2 bg-success hover:bg-success-hover text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
           >
             📥 Import
           </button>
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
+            className="px-4 py-2 bg-contrast hover:bg-contrast-hover text-white rounded-lg transition text-sm font-bold flex items-center gap-2"
           >
             📤 Export
           </button>
           <button
             onClick={() => showForm ? handleCancel() : setShowForm(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm font-bold"
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition text-sm font-bold"
           >
             {showForm ? 'Cancel' : '+ Add Category'}
           </button>
@@ -307,11 +307,11 @@ function Categories() {
 
       {/* Low stock summary banner */}
       {lowStockSummary.length > 0 && (
-        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <p className="text-sm font-bold text-amber-800 mb-2">⚠️ Low Stock Alerts — {lowStockSummary.length} categor{lowStockSummary.length > 1 ? 'ies' : 'y'} mein stock kam hai:</p>
+        <div className="mb-4 bg-warning-soft border border-warning-line rounded-xl p-4">
+          <p className="text-sm font-bold text-warning-strong mb-2">⚠️ Low Stock Alerts — {lowStockSummary.length} categor{lowStockSummary.length > 1 ? 'ies' : 'y'} mein stock kam hai:</p>
           <div className="flex flex-wrap gap-2">
             {lowStockSummary.map(({ cat, count }) => (
-              <span key={cat.id} className="bg-white border border-amber-300 text-amber-800 text-xs font-semibold px-3 py-1 rounded-full">
+              <span key={cat.id} className="bg-surface border border-warning-edge text-warning-strong text-xs font-semibold px-3 py-1 rounded-full">
                 📦 {cat.name}: {count} item{count > 1 ? 's' : ''} ≤{cat.low_stock_threshold}
               </span>
             ))}
@@ -320,36 +320,36 @@ function Categories() {
       )}
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-lg">
-          <h2 className="font-semibold text-gray-700 mb-4">
+        <div className="bg-surface rounded-xl shadow p-6 mb-6 max-w-lg">
+          <h2 className="font-semibold text-fg-2 mb-4">
             {editingId ? 'Edit Category' : 'New Category'}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Name *</label>
+              <label className="block text-fg-2 font-medium mb-1">Name *</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. Beverages, Apparel, Hardware, Stationery..."
               />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Description</label>
+              <label className="block text-fg-2 font-medium mb-1">Description</label>
               <input
                 type="text"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Optional description"
               />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">
+              <label className="block text-fg-2 font-medium mb-1">
                 ⚠️ Low Stock Alert Threshold
-                <span className="text-xs text-gray-400 font-normal ml-2">— is se kam hone par alert aayega</span>
+                <span className="text-xs text-fg-subtle font-normal ml-2">— is se kam hone par alert aayega</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -357,23 +357,23 @@ function Categories() {
                   min="0"
                   value={form.low_stock_threshold}
                   onChange={(e) => setForm({ ...form, low_stock_threshold: e.target.value })}
-                  className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-32 px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-warning"
                   placeholder="e.g. 5"
                 />
-                <span className="text-sm text-gray-400">units (0 = disabled)</span>
+                <span className="text-sm text-fg-subtle">units (0 = disabled)</span>
               </div>
             </div>
             <div className="flex gap-3 pt-1">
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
+                className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition disabled:opacity-50">
                 {saving ? 'Saving...' : editingId ? 'Update Category' : 'Save Category'}
               </button>
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+                className="px-6 py-2 bg-surface-4 hover:bg-surface-5 text-fg-2 rounded-lg transition">
                 Cancel
               </button>
             </div>
@@ -382,57 +382,57 @@ function Categories() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-fg-muted">Loading...</p>
       ) : categories.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No categories yet</p>
+          <p className="text-fg-subtle text-lg">No categories yet</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-surface rounded-xl shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-y">
+              <thead className="bg-surface-2 border-y">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sr.</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Category Name</th>
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Products</th>
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Low Stock Alert</th>
-                  <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-fg-muted uppercase tracking-wider">Sr.</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-fg-muted uppercase tracking-wider">Category Name</th>
+                  <th className="px-6 py-3 text-center text-xs font-bold text-fg-muted uppercase tracking-wider">Products</th>
+                  <th className="px-6 py-3 text-center text-xs font-bold text-fg-muted uppercase tracking-wider">Low Stock Alert</th>
+                  <th className="px-6 py-3 text-center text-xs font-bold text-fg-muted uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line-subtle">
                 {categories.map((cat, idx) => {
                   const lowCount = getLowStockCount(cat)
                   return (
-                    <tr key={cat.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{idx + 1}</td>
-                      <td className="px-6 py-4 whitespace-nowrap font-semibold text-gray-900">{cat.name}</td>
+                    <tr key={cat.id} className="hover:bg-surface-2 transition">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-fg-muted">{idx + 1}</td>
+                      <td className="px-6 py-4 whitespace-nowrap font-semibold text-fg">{cat.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold rounded-full text-xs">
+                        <span className="px-3 py-1 bg-primary-soft text-primary-strong font-bold rounded-full text-xs">
                           {getProductCount(cat.id)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         {cat.low_stock_threshold > 0 ? (
                           <div className="flex flex-col items-center gap-1">
-                            <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-xs font-bold border border-amber-200">
+                            <span className="bg-warning-soft text-warning-strong px-2 py-0.5 rounded text-xs font-bold border border-warning-line">
                               ⚠️ ≤{cat.low_stock_threshold}
                             </span>
                             {lowCount > 0 && (
-                              <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded text-xs font-bold border border-red-200">
+                              <span className="bg-danger-soft text-danger-fg px-2 py-0.5 rounded text-xs font-bold border border-danger-line">
                                 🔴 {lowCount} low
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-gray-300 text-xs">—</span>
+                          <span className="text-fg-faint text-xs">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex gap-2 justify-center flex-wrap">
                           <button
                             onClick={() => handleEdit(cat)}
-                            className="px-3 py-1 hover:bg-gray-100 text-gray-600 rounded font-medium transition text-sm"
+                            className="px-3 py-1 hover:bg-surface-3 text-fg-3 rounded font-medium transition text-sm"
                           >
                             Edit
                           </button>
@@ -440,14 +440,14 @@ function Categories() {
                             <button
                               onClick={() => handleApplyToProducts(cat)}
                               disabled={applyingId === cat.id}
-                              className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-medium transition text-sm disabled:opacity-50"
+                              className="px-3 py-1 bg-warning-soft hover:bg-warning-muted text-warning-strong border border-warning-line rounded font-medium transition text-sm disabled:opacity-50"
                             >
                               {applyingId === cat.id ? '...' : '📊 Apply to Products'}
                             </button>
                           )}
                           <button
                             onClick={() => handleDelete(cat.id)}
-                            className="px-3 py-1 hover:bg-red-50 text-red-500 rounded font-medium transition text-sm"
+                            className="px-3 py-1 hover:bg-danger-soft text-danger-fg rounded font-medium transition text-sm"
                           >
                             Delete
                           </button>

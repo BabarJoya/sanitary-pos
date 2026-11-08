@@ -590,88 +590,88 @@ function Suppliers() {
         const cleared = suppliers.length - suppliersWithDue
         return (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow p-4 border-l-4 border-red-400">
-              <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Total Amount Due</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">Rs. {totalDue.toLocaleString()}</p>
-              <p className="text-xs text-gray-400 mt-1">Across all suppliers</p>
+            <div className="bg-surface rounded-xl shadow p-4 border-l-4 border-danger">
+              <p className="text-xs text-fg-muted uppercase font-semibold tracking-wide">Total Amount Due</p>
+              <p className="text-2xl font-bold text-danger-fg mt-1">Rs. {totalDue.toLocaleString()}</p>
+              <p className="text-xs text-fg-subtle mt-1">Across all suppliers</p>
             </div>
-            <div className="bg-white rounded-xl shadow p-4 border-l-4 border-orange-400">
-              <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Suppliers with Balance</p>
-              <p className="text-2xl font-bold text-orange-600 mt-1">{suppliersWithDue}</p>
-              <p className="text-xs text-gray-400 mt-1">Have outstanding amount</p>
+            <div className="bg-surface rounded-xl shadow p-4 border-l-4 border-warning">
+              <p className="text-xs text-fg-muted uppercase font-semibold tracking-wide">Suppliers with Balance</p>
+              <p className="text-2xl font-bold text-warning-fg mt-1">{suppliersWithDue}</p>
+              <p className="text-xs text-fg-subtle mt-1">Have outstanding amount</p>
             </div>
-            <div className="bg-white rounded-xl shadow p-4 border-l-4 border-green-400">
-              <p className="text-xs text-gray-500 uppercase font-semibold tracking-wide">Cleared / No Balance</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{cleared}</p>
-              <p className="text-xs text-gray-400 mt-1">Out of {suppliers.length} total</p>
+            <div className="bg-surface rounded-xl shadow p-4 border-l-4 border-success">
+              <p className="text-xs text-fg-muted uppercase font-semibold tracking-wide">Cleared / No Balance</p>
+              <p className="text-2xl font-bold text-success-fg mt-1">{cleared}</p>
+              <p className="text-xs text-fg-subtle mt-1">Out of {suppliers.length} total</p>
             </div>
           </div>
         )
       })()}
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">🚚 Suppliers</h1>
+        <h1 className="text-2xl font-bold text-fg">🚚 Suppliers</h1>
         <div className="flex gap-2 w-full sm:w-auto flex-wrap">
           {selected.length > 0 && (
             <button
               onClick={() => requestDelete(selected)}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-bold text-sm"
+              className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-lg transition font-bold text-sm"
             >
               🗑️ Delete Selected ({selected.length})
             </button>
           )}
           <button
             onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition">
             {showForm ? 'Cancel' : '+ Add Supplier / Dealer'}
           </button>
         </div>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-lg">
-          <h2 className="font-semibold text-gray-700 mb-4">
+        <div className="bg-surface rounded-xl shadow p-6 mb-6 max-w-lg">
+          <h2 className="font-semibold text-fg-2 mb-4">
             {editingId ? 'Edit Supplier / Dealer' : 'New Supplier / Dealer'}
           </h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Name *</label>
+              <label className="block text-fg-2 font-medium mb-1">Name *</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="e.g. Metro Wholesale / National Distributors / Dealer Name"
               />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Phone</label>
+              <label className="block text-fg-2 font-medium mb-1">Phone</label>
               <input
                 type="text"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="03001234567"
               />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Address</label>
+              <label className="block text-fg-2 font-medium mb-1">Address</label>
               <input
                 type="text"
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="City, Pakistan"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-gray-700 font-medium mb-1">Brand (Dealer of)</label>
+                <label className="block text-fg-2 font-medium mb-1">Brand (Dealer of)</label>
                 <select
                   value={form.brand}
                   onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-surface"
                 >
                   <option value="">— Select Brand —</option>
                   {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
@@ -679,23 +679,23 @@ function Suppliers() {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-700 font-medium mb-1">Product Type / Category</label>
+                <label className="block text-fg-2 font-medium mb-1">Product Type / Category</label>
                 <input
                   type="text"
                   value={form.product_type}
                   onChange={(e) => setForm({ ...form, product_type: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="e.g. FMCG Goods, Garments, Hardware, Electronics"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Other Details</label>
+              <label className="block text-fg-2 font-medium mb-1">Other Details</label>
               <input
                 type="text"
                 value={form.other_details}
                 onChange={(e) => setForm({ ...form, other_details: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Alternative numbers, specific notes..."
               />
             </div>
@@ -703,13 +703,13 @@ function Suppliers() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
+                className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition disabled:opacity-50">
                 {saving ? 'Saving...' : editingId ? 'Update Supplier' : 'Save Supplier'}
               </button>
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition">
+                className="px-6 py-2 bg-surface-4 hover:bg-surface-5 text-fg-2 rounded-lg transition">
                 Cancel
               </button>
             </div>
@@ -718,16 +718,16 @@ function Suppliers() {
       )}
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-fg-muted">Loading...</p>
       ) : suppliers.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No suppliers yet</p>
+          <p className="text-fg-subtle text-lg">No suppliers yet</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-surface rounded-xl shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-surface-2 border-b">
                 <tr>
                   <th className="px-4 py-3 w-10">
                     <input
@@ -737,16 +737,16 @@ function Suppliers() {
                       className="w-4 h-4 rounded"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Brand / Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Balance</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Brand / Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Balance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-fg-muted uppercase whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-line">
                 {suppliers.map((sup) => (
-                  <tr key={sup.id} className={`hover:bg-gray-50 ${selected.includes(sup.id) ? 'bg-blue-50' : ''}`}>
+                  <tr key={sup.id} className={`hover:bg-surface-2 ${selected.includes(sup.id) ? 'bg-primary-soft' : ''}`}>
                     <td className="px-4 py-4">
                       <input
                         type="checkbox"
@@ -755,37 +755,37 @@ function Suppliers() {
                         className="w-4 h-4 rounded"
                       />
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-800 whitespace-nowrap">{sup.name}</td>
+                    <td className="px-6 py-4 font-medium text-fg whitespace-nowrap">{sup.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-gray-800 text-sm font-bold">{sup.phone || '-'}</p>
-                      <p className="text-gray-400 text-xs">{sup.address || '-'}</p>
+                      <p className="text-fg text-sm font-bold">{sup.phone || '-'}</p>
+                      <p className="text-fg-subtle text-xs">{sup.address || '-'}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-blue-600 text-xs font-black uppercase tracking-tighter">{sup.brand || 'No Brand'}</p>
-                      <p className="text-gray-500 text-xs">{sup.product_type || 'General'}</p>
+                      <p className="text-primary-fg text-xs font-black uppercase tracking-tighter">{sup.brand || 'No Brand'}</p>
+                      <p className="text-fg-muted text-xs">{sup.product_type || 'General'}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`font-medium ${sup.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className={`font-medium ${sup.outstanding_balance > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>
                         Rs. {sup.outstanding_balance || 0}
                       </span>
                     </td>
                     <td className="px-6 py-4 flex gap-2 whitespace-nowrap flex-wrap">
                       <button
                         onClick={() => openTxModal(sup)}
-                        className="text-purple-600 hover:text-purple-800 text-sm font-bold bg-purple-50 px-2 py-1 rounded">
+                        className="text-info-fg hover:text-info-strong text-sm font-bold bg-info-soft px-2 py-1 rounded">
                         📋 Txns
                       </button>
-                      <Link to={`/suppliers/${sup.id}`} className="text-blue-600 hover:text-blue-800 text-sm font-bold bg-blue-50 px-2 py-1 rounded">
+                      <Link to={`/suppliers/${sup.id}`} className="text-primary-fg hover:text-primary-strong text-sm font-bold bg-primary-soft px-2 py-1 rounded">
                         Ledger
                       </Link>
                       <button
                         onClick={() => handleEdit(sup)}
-                        className="text-blue-500 hover:text-blue-700 text-sm font-medium">
+                        className="text-primary-fg hover:text-primary-strong text-sm font-medium">
                         Edit
                       </button>
                       <button
                         onClick={() => requestDelete([sup.id])}
-                        className="text-red-500 hover:text-red-700 text-sm font-medium">
+                        className="text-danger-fg hover:text-danger-strong text-sm font-medium">
                         Delete
                       </button>
                     </td>
@@ -811,54 +811,54 @@ function Suppliers() {
 
       {/* ── Supplier Transaction Modal ── */}
       {showTxModal && txSup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col">
 
             {/* Header */}
             <div className="flex items-start justify-between p-5 border-b">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">📋 {txSup.name} — Transactions</h2>
-                <p className="text-sm text-gray-500 mt-0.5">{txSup.phone || ''} {txSup.address ? '| ' + txSup.address : ''}</p>
+                <h2 className="text-xl font-bold text-fg">📋 {txSup.name} — Transactions</h2>
+                <p className="text-sm text-fg-muted mt-0.5">{txSup.phone || ''} {txSup.address ? '| ' + txSup.address : ''}</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-xs text-gray-400 uppercase font-semibold">Outstanding</p>
-                  <p className={`text-xl font-bold ${txSup.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  <p className="text-xs text-fg-subtle uppercase font-semibold">Outstanding</p>
+                  <p className={`text-xl font-bold ${txSup.outstanding_balance > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>
                     Rs. {(txSup.outstanding_balance || 0).toLocaleString()}
                   </p>
                 </div>
                 <button onClick={() => setShowTxModal(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-light leading-none">✕</button>
+                  className="text-fg-subtle hover:text-fg-3 text-2xl font-light leading-none">✕</button>
               </div>
             </div>
 
             {/* Add Transaction Toggle + Import/Export */}
             <div className="px-5 pt-4 pb-2 flex flex-wrap justify-between items-center gap-2">
-              <p className="text-sm text-gray-500 font-medium">Transaction History</p>
+              <p className="text-sm text-fg-muted font-medium">Transaction History</p>
               <div className="flex flex-wrap gap-2">
                 {/* Export */}
                 <button onClick={exportTxExcel} disabled={txLedger.length === 0}
                   title="Export transactions to Excel"
-                  className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold transition disabled:opacity-40">
+                  className="px-3 py-1.5 bg-success hover:bg-success-hover text-white rounded-lg text-sm font-bold transition disabled:opacity-40">
                   📥 Export Excel
                 </button>
                 {/* Import */}
                 <button onClick={() => txFileRef.current?.click()} disabled={txImporting}
                   title="Import transactions from Excel"
-                  className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-bold transition disabled:opacity-40">
+                  className="px-3 py-1.5 bg-warning hover:bg-warning-hover text-white rounded-lg text-sm font-bold transition disabled:opacity-40">
                   {txImporting ? '⏳ Importing...' : '📤 Import Excel'}
                 </button>
                 <input ref={txFileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importTxExcel} />
                 {/* Template download */}
                 <button onClick={downloadTxTemplate}
                   title="Download blank import template"
-                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition">
+                  className="px-3 py-1.5 bg-surface-3 hover:bg-surface-4 text-fg-3 rounded-lg text-sm font-semibold transition">
                   📋 Template
                 </button>
                 {/* Add manually */}
                 <button
                   onClick={() => setShowAddTx(!showAddTx)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${showAddTx ? 'bg-gray-200 text-gray-700' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+                  className={`px-4 py-1.5 rounded-lg text-sm font-bold transition ${showAddTx ? 'bg-surface-4 text-fg-2' : 'bg-info text-white hover:bg-info-hover'}`}>
                   {showAddTx ? '✕ Cancel' : '+ Add Entry'}
                 </button>
               </div>
@@ -866,40 +866,40 @@ function Suppliers() {
 
             {/* Add Transaction Form */}
             {showAddTx && (
-              <div className="mx-5 mb-3 p-4 bg-purple-50 rounded-xl border border-purple-100">
+              <div className="mx-5 mb-3 p-4 bg-info-soft rounded-xl border border-info-muted">
                 <form onSubmit={handleAddTx} className="space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">Date *</label>
+                      <label className="block text-xs font-semibold text-fg-3 mb-1">Date *</label>
                       <input type="date" required
                         value={txForm.date}
                         onChange={e => setTxForm({ ...txForm, date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                        className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">Bill Number</label>
+                      <label className="block text-xs font-semibold text-fg-3 mb-1">Bill Number</label>
                       <input type="text"
                         value={txForm.bill_number}
                         onChange={e => setTxForm({ ...txForm, bill_number: e.target.value })}
                         placeholder="e.g. 1045"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                        className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">Type *</label>
+                      <label className="block text-xs font-semibold text-fg-3 mb-1">Type *</label>
                       <select value={txForm.type}
                         onChange={e => setTxForm({ ...txForm, type: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-info">
                         <option value="debit">🔴 Debit (Purchase / We Owe)</option>
                         <option value="payment">🟢 Credit (Payment / We Paid)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">Amount (Rs.) *</label>
+                      <label className="block text-xs font-semibold text-fg-3 mb-1">Amount (Rs.) *</label>
                       <input type="number" min="1" step="any" required
                         value={txForm.amount}
                         onChange={e => setTxForm({ ...txForm, amount: e.target.value })}
                         placeholder="0"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                        className="w-full px-3 py-2 border border-line-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info" />
                     </div>
                   </div>
                   <div className="flex gap-3">
@@ -907,9 +907,9 @@ function Suppliers() {
                       value={txForm.note}
                       onChange={e => setTxForm({ ...txForm, note: e.target.value })}
                       placeholder="Description / Note (optional)"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                      className="flex-1 px-3 py-2 border border-line-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info" />
                     <button type="submit" disabled={txSaving}
-                      className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-bold transition disabled:opacity-50">
+                      className="px-6 py-2 bg-info hover:bg-info-hover text-white rounded-lg text-sm font-bold transition disabled:opacity-50">
                       {txSaving ? '...' : '✓ Save'}
                     </button>
                   </div>
@@ -920,47 +920,47 @@ function Suppliers() {
             {/* Ledger Table */}
             <div className="flex-1 overflow-auto px-5 pb-5">
               {txLoading ? (
-                <div className="py-10 text-center text-gray-400">Loading transactions...</div>
+                <div className="py-10 text-center text-fg-subtle">Loading transactions...</div>
               ) : txLedger.length === 0 ? (
-                <div className="py-10 text-center text-gray-400">No transactions found for this supplier.</div>
+                <div className="py-10 text-center text-fg-subtle">No transactions found for this supplier.</div>
               ) : (
                 <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 bg-gray-50 z-10">
+                  <thead className="sticky top-0 bg-surface-2 z-10">
                     <tr className="border-b">
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Bill #</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-orange-500 uppercase whitespace-nowrap">Debit</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-green-600 uppercase whitespace-nowrap">Credit</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Balance</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-fg-muted uppercase whitespace-nowrap">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-fg-muted uppercase whitespace-nowrap">Bill #</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-fg-muted uppercase">Description</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-warning-fg uppercase whitespace-nowrap">Debit</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-success-fg uppercase whitespace-nowrap">Credit</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-fg-muted uppercase whitespace-nowrap">Balance</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-line-subtle">
                     {txLedger.map((item, idx) => {
                       const isDebitRow = item.type === 'purchase' || item.type === 'debit'
                       return (
-                        <tr key={item.id || idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        <tr key={item.id || idx} className="hover:bg-surface-2">
+                          <td className="px-4 py-3 text-fg-muted whitespace-nowrap">
                             {new Date(item.date).toLocaleDateString('en-PK')}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             {item.bill_number
-                              ? <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
-                              : <span className="text-gray-300">—</span>}
+                              ? <span className="bg-surface-3 text-fg-2 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
+                              : <span className="text-fg-faint">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-gray-700">
+                          <td className="px-4 py-3 text-fg-2">
                             <span>{item.note || (isDebitRow ? 'Purchase' : 'Payment')}</span>
-                            {item.type === 'return' && <span className="ml-2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold uppercase">Return</span>}
-                            {item.type === 'debit' && <span className="ml-2 text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold uppercase">Manual</span>}
+                            {item.type === 'return' && <span className="ml-2 text-[10px] bg-danger-muted text-danger-strong px-1.5 py-0.5 rounded-full font-bold uppercase">Return</span>}
+                            {item.type === 'debit' && <span className="ml-2 text-[10px] bg-warning-muted text-warning-strong px-1.5 py-0.5 rounded-full font-bold uppercase">Manual</span>}
                           </td>
-                          <td className="px-4 py-3 text-right font-medium text-orange-600 whitespace-nowrap">
+                          <td className="px-4 py-3 text-right font-medium text-warning-fg whitespace-nowrap">
                             {isDebitRow ? `Rs. ${Number(item.amount).toLocaleString()}` : ''}
                           </td>
-                          <td className="px-4 py-3 text-right font-medium text-green-600 whitespace-nowrap">
+                          <td className="px-4 py-3 text-right font-medium text-success-fg whitespace-nowrap">
                             {!isDebitRow ? `Rs. ${Math.abs(Number(item.amount)).toLocaleString()}` : ''}
                           </td>
                           <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
-                            <span className={item.balance > 0 ? 'text-red-600' : 'text-green-600'}>
+                            <span className={item.balance > 0 ? 'text-danger-fg' : 'text-success-fg'}>
                               Rs. {Number(item.balance).toLocaleString()}
                             </span>
                           </td>
@@ -968,11 +968,11 @@ function Suppliers() {
                       )
                     })}
                   </tbody>
-                  <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                  <tfoot className="bg-surface-2 border-t-2 border-line">
                     <tr>
-                      <td colSpan="3" className="px-4 py-3 text-sm font-bold text-gray-700">Total Outstanding Balance</td>
+                      <td colSpan="3" className="px-4 py-3 text-sm font-bold text-fg-2">Total Outstanding Balance</td>
                       <td colSpan="3" className="px-4 py-3 text-right">
-                        <span className={`text-base font-bold ${txSup.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        <span className={`text-base font-bold ${txSup.outstanding_balance > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>
                           Rs. {(txSup.outstanding_balance || 0).toLocaleString()}
                         </span>
                       </td>

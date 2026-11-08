@@ -452,7 +452,7 @@ function SupplierLedger() {
 
     if (!hasFeature('supplier_ledger')) return <UpgradeWall feature="supplier_ledger" />
     if (loading) return <div className="p-8">Loading ledger...</div>
-    if (!supplier) return <div className="p-8 text-red-500">Supplier not found!</div>
+    if (!supplier) return <div className="p-8 text-danger-fg">Supplier not found!</div>
 
     const currentBalance = supplier.outstanding_balance || 0
 
@@ -461,40 +461,40 @@ function SupplierLedger() {
             {/* ── Header ── */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
-                    <button onClick={() => navigate('/suppliers')} className="text-blue-500 mb-2 hover:underline text-sm font-semibold">← Back to Suppliers</button>
-                    <h1 className="text-3xl font-bold text-gray-800">{supplier.name}</h1>
-                    <p className="text-gray-500 text-sm">{supplier.phone}{supplier.address ? ' | ' + supplier.address : ''}</p>
+                    <button onClick={() => navigate('/suppliers')} className="text-primary-fg mb-2 hover:underline text-sm font-semibold">← Back to Suppliers</button>
+                    <h1 className="text-3xl font-bold text-fg">{supplier.name}</h1>
+                    <p className="text-fg-muted text-sm">{supplier.phone}{supplier.address ? ' | ' + supplier.address : ''}</p>
                 </div>
                 <div className="w-full sm:w-auto flex flex-col sm:items-end gap-3">
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto text-center sm:text-right">
-                        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total Payable Balance</p>
-                        <p className={`text-3xl font-bold ${currentBalance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                    <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle w-full sm:w-auto text-center sm:text-right">
+                        <p className="text-xs text-fg-muted uppercase tracking-wider font-semibold">Total Payable Balance</p>
+                        <p className={`text-3xl font-bold ${currentBalance > 0 ? 'text-warning-fg' : 'text-success-fg'}`}>
                             Rs. {Number(currentBalance).toLocaleString()}
                         </p>
                     </div>
                     <div className="flex gap-2 flex-wrap justify-end">
                         <button onClick={handleExport}
-                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition">
+                            className="px-4 py-2 bg-success hover:bg-success-hover text-white rounded-lg text-sm font-semibold transition">
                             📥 Export Excel
                         </button>
                         <button onClick={() => importRef.current?.click()}
-                            className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-semibold transition">
+                            className="px-4 py-2 bg-warning hover:bg-warning-hover text-white rounded-lg text-sm font-semibold transition">
                             📤 Import Excel
                         </button>
                         <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
                         <button onClick={handleReconcileBalance}
-                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-sm shadow transition"
+                            className="px-4 py-2 bg-warning hover:bg-warning-hover text-white rounded-lg font-semibold text-sm shadow transition"
                             title="Recalculate supplier balance from transaction ledger sum">
                             ⚡ Reconcile
                         </button>
                         <button onClick={() => setShowModal(true)}
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm shadow transition">
+                            className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold text-sm shadow transition">
                             ➕ Add Transaction
                         </button>
                         {ledger.length > 0 && (
                             <button
                                 onClick={handleClearAllLedger}
-                                className="px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-lg font-semibold text-sm transition">
+                                className="px-4 py-2 bg-danger-soft hover:bg-danger-muted border border-danger-line text-danger-strong rounded-lg font-semibold text-sm transition">
                                 🗑️ Clear All Ledger
                             </button>
                         )}
@@ -503,19 +503,19 @@ function SupplierLedger() {
             </div>
 
             {/* ── Filter Bar ── */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 mb-4 flex flex-wrap gap-3 items-end">
+            <div className="bg-surface rounded-xl shadow-sm border border-line-subtle p-3 mb-4 flex flex-wrap gap-3 items-end">
                 {/* Search */}
                 <div className="flex-1 min-w-[180px]">
-                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">🔍 Search</label>
+                    <label className="block text-xs text-fg-muted font-semibold mb-1 uppercase tracking-wide">🔍 Search</label>
                     <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                         placeholder="Bill #, description, amount..."
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+                        className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 {/* Type filter */}
                 <div className="min-w-[140px]">
-                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">Type</label>
+                    <label className="block text-xs text-fg-muted font-semibold mb-1 uppercase tracking-wide">Type</label>
                     <select value={filterType} onChange={e => setFilterType(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white">
+                        className="w-full px-3 py-2 border border-line rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none bg-surface">
                         <option value="all">All Types</option>
                         <option value="debit">Purchase / Debit</option>
                         <option value="payment">Payment</option>
@@ -525,26 +525,26 @@ function SupplierLedger() {
                 </div>
                 {/* Date From */}
                 <div>
-                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">From</label>
+                    <label className="block text-xs text-fg-muted font-semibold mb-1 uppercase tracking-wide">From</label>
                     <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+                        className="px-3 py-2 border border-line rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 {/* Date To */}
                 <div>
-                    <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wide">To</label>
+                    <label className="block text-xs text-fg-muted font-semibold mb-1 uppercase tracking-wide">To</label>
                     <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+                        className="px-3 py-2 border border-line rounded-lg text-sm focus:ring-2 focus:ring-primary outline-none" />
                 </div>
                 {/* Clear */}
                 {isFiltered && (
                     <button onClick={() => { setSearch(''); setFilterType('all'); setFilterFrom(''); setFilterTo('') }}
-                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm font-semibold transition">
+                        className="px-3 py-2 bg-surface-3 hover:bg-surface-4 text-fg-3 rounded-lg text-sm font-semibold transition">
                         ✕ Clear
                     </button>
                 )}
                 {/* Result count */}
                 {isFiltered && (
-                    <span className="text-xs text-gray-400 self-center">
+                    <span className="text-xs text-fg-subtle self-center">
                         {filteredLedger.length} of {ledger.length} entries
                     </span>
                 )}
@@ -552,57 +552,57 @@ function SupplierLedger() {
 
             {/* ── Bulk Action Bar ── */}
             {selectedIds.size > 0 && (
-                <div className="mb-3 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                    <span className="text-sm font-bold text-red-700">{selectedIds.size} selected</span>
+                <div className="mb-3 flex items-center gap-3 bg-danger-soft border border-danger-line rounded-xl px-4 py-3">
+                    <span className="text-sm font-bold text-danger-strong">{selectedIds.size} selected</span>
                     <button
                         onClick={handleBulkDelete}
-                        className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition"
+                        className="px-4 py-1.5 bg-danger hover:bg-danger-hover text-white rounded-lg text-sm font-bold transition"
                     >🗑️ Delete Selected</button>
                     <button
                         onClick={() => setSelectedIds(new Set())}
-                        className="px-3 py-1.5 bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-lg text-sm transition"
+                        className="px-3 py-1.5 bg-surface border border-line text-fg-muted hover:bg-surface-2 rounded-lg text-sm transition"
                     >✕ Clear</button>
                 </div>
             )}
 
             {/* ── Ledger Table ── */}
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-                <div className="divide-y divide-gray-100 md:hidden">
+            <div className="bg-surface rounded-2xl shadow-xl overflow-hidden border border-line-subtle">
+                <div className="divide-y divide-line-subtle md:hidden">
                     {filteredLedger.length === 0 ? (
-                        <p className="p-6 text-center text-gray-400 text-sm">
+                        <p className="p-6 text-center text-fg-subtle text-sm">
                             {isFiltered ? `"${search || filterType}" se koi result nahi mila. Filter clear karein.` : 'Koi transaction nahi mili. "Add Transaction" se pehli entry karein.'}
                         </p>
                     ) : (
                         filteredLedger.map((item, idx) => (
-                            <div key={idx} className={`p-4 ${selectedIds.has(item.id) ? 'bg-red-50/40' : ''}`}>
+                            <div key={idx} className={`p-4 ${selectedIds.has(item.id) ? 'bg-danger-soft/40' : ''}`}>
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                        <p className="text-xs text-gray-400">{new Date(item.date).toLocaleDateString('en-PK')}</p>
+                                        <p className="text-xs text-fg-subtle">{new Date(item.date).toLocaleDateString('en-PK')}</p>
                                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-semibold text-gray-800">{item.note}</span>
+                                            <span className="font-semibold text-fg">{item.note}</span>
                                             {item.bill_number && (
-                                                <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
+                                                <span className="bg-surface-3 text-fg-2 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
                                             )}
                                         </div>
-                                        {item.details && <p className="mt-1 text-xs text-gray-500">{item.details}</p>}
+                                        {item.details && <p className="mt-1 text-xs text-fg-muted">{item.details}</p>}
                                         
                                         <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                                             {item.payment_mode && (
-                                                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
+                                                <span className="bg-surface-3 text-fg-3 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
                                             )}
                                             {item.transaction_ref && (
-                                                <span className="text-[10px] text-gray-400">Ref: {item.transaction_ref}</span>
+                                                <span className="text-[10px] text-fg-subtle">Ref: {item.transaction_ref}</span>
                                             )}
                                             {item.type === 'purchase' && (
                                                 <button
                                                     onClick={() => setExpandedBill(expandedBill === item.id ? null : item.id)}
-                                                    className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-tighter"
+                                                    className="text-[10px] text-primary-fg hover:underline font-bold uppercase tracking-tighter"
                                                 >
                                                     {expandedBill === item.id ? 'Collapse ▲' : 'Details ▼'}
                                                 </button>
                                             )}
-                                            {item.type === 'return' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold">Return</span>}
-                                            {item.type === 'debit' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] uppercase font-bold">Manual Entry</span>}
+                                            {item.type === 'return' && <span className="px-2 py-0.5 bg-danger-muted text-danger-strong rounded-full text-[10px] uppercase font-bold">Return</span>}
+                                            {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">Manual Entry</span>}
                                         </div>
                                     </div>
                                     
@@ -612,39 +612,39 @@ function SupplierLedger() {
                                         <button
                                             onClick={() => handleDeleteTransaction(item)}
                                             title="Delete transaction"
-                                            className="p-1 text-gray-400 hover:text-red-500 rounded transition text-xs"
+                                            className="p-1 text-fg-subtle hover:text-danger-fg rounded transition text-xs"
                                         >🗑️</button>
                                     </div>
                                 </div>
 
                                 <div className="mt-3 grid grid-cols-3 gap-2 text-right text-xs">
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Debit (+)</p>
-                                        <p className="font-bold text-orange-600">{(item.type === 'purchase' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toLocaleString()}` : '—'}</p>
+                                        <p className="text-[10px] font-bold uppercase text-fg-subtle text-left">Debit (+)</p>
+                                        <p className="font-bold text-warning-fg">{(item.type === 'purchase' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toLocaleString()}` : '—'}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Credit (-)</p>
-                                        <p className="font-bold text-green-600">{(item.type !== 'purchase' && item.type !== 'debit') ? `- Rs. ${Math.abs(Number(item.amount)).toLocaleString()}` : '—'}</p>
+                                        <p className="text-[10px] font-bold uppercase text-fg-subtle text-left">Credit (-)</p>
+                                        <p className="font-bold text-success-fg">{(item.type !== 'purchase' && item.type !== 'debit') ? `- Rs. ${Math.abs(Number(item.amount)).toLocaleString()}` : '—'}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase text-gray-400 text-left">Balance</p>
-                                        <p className={`font-black ${item.balance > 0 ? 'text-red-600' : 'text-green-700'}`}>Rs. {Number(item.balance).toLocaleString()}</p>
+                                        <p className="text-[10px] font-bold uppercase text-fg-subtle text-left">Balance</p>
+                                        <p className={`font-black ${item.balance > 0 ? 'text-danger-fg' : 'text-success-strong'}`}>Rs. {Number(item.balance).toLocaleString()}</p>
                                     </div>
                                 </div>
 
                                 {item.type === 'purchase' && expandedBill === item.id && (
-                                    <div className="mt-3 bg-orange-50/50 p-3 rounded-lg border border-orange-100/50">
+                                    <div className="mt-3 bg-warning-soft/50 p-3 rounded-lg border border-warning-muted/50">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
-                                            <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            <span className="text-[10px] text-fg-subtle uppercase font-bold tracking-widest">Payment:</span>
+                                            <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-success-muted text-success-strong' : 'bg-primary-muted text-primary-strong'}`}>
                                                 {item.payment_type}
                                             </span>
                                         </div>
                                         <div className="flex flex-col gap-1.5">
                                             {(item.items || []).map((it, iidx) => (
-                                                <div key={iidx} className="flex justify-between text-xs bg-white/60 p-2 rounded border border-orange-100/30">
-                                                    <span className="text-gray-700 font-medium">{it.product_name}</span>
-                                                    <span className="text-gray-500 font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
+                                                <div key={iidx} className="flex justify-between text-xs bg-surface/60 p-2 rounded border border-warning-muted/30">
+                                                    <span className="text-fg-2 font-medium">{it.product_name}</span>
+                                                    <span className="text-fg-muted font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -656,94 +656,94 @@ function SupplierLedger() {
                 </div>
                 <div className="hidden overflow-x-auto md:block">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b">
+                        <thead className="bg-surface-2 border-b">
                             <tr>
                                 <th className="px-4 py-4 w-10">
                                     <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
                                         className="w-4 h-4 rounded cursor-pointer" />
                                 </th>
-                                <th className="px-5 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Date</th>
-                                <th className="px-5 py-4 text-left font-semibold text-gray-600 whitespace-nowrap">Bill #</th>
-                                <th className="px-5 py-4 text-left font-semibold text-gray-600 min-w-[160px]">Description</th>
-                                <th className="px-5 py-4 text-right font-semibold text-orange-500 whitespace-nowrap">Debit (Purchase)</th>
-                                <th className="px-5 py-4 text-right font-semibold text-green-600 whitespace-nowrap">Credit (Payment)</th>
-                                <th className="px-5 py-4 text-right font-semibold text-gray-600 whitespace-nowrap">Balance</th>
+                                <th className="px-5 py-4 text-left font-semibold text-fg-3 whitespace-nowrap">Date</th>
+                                <th className="px-5 py-4 text-left font-semibold text-fg-3 whitespace-nowrap">Bill #</th>
+                                <th className="px-5 py-4 text-left font-semibold text-fg-3 min-w-[160px]">Description</th>
+                                <th className="px-5 py-4 text-right font-semibold text-warning-fg whitespace-nowrap">Debit (Purchase)</th>
+                                <th className="px-5 py-4 text-right font-semibold text-success-fg whitespace-nowrap">Credit (Payment)</th>
+                                <th className="px-5 py-4 text-right font-semibold text-fg-3 whitespace-nowrap">Balance</th>
                                 <th className="px-3 py-4"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-line-subtle">
                             {filteredLedger.map((item, idx) => (
                                 <React.Fragment key={idx}>
-                                    <tr className={`hover:bg-gray-50 transition ${selectedIds.has(item.id) ? 'bg-red-50/40' : ''}`}>
+                                    <tr className={`hover:bg-surface-2 transition ${selectedIds.has(item.id) ? 'bg-danger-soft/40' : ''}`}>
                                         <td className="px-4 py-3">
                                             <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)}
                                                 className="w-4 h-4 rounded cursor-pointer" />
                                         </td>
-                                        <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-PK')}</td>
+                                        <td className="px-5 py-3 text-fg-muted whitespace-nowrap">{new Date(item.date).toLocaleDateString('en-PK')}</td>
                                         <td className="px-5 py-3 whitespace-nowrap">
                                             {item.bill_number
-                                                ? <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
+                                                ? <span className="bg-surface-3 text-fg-2 px-2 py-0.5 rounded text-xs font-mono font-bold">{item.bill_number}</span>
                                                 : item.type === 'purchase'
-                                                    ? <span className="text-xs text-gray-400 font-mono">{String(item.id).slice(-8)}</span>
-                                                    : <span className="text-gray-300">—</span>}
+                                                    ? <span className="text-xs text-fg-subtle font-mono">{String(item.id).slice(-8)}</span>
+                                                    : <span className="text-fg-faint">—</span>}
                                         </td>
                                         <td className="px-5 py-3">
                                             <div className="flex flex-col gap-0.5">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="font-medium text-gray-800">{item.note}</span>
+                                                    <span className="font-medium text-fg">{item.note}</span>
                                                     {item.type === 'purchase' && (
                                                         <button onClick={() => setExpandedBill(expandedBill === item.id ? null : item.id)}
-                                                            className="text-[10px] text-blue-600 hover:text-blue-800 font-bold uppercase tracking-tighter">
+                                                            className="text-[10px] text-primary-fg hover:text-primary-strong font-bold uppercase tracking-tighter">
                                                             {expandedBill === item.id ? 'Collapse ▲' : 'Details ▼'}
                                                         </button>
                                                     )}
-                                                    {item.type === 'return' && <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] uppercase font-bold">Return</span>}
-                                                    {item.type === 'debit' && <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[10px] uppercase font-bold">Manual Entry</span>}
+                                                    {item.type === 'return' && <span className="px-2 py-0.5 bg-danger-muted text-danger-strong rounded-full text-[10px] uppercase font-bold">Return</span>}
+                                                    {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">Manual Entry</span>}
                                                 </div>
-                                                {item.details && <span className="text-xs text-gray-500 truncate max-w-xs">{item.details}</span>}
+                                                {item.details && <span className="text-xs text-fg-muted truncate max-w-xs">{item.details}</span>}
                                                 <div className="flex items-center gap-1.5 flex-wrap">
                                                     {item.payment_mode && (
-                                                        <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
+                                                        <span className="bg-surface-3 text-fg-3 px-2 py-0.5 rounded text-[10px] font-semibold capitalize">{item.payment_mode}</span>
                                                     )}
                                                     {item.transaction_ref && (
-                                                        <span className="text-[10px] text-gray-400">Ref: {item.transaction_ref}</span>
+                                                        <span className="text-[10px] text-fg-subtle">Ref: {item.transaction_ref}</span>
                                                     )}
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-3 text-right text-orange-600 font-semibold whitespace-nowrap">
+                                        <td className="px-5 py-3 text-right text-warning-fg font-semibold whitespace-nowrap">
                                             {(item.type === 'purchase' || item.type === 'debit') ? `+ Rs. ${Number(item.amount).toLocaleString()}` : ''}
                                         </td>
-                                        <td className="px-5 py-3 text-right text-green-600 font-semibold whitespace-nowrap">
+                                        <td className="px-5 py-3 text-right text-success-fg font-semibold whitespace-nowrap">
                                             {(item.type !== 'purchase' && item.type !== 'debit') ? `- Rs. ${Math.abs(Number(item.amount)).toLocaleString()}` : ''}
                                         </td>
                                         <td className="px-5 py-3 text-right font-bold whitespace-nowrap">
-                                            <span className={item.balance > 0 ? 'text-red-600' : 'text-green-700'}>
+                                            <span className={item.balance > 0 ? 'text-danger-fg' : 'text-success-strong'}>
                                                 Rs. {Number(item.balance).toLocaleString()}
                                             </span>
                                         </td>
                                         <td className="px-3 py-3 text-right">
                                             <button onClick={() => handleDeleteTransaction(item)}
                                                 title="Delete transaction"
-                                                className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition text-xs">
+                                                className="p-1.5 text-fg-faint hover:text-danger-fg hover:bg-danger-soft rounded-lg transition text-xs">
                                                 🗑️
                                             </button>
                                         </td>
                                     </tr>
                                     {item.type === 'purchase' && expandedBill === item.id && (
-                                        <tr className="bg-orange-50/50 border-b border-gray-100">
+                                        <tr className="bg-warning-soft/50 border-b border-line-subtle">
                                             <td colSpan="8" className="px-5 py-3">
                                                 <div className="flex items-center gap-2 mb-2">
-                                                    <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Payment:</span>
-                                                    <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    <span className="text-[10px] text-fg-subtle uppercase font-bold tracking-widest">Payment:</span>
+                                                    <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase ${item.payment_type === 'cash' ? 'bg-success-muted text-success-strong' : 'bg-primary-muted text-primary-strong'}`}>
                                                         {item.payment_type}
                                                     </span>
                                                 </div>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                                     {(item.items || []).map((it, iidx) => (
-                                                        <div key={iidx} className="flex justify-between text-xs bg-white/60 p-2 rounded-lg border border-orange-100/50 shadow-sm">
-                                                            <span className="text-gray-700 font-medium">{it.product_name}</span>
-                                                            <span className="text-gray-500 font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
+                                                        <div key={iidx} className="flex justify-between text-xs bg-surface/60 p-2 rounded-lg border border-warning-muted/50 shadow-sm">
+                                                            <span className="text-fg-2 font-medium">{it.product_name}</span>
+                                                            <span className="text-fg-muted font-semibold">Rs.{it.unit_price} × {it.quantity}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -754,7 +754,7 @@ function SupplierLedger() {
                             ))}
                             {ledger.length === 0 && (
                                 <tr>
-                                    <td colSpan="8" className="px-6 py-12 text-center text-gray-400">
+                                    <td colSpan="8" className="px-6 py-12 text-center text-fg-subtle">
                                         {isFiltered ? `"${search || filterType}" se koi result nahi mila. Filter clear karein.` : 'Koi transaction nahi mili. "Add Transaction" se pehli entry karein.'}
                                     </td>
                                 </tr>
@@ -766,77 +766,77 @@ function SupplierLedger() {
 
             {/* ── Add Transaction Modal ── */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold text-gray-800 mb-1">➕ Add Transaction</h2>
-                        <p className="text-xs text-gray-400 mb-4">Purchase aur payment ek saath darj kar saktay hain</p>
+                <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+                    <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
+                        <h2 className="text-xl font-bold text-fg mb-1">➕ Add Transaction</h2>
+                        <p className="text-xs text-fg-subtle mb-4">Purchase aur payment ek saath darj kar saktay hain</p>
 
                         <form onSubmit={handleSubmitTransaction} className="space-y-4">
 
                             {/* Date + Bill # */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Date</label>
+                                    <label className="block text-fg-2 font-medium mb-1 text-sm">Date</label>
                                     <input type="date" value={txForm.date}
                                         onChange={e => setTxForm(f => ({ ...f, date: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                                        className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Bill # (Optional)</label>
+                                    <label className="block text-fg-2 font-medium mb-1 text-sm">Bill # (Optional)</label>
                                     <input type="text" value={txForm.bill_number}
                                         onChange={e => setTxForm(f => ({ ...f, bill_number: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                        className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
                                         placeholder="e.g. INV-001" />
                                 </div>
                             </div>
 
                             {/* Purchase Amount (Debit) */}
                             <div>
-                                <label className="block font-semibold mb-1 text-sm text-orange-600">
+                                <label className="block font-semibold mb-1 text-sm text-warning-fg">
                                     📦 Total Purchase Amount (Debit)
                                 </label>
                                 <input type="number" min="0" step="any" value={txForm.purchase_amount}
                                     onChange={e => setTxForm(f => ({ ...f, purchase_amount: e.target.value }))}
-                                    className="w-full px-4 py-2.5 border border-orange-200 bg-orange-50 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                                    className="w-full px-4 py-2.5 border border-warning-line bg-warning-soft rounded-lg focus:ring-2 focus:ring-warning outline-none text-sm"
                                     placeholder="0  — kitna maal liya (Rs.)" />
-                                <p className="text-xs text-gray-400 mt-0.5">Supplier sy jo maal purchase kiya uski total value</p>
+                                <p className="text-xs text-fg-subtle mt-0.5">Supplier sy jo maal purchase kiya uski total value</p>
                             </div>
 
                             {/* Paid Amount (Credit) */}
                             <div>
-                                <label className="block font-semibold mb-1 text-sm text-green-600">
+                                <label className="block font-semibold mb-1 text-sm text-success-fg">
                                     💵 Amount Paid (Credit)
                                 </label>
                                 <input type="number" min="0" step="any" value={txForm.paid_amount}
                                     onChange={e => setTxForm(f => ({ ...f, paid_amount: e.target.value }))}
-                                    className="w-full px-4 py-2.5 border border-green-200 bg-green-50 rounded-lg focus:ring-2 focus:ring-green-400 outline-none text-sm"
+                                    className="w-full px-4 py-2.5 border border-success-line bg-success-soft rounded-lg focus:ring-2 focus:ring-success outline-none text-sm"
                                     placeholder="0  — kitna paisa diya (Rs.)" />
-                                <p className="text-xs text-gray-400 mt-0.5">Supplier ko abhi kitni payment ki</p>
+                                <p className="text-xs text-fg-subtle mt-0.5">Supplier ko abhi kitni payment ki</p>
                             </div>
 
                             {/* Balance Preview */}
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                <p className="text-xs text-gray-500 uppercase font-bold tracking-wide mb-2">Balance Calculation</p>
+                            <div className="bg-surface-2 rounded-xl p-4 border border-line">
+                                <p className="text-xs text-fg-muted uppercase font-bold tracking-wide mb-2">Balance Calculation</p>
                                 <div className="flex flex-col gap-1 text-sm">
-                                    <div className="flex justify-between text-gray-600">
+                                    <div className="flex justify-between text-fg-3">
                                         <span>Previous Balance</span>
                                         <span className="font-semibold">Rs. {Number(prevBalance).toLocaleString()}</span>
                                     </div>
                                     {purchaseAmt > 0 && (
-                                        <div className="flex justify-between text-orange-600">
+                                        <div className="flex justify-between text-warning-fg">
                                             <span>+ Purchase (Debit)</span>
                                             <span className="font-semibold">Rs. {purchaseAmt.toLocaleString()}</span>
                                         </div>
                                     )}
                                     {paidAmt > 0 && (
-                                        <div className="flex justify-between text-green-600">
+                                        <div className="flex justify-between text-success-fg">
                                             <span>− Payment (Credit)</span>
                                             <span className="font-semibold">Rs. {paidAmt.toLocaleString()}</span>
                                         </div>
                                     )}
-                                    <div className="border-t border-gray-300 mt-1 pt-1 flex justify-between font-bold text-base">
-                                        <span className="text-gray-800">New Balance</span>
-                                        <span className={newBalance > 0 ? 'text-red-600' : 'text-green-700'}>
+                                    <div className="border-t border-line-strong mt-1 pt-1 flex justify-between font-bold text-base">
+                                        <span className="text-fg">New Balance</span>
+                                        <span className={newBalance > 0 ? 'text-danger-fg' : 'text-success-strong'}>
                                             Rs. {newBalance.toLocaleString()}
                                         </span>
                                     </div>
@@ -845,20 +845,20 @@ function SupplierLedger() {
 
                             {/* Details */}
                             <div>
-                                <label className="block text-gray-700 font-medium mb-1 text-sm">Details (Optional)</label>
+                                <label className="block text-fg-2 font-medium mb-1 text-sm">Details (Optional)</label>
                                 <textarea rows="2" value={txForm.details}
                                     onChange={e => setTxForm(f => ({ ...f, details: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"
+                                    className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm resize-none"
                                     placeholder="Saman ki tafseel ya bill link..." />
                             </div>
 
                             {/* Payment Mode + Transaction Ref */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Payment Mode</label>
+                                    <label className="block text-fg-2 font-medium mb-1 text-sm">Payment Mode</label>
                                     <select value={txForm.payment_mode}
                                         onChange={e => setTxForm(f => ({ ...f, payment_mode: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                                        className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm bg-surface">
                                         <option value="cash">Cash</option>
                                         <option value="bank">Bank Transfer</option>
                                         <option value="cheque">Cheque</option>
@@ -867,30 +867,30 @@ function SupplierLedger() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-1 text-sm">Transaction Ref</label>
+                                    <label className="block text-fg-2 font-medium mb-1 text-sm">Transaction Ref</label>
                                     <input type="text" value={txForm.transaction_ref}
                                         onChange={e => setTxForm(f => ({ ...f, transaction_ref: e.target.value }))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                        className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
                                         placeholder="Cheque # / Txn ID" />
                                 </div>
                             </div>
 
                             {/* Note */}
                             <div>
-                                <label className="block text-gray-700 font-medium mb-1 text-sm">Note (Optional)</label>
+                                <label className="block text-fg-2 font-medium mb-1 text-sm">Note (Optional)</label>
                                 <textarea rows="2" value={txForm.note}
                                     onChange={e => setTxForm(f => ({ ...f, note: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"
+                                    className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm resize-none"
                                     placeholder="e.g. Monthly payment / Outstanding cleared..." />
                             </div>
 
                             <div className="flex gap-3 pt-1">
                                 <button type="submit" disabled={saving}
-                                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition disabled:opacity-50">
+                                    className="flex-1 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition disabled:opacity-50">
                                     {saving ? 'Saving...' : '✅ Save Transaction'}
                                 </button>
                                 <button type="button" onClick={resetForm}
-                                    className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition">
+                                    className="flex-1 py-3 bg-surface-3 hover:bg-surface-4 text-fg-2 font-bold rounded-lg transition">
                                     Cancel
                                 </button>
                             </div>

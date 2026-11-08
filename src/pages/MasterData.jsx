@@ -149,42 +149,42 @@ function UnitsTab() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h2 className="text-xl font-bold text-gray-800">📐 Units of Measure</h2>
+        <h2 className="text-xl font-bold text-fg">📐 Units of Measure</h2>
         <div className="flex gap-2 flex-wrap">
           <button onClick={handleSeedDefaults} disabled={saving}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition disabled:opacity-50">
+            className="px-4 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg text-sm font-bold transition disabled:opacity-50">
             🌱 Seed Defaults
           </button>
           <button onClick={() => showForm ? handleCancel() : setShowForm(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition">
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-sm font-bold transition">
             {showForm ? 'Cancel' : '+ Add Unit'}
           </button>
         </div>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6 max-w-md">
-          <h3 className="font-semibold text-gray-700 mb-4">{editingId ? 'Edit Unit' : 'New Unit'}</h3>
+        <div className="bg-surface rounded-xl shadow p-6 mb-6 max-w-md">
+          <h3 className="font-semibold text-fg-2 mb-4">{editingId ? 'Edit Unit' : 'New Unit'}</h3>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-gray-700 font-medium mb-1 text-sm">Name *</label>
+              <label className="block text-fg-2 font-medium mb-1 text-sm">Name *</label>
               <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Feet, Kg, Box"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
             </div>
             <div>
-              <label className="block text-gray-700 font-medium mb-1 text-sm">Abbreviation</label>
+              <label className="block text-fg-2 font-medium mb-1 text-sm">Abbreviation</label>
               <input type="text" value={form.abbreviation} onChange={e => setForm(f => ({ ...f, abbreviation: e.target.value }))}
                 placeholder="e.g. ft, Kg, Box"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
             </div>
             <div className="flex gap-3">
               <button type="submit" disabled={saving}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 text-sm font-semibold">
+                className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg transition disabled:opacity-50 text-sm font-semibold">
                 {saving ? 'Saving...' : editingId ? 'Update' : 'Save'}
               </button>
               <button type="button" onClick={handleCancel}
-                className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition text-sm">
+                className="px-6 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition text-sm">
                 Cancel
               </button>
             </div>
@@ -192,38 +192,38 @@ function UnitsTab() {
         </div>
       )}
 
-      {loading ? <p className="text-gray-400">Loading...</p> : units.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+      {loading ? <p className="text-fg-subtle">Loading...</p> : units.length === 0 ? (
+        <div className="text-center py-12 text-fg-subtle">
           <p className="text-lg mb-2">Koi unit nahi mili</p>
           <p className="text-sm">
             "Seed Defaults" dabayein 14 standard units add karne ke liye,<br />ya manually add karein.
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="bg-surface rounded-xl shadow overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-surface-2 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Sr.</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Unit Name</th>
-                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Abbreviation</th>
-                <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-fg-muted uppercase">Sr.</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-fg-muted uppercase">Unit Name</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-fg-muted uppercase">Abbreviation</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-fg-muted uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line-subtle">
               {units.map((u, idx) => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-3 text-gray-400">{idx + 1}</td>
-                  <td className="px-6 py-3 font-semibold text-gray-800">{u.name}</td>
+                <tr key={u.id} className="hover:bg-surface-2">
+                  <td className="px-6 py-3 text-fg-subtle">{idx + 1}</td>
+                  <td className="px-6 py-3 font-semibold text-fg">{u.name}</td>
                   <td className="px-6 py-3">
-                    <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-mono text-xs font-bold">
+                    <span className="bg-primary-soft text-primary-strong px-2 py-0.5 rounded font-mono text-xs font-bold">
                       {u.abbreviation || '—'}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-center">
                     <div className="flex gap-2 justify-center">
-                      <button onClick={() => handleEdit(u)} className="px-3 py-1 hover:bg-gray-100 text-gray-600 rounded text-xs font-medium">Edit</button>
-                      <button onClick={() => handleDelete(u)} className="px-3 py-1 hover:bg-red-50 text-red-500 rounded text-xs font-medium">Delete</button>
+                      <button onClick={() => handleEdit(u)} className="px-3 py-1 hover:bg-surface-3 text-fg-3 rounded text-xs font-medium">Edit</button>
+                      <button onClick={() => handleDelete(u)} className="px-3 py-1 hover:bg-danger-soft text-danger-fg rounded text-xs font-medium">Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -255,16 +255,16 @@ function MasterData() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">⚙️ Master Data</h1>
+      <h1 className="text-2xl font-bold text-fg mb-4">⚙️ Master Data</h1>
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
+      <div className="flex gap-1 mb-6 border-b border-line">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-5 py-2.5 font-bold text-sm rounded-t-lg transition ${
               activeTab === t.id
-                ? 'bg-blue-600 text-white border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                ? 'bg-primary text-white border-b-2 border-primary'
+                : 'text-fg-muted hover:text-fg-2 hover:bg-surface-3'
             }`}>
             {t.label}
           </button>

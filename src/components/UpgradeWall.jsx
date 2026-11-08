@@ -31,29 +31,29 @@ export default function UpgradeWall({ feature }) {
   return (
     <div className="flex items-center justify-center min-h-[60vh] p-6">
       <div className="max-w-md w-full text-center">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div className="w-20 h-20 bg-surface-3 rounded-full flex items-center justify-center mx-auto mb-6">
           <span className="text-4xl">🔒</span>
         </div>
-        <h2 className="text-2xl font-black text-gray-800 mb-2">Feature Locked</h2>
-        <p className="text-gray-500 mb-4">
+        <h2 className="text-2xl font-black text-fg mb-2">Feature Locked</h2>
+        <p className="text-fg-muted mb-4">
           This feature is not available on the{' '}
-          <span className="font-bold text-gray-700">{currentPlan}</span> plan.
+          <span className="font-bold text-fg-2">{currentPlan}</span> plan.
         </p>
         {requiredPlan !== 'a higher plan' && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-left">
-            <p className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">Unlocks in</p>
+          <div className="bg-primary-soft border border-primary-muted rounded-xl p-4 mb-6 text-left">
+            <p className="text-xs font-black text-primary-fg uppercase tracking-widest mb-2">Unlocks in</p>
             <div className="flex gap-2 flex-wrap">
               {plansToShow.map(p => (
-                <span key={p} className="px-3 py-1 bg-blue-600 text-white text-sm font-bold rounded-full">
+                <span key={p} className="px-3 py-1 bg-primary text-white text-sm font-bold rounded-full">
                   {p} Plan
                 </span>
               ))}
             </div>
           </div>
         )}
-        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-          <p className="text-sm font-bold text-gray-600">Contact support to upgrade your plan</p>
-          <p className="text-lg font-black text-gray-800 mt-1">📞 0301-2616367</p>
+        <div className="bg-surface-2 rounded-xl p-4 border border-line-subtle">
+          <p className="text-sm font-bold text-fg-3">Contact support to upgrade your plan</p>
+          <p className="text-lg font-black text-fg mt-1">📞 0301-2616367</p>
         </div>
       </div>
     </div>

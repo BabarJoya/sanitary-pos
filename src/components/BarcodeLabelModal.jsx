@@ -179,11 +179,11 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
     return (
       <div key={idx} className={`label-item ${containerClass} bg-white flex flex-col items-center justify-center`}>
         {showShopName && (
-          <p className="shop-title text-[9px] font-black uppercase text-gray-700 tracking-wider truncate w-full text-center leading-tight">
+          <p className="shop-title text-[9px] font-black uppercase text-black/80 tracking-wider truncate w-full text-center leading-tight">
             {shopName}
           </p>
         )}
-        <p className="prod-title text-[10px] font-bold text-gray-900 truncate w-full text-center leading-tight">
+        <p className="prod-title text-[10px] font-bold text-black truncate w-full text-center leading-tight">
           {selectedProduct?.name || 'Product Name'}
         </p>
 
@@ -192,7 +192,7 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
         </div>
 
         {showSku && (
-          <p className="sku-text text-[8px] font-mono text-gray-600 tracking-widest leading-none">
+          <p className="sku-text text-[8px] font-mono text-black/70 tracking-widest leading-none">
             {barcodeValue}
           </p>
         )}
@@ -210,22 +210,22 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-line-subtle animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/70">
+        <div className="px-6 py-4 border-b border-line-subtle flex items-center justify-between bg-surface-2/70">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+            <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center shadow-md shadow-primary/20">
               <Tag size={18} />
             </div>
             <div>
-              <h2 className="text-lg font-black text-gray-800 tracking-tight">Barcode & Price Sticker Generator</h2>
-              <p className="text-xs text-gray-500">Print custom barcode labels for shelves, clothes, boxes, or packages</p>
+              <h2 className="text-lg font-black text-fg tracking-tight">Barcode & Price Sticker Generator</h2>
+              <p className="text-xs text-fg-muted">Print custom barcode labels for shelves, clothes, boxes, or packages</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-700 flex items-center justify-center transition"
+            className="w-8 h-8 rounded-lg hover:bg-surface-4 text-fg-subtle hover:text-fg-2 flex items-center justify-center transition"
           >
             <X size={18} />
           </button>
@@ -235,18 +235,18 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
           
           {/* Controls Panel (5 cols) */}
-          <div className="md:col-span-5 p-5 border-r border-gray-100 space-y-4 overflow-y-auto custom-scrollbar bg-white">
+          <div className="md:col-span-5 p-5 border-r border-line-subtle space-y-4 overflow-y-auto custom-scrollbar bg-surface">
             
             {/* Product Picker */}
             <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Select Product</label>
+              <label className="block text-xs font-bold text-fg-3 uppercase tracking-wider mb-1.5">Select Product</label>
               <select
                 value={selectedProduct?.id || ''}
                 onChange={(e) => {
                   const p = products.find(prod => String(prod.id) === e.target.value)
                   setSelectedProduct(p || null)
                 }}
-                className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm font-semibold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                className="w-full px-3.5 py-2 border border-line rounded-xl text-sm font-semibold text-fg bg-surface focus:ring-2 focus:ring-primary outline-none transition"
               >
                 {products.map(p => (
                   <option key={p.id} value={p.id}>
@@ -259,35 +259,35 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
             {/* Sticker Quantity */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Sticker Count</label>
+                <label className="block text-xs font-bold text-fg-3 uppercase tracking-wider mb-1.5">Sticker Count</label>
                 <input
                   type="number"
                   min="1"
                   max="500"
                   value={quantity}
                   onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3.5 py-2 border border-line rounded-xl text-sm font-bold text-fg focus:ring-2 focus:ring-primary outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Price (Rs.)</label>
+                <label className="block text-xs font-bold text-fg-3 uppercase tracking-wider mb-1.5">Price (Rs.)</label>
                 <input
                   type="number"
                   placeholder={selectedProduct?.sale_price || '0'}
                   value={customPrice}
                   onChange={e => setCustomPrice(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-3.5 py-2 border border-line rounded-xl text-sm font-bold text-primary-fg focus:ring-2 focus:ring-primary outline-none"
                 />
               </div>
             </div>
 
             {/* Paper / Roll Format */}
             <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Print Sheet / Roll Format</label>
+              <label className="block text-xs font-bold text-fg-3 uppercase tracking-wider mb-1.5">Print Sheet / Roll Format</label>
               <select
                 value={labelFormat}
                 onChange={e => setLabelFormat(e.target.value)}
-                className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-sm font-semibold text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+                className="w-full px-3.5 py-2 border border-line rounded-xl text-sm font-semibold text-fg bg-surface focus:ring-2 focus:ring-primary outline-none transition"
               >
                 <option value="thermal-50x25">Thermal Roll (50mm × 25mm) - Standard</option>
                 <option value="thermal-40x30">Thermal Roll (40mm × 30mm) - Compact</option>
@@ -297,35 +297,35 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
             </div>
 
             {/* Toggles */}
-            <div className="pt-2 border-t border-gray-100 space-y-2.5">
-              <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Include on Label</span>
+            <div className="pt-2 border-t border-line-subtle space-y-2.5">
+              <span className="block text-xs font-bold text-fg-muted uppercase tracking-wider">Include on Label</span>
               
-              <label className="flex items-center gap-2.5 text-xs font-bold text-gray-700 cursor-pointer select-none">
+              <label className="flex items-center gap-2.5 text-xs font-bold text-fg-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={showShopName}
                   onChange={e => setShowShopName(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  className="w-4 h-4 text-primary-fg rounded border-line-strong focus:ring-primary"
                 />
                 <span>Store Name ({shopName})</span>
               </label>
 
-              <label className="flex items-center gap-2.5 text-xs font-bold text-gray-700 cursor-pointer select-none">
+              <label className="flex items-center gap-2.5 text-xs font-bold text-fg-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={showPrice}
                   onChange={e => setShowPrice(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  className="w-4 h-4 text-primary-fg rounded border-line-strong focus:ring-primary"
                 />
                 <span>Sale Price (Rs. {activePrice.toLocaleString()})</span>
               </label>
 
-              <label className="flex items-center gap-2.5 text-xs font-bold text-gray-700 cursor-pointer select-none">
+              <label className="flex items-center gap-2.5 text-xs font-bold text-fg-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={showSku}
                   onChange={e => setShowSku(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  className="w-4 h-4 text-primary-fg rounded border-line-strong focus:ring-primary"
                 />
                 <span>SKU / Barcode Digits</span>
               </label>
@@ -334,18 +334,18 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
           </div>
 
           {/* Live Preview Panel (7 cols) */}
-          <div className="md:col-span-7 bg-slate-100 p-5 flex flex-col overflow-hidden">
+          <div className="md:col-span-7 bg-surface-3 p-5 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-bold text-fg-muted uppercase tracking-wider flex items-center gap-1.5">
                 <Layers size={14} /> Live Print Preview ({quantity} Stickers)
               </span>
-              <span className="text-[11px] font-semibold text-gray-400 bg-white px-2 py-0.5 rounded-md border border-gray-200">
+              <span className="text-[11px] font-semibold text-fg-subtle bg-surface px-2 py-0.5 rounded-md border border-line">
                 Format: {labelFormat}
               </span>
             </div>
 
             {/* Preview Box */}
-            <div className="flex-1 bg-white border border-gray-200 rounded-xl p-4 overflow-y-auto custom-scrollbar flex items-start justify-center shadow-inner">
+            <div className="flex-1 bg-surface border border-line rounded-xl p-4 overflow-y-auto custom-scrollbar flex items-start justify-center shadow-inner">
               <div
                 ref={printAreaRef}
                 className={
@@ -360,7 +360,7 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
               </div>
             </div>
 
-            <p className="text-[11px] text-gray-400 text-center mt-2">
+            <p className="text-[11px] text-fg-subtle text-center mt-2">
               💡 Tip: In print dialog, set Margins to <strong>None</strong> and Scale to <strong>100%</strong> for exact alignment.
             </p>
           </div>
@@ -368,17 +368,17 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-3.5 border-t border-gray-100 bg-slate-50 flex items-center justify-between">
+        <div className="px-6 py-3.5 border-t border-line-subtle bg-surface-2 flex items-center justify-between">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition"
+            className="px-4 py-2 text-sm font-bold text-fg-3 hover:text-fg hover:bg-surface-3 rounded-xl transition"
           >
             Cancel
           </button>
           
           <button
             onClick={handlePrint}
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-sm flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition cursor-pointer"
+            className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl font-black text-sm flex items-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition cursor-pointer"
           >
             <Printer size={16} />
             Print {quantity} Label{quantity > 1 ? 's' : ''}

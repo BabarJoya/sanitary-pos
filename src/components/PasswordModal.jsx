@@ -64,15 +64,15 @@ function PasswordModal({ title, message, onConfirm, onCancel, checkboxLabel, che
     }
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-[100] overflow-y-auto py-4 px-2 sm:px-4">
-            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-[fadeIn_0.2s_ease-out]">
+        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-[100] overflow-y-auto py-4 px-2 sm:px-4">
+            <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-[fadeIn_0.2s_ease-out]">
                 <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 bg-danger-muted rounded-full flex items-center justify-center flex-shrink-0">
                         <span className="text-lg">🔒</span>
                     </div>
                     <div>
-                        <h2 className="text-lg font-bold text-gray-800">{title || 'Password Required'}</h2>
-                        <p className="text-xs text-gray-500">{message || 'Enter your password to proceed'}</p>
+                        <h2 className="text-lg font-bold text-fg">{title || 'Password Required'}</h2>
+                        <p className="text-xs text-fg-muted">{message || 'Enter your password to proceed'}</p>
                     </div>
                 </div>
 
@@ -84,25 +84,25 @@ function PasswordModal({ title, message, onConfirm, onCancel, checkboxLabel, che
                             required
                             value={password}
                             onChange={e => { setPassword(e.target.value); setError('') }}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 outline-none text-lg"
+                            className="w-full px-4 py-3 border border-line-strong rounded-xl focus:ring-2 focus:ring-danger outline-none text-lg"
                             placeholder="Enter your password..."
                         />
                         {error && (
-                            <p className="text-red-500 text-sm mt-2 font-medium">{error}</p>
+                            <p className="text-danger-fg text-sm mt-2 font-medium">{error}</p>
                         )}
                     </div>
                     <div className="flex gap-3">
                         <button
                             type="submit"
                             disabled={verifying}
-                            className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition disabled:opacity-50"
+                            className="flex-1 py-3 bg-danger hover:bg-danger-hover text-white font-bold rounded-xl transition disabled:opacity-50"
                         >
                             {verifying ? 'Verifying...' : 'Confirm'}
                         </button>
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition"
+                            className="flex-1 py-3 bg-surface-3 hover:bg-surface-4 text-fg-2 font-bold rounded-xl transition"
                         >
                             Cancel
                         </button>
@@ -114,9 +114,9 @@ function PasswordModal({ title, message, onConfirm, onCancel, checkboxLabel, che
                                     type="checkbox"
                                     checked={checkboxChecked}
                                     onChange={(e) => onCheckboxChange && onCheckboxChange(e.target.checked)}
-                                    className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 accent-red-600"
+                                    className="w-5 h-5 rounded border-line-strong text-danger-fg focus:ring-danger accent-danger"
                                 />
-                                <span className="text-sm font-bold text-red-600 select-none group-hover:text-red-700 transition">
+                                <span className="text-sm font-bold text-danger-fg select-none group-hover:text-danger-strong transition">
                                     {checkboxLabel}
                                 </span>
                             </label>

@@ -6,9 +6,9 @@ const STATUS_STEPS = ['open', 'in_progress', 'closed']
 const STATUS_LABEL = { open: 'Submitted', in_progress: 'Working...', closed: 'Resolved' }
 const STATUS_ICON  = { open: '📩', in_progress: '🔧', closed: '✅' }
 const STATUS_BADGE = {
-  open:        'bg-yellow-100 text-yellow-700 border-yellow-200',
-  in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
-  closed:      'bg-green-100 text-green-700 border-green-200',
+  open:        'bg-warning-muted text-warning-strong border-warning-line',
+  in_progress: 'bg-primary-muted text-primary-strong border-primary-line',
+  closed:      'bg-success-muted text-success-strong border-success-line',
 }
 
 function TicketTimeline({ status }) {
@@ -23,19 +23,19 @@ function TicketTimeline({ status }) {
             <div className="flex flex-col items-center">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all
                 ${isActive && step !== 'closed'
-                  ? 'bg-blue-600 border-blue-600 text-white scale-110 shadow-md shadow-blue-200'
+                  ? 'bg-primary border-primary text-white scale-110 shadow-md shadow-primary-line'
                   : done
-                    ? 'bg-green-500 border-green-500 text-white'
-                    : 'bg-gray-100 border-gray-200 text-gray-300'}`}>
+                    ? 'bg-success border-success text-white'
+                    : 'bg-surface-3 border-line text-fg-faint'}`}>
                 {done ? (isActive && step !== 'closed' ? '●' : '✓') : i + 1}
               </div>
               <span className={`text-[9px] mt-1 font-bold uppercase tracking-wide whitespace-nowrap
-                ${isActive ? 'text-blue-600' : done ? 'text-green-600' : 'text-gray-300'}`}>
+                ${isActive ? 'text-primary-fg' : done ? 'text-success-fg' : 'text-fg-faint'}`}>
                 {STATUS_LABEL[step]}
               </span>
             </div>
             {i < STATUS_STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 mb-4 mx-1 rounded ${i < activeIdx ? 'bg-green-400' : 'bg-gray-200'}`} />
+              <div className={`flex-1 h-0.5 mb-4 mx-1 rounded ${i < activeIdx ? 'bg-success' : 'bg-surface-4'}`} />
             )}
           </div>
         )
@@ -114,13 +114,13 @@ function Support() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">🆘 Help & Support</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Ticket submit karein ya apna status check karein.</p>
+          <h1 className="text-2xl font-bold text-fg">🆘 Help & Support</h1>
+          <p className="text-fg-muted text-sm mt-0.5">Ticket submit karein ya apna status check karein.</p>
         </div>
         {!showForm && (
           <button
             onClick={openNewTicket}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-100 transition whitespace-nowrap"
+            className="px-5 py-2 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl text-sm shadow-lg shadow-primary-muted transition whitespace-nowrap"
           >
             + New Ticket
           </button>
@@ -129,13 +129,13 @@ function Support() {
 
       {/* In-progress alert banner */}
       {inProgressCount > 0 && !showForm && (
-        <div className="bg-blue-600 text-white rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-blue-200">
+        <div className="bg-primary text-white rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-primary-line">
           <span className="text-2xl animate-bounce">🔧</span>
           <div>
             <p className="font-bold">
               {inProgressCount} ticket{inProgressCount > 1 ? 's' : ''} par kaam ho raha hai!
             </p>
-            <p className="text-blue-100 text-xs mt-0.5">
+            <p className="text-white/80 text-xs mt-0.5">
               Hamari team neeche active ticket{inProgressCount > 1 ? 's' : ''} par kaam kar rahi hai. Jald hal hoga.
             </p>
           </div>
@@ -144,15 +144,15 @@ function Support() {
 
       {/* New Ticket Form */}
       {showForm && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div className="bg-surface p-6 rounded-2xl shadow-sm border border-line-subtle">
           {submitted ? (
             <div className="text-center py-6">
               <div className="text-5xl mb-3">✅</div>
-              <h2 className="text-xl font-bold text-green-800 mb-1">Ticket Submit Ho Gaya!</h2>
-              <p className="text-green-600 text-sm mb-6">Hamari team jald hi kaam shuru karegi. Neeche apna status track kar saktay hain.</p>
+              <h2 className="text-xl font-bold text-success-strong mb-1">Ticket Submit Ho Gaya!</h2>
+              <p className="text-success-fg text-sm mb-6">Hamari team jald hi kaam shuru karegi. Neeche apna status track kar saktay hain.</p>
               <button
                 onClick={() => { setSubmitted(false); setShowForm(false) }}
-                className="px-6 py-2 bg-green-600 text-white rounded-xl font-bold text-sm"
+                className="px-6 py-2 bg-success text-white rounded-xl font-bold text-sm"
               >
                 OK, Dekhein Tickets ↓
               </button>
@@ -160,42 +160,42 @@ function Support() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="font-bold text-gray-800">New Support Ticket</h2>
-                <button type="button" onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕ Cancel</button>
+                <h2 className="font-bold text-fg">New Support Ticket</h2>
+                <button type="button" onClick={() => setShowForm(false)} className="text-fg-subtle hover:text-fg-3 text-sm">✕ Cancel</button>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Unwan (Subject) *</label>
+                <label className="block text-sm font-bold text-fg-2 mb-1">Unwan (Subject) *</label>
                 <input
                   type="text"
                   required
                   value={subject}
                   onChange={e => setSubject(e.target.value)}
                   placeholder="e.g. Printer connection issue"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-primary outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Message *</label>
+                <label className="block text-sm font-bold text-fg-2 mb-1">Message *</label>
                 <textarea
                   required
                   rows="4"
                   value={message}
                   onChange={e => setMessage(e.target.value)}
                   placeholder="Apni mushkil tafseel se bayan karein..."
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  className="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-primary outline-none resize-none"
                 />
               </div>
-              <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-center gap-3">
+              <div className="bg-primary-soft p-3 rounded-xl border border-primary-muted flex items-center gap-3">
                 <span className="text-lg">📞</span>
                 <div>
-                  <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">Urgent Support?</p>
-                  <p className="text-blue-600 font-bold text-sm">Babar Joya: 0301-2616367</p>
+                  <p className="text-[10px] font-bold text-primary-strong uppercase tracking-wider">Urgent Support?</p>
+                  <p className="text-primary-fg font-bold text-sm">Babar Joya: 0301-2616367</p>
                 </div>
               </div>
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-100 transition disabled:opacity-50"
+                className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg shadow-primary-muted transition disabled:opacity-50"
               >
                 {submitting ? 'Bheja ja raha hai...' : 'Ticket Submit Karein'}
               </button>
@@ -207,41 +207,41 @@ function Support() {
       {/* Tickets List */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-800">
+          <h2 className="font-bold text-fg">
             📋 Meri Tickets
             {tickets.length > 0 && (
-              <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-bold">{tickets.length}</span>
+              <span className="ml-2 px-2 py-0.5 bg-surface-3 text-fg-muted rounded-full text-xs font-bold">{tickets.length}</span>
             )}
           </h2>
-          <button onClick={fetchMyTickets} className="text-xs text-blue-500 hover:text-blue-700 font-bold">⟳ Refresh</button>
+          <button onClick={fetchMyTickets} className="text-xs text-primary-fg hover:text-primary-strong font-bold">⟳ Refresh</button>
         </div>
 
         {loadingTickets ? (
-          <div className="text-center text-gray-400 py-10">
+          <div className="text-center text-fg-subtle py-10">
             <div className="text-3xl mb-2 animate-pulse">🔄</div>
             <p>Tickets load ho rahi hain...</p>
           </div>
         ) : tickets.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center shadow-sm">
+          <div className="bg-surface rounded-2xl border border-line-subtle p-10 text-center shadow-sm">
             <div className="text-4xl mb-3">🎉</div>
-            <p className="font-bold text-gray-700">Koi ticket nahi hai!</p>
-            <p className="text-gray-400 text-sm mt-1">Koi masla ho to upar "+ New Ticket" press karein.</p>
+            <p className="font-bold text-fg-2">Koi ticket nahi hai!</p>
+            <p className="text-fg-subtle text-sm mt-1">Koi masla ho to upar "+ New Ticket" press karein.</p>
           </div>
         ) : (
           <div className="space-y-4">
             {tickets.map(t => (
               <div
                 key={t.id}
-                className={`bg-white rounded-2xl border shadow-sm p-5 transition
-                  ${t.status === 'in_progress' ? 'border-blue-300 ring-2 ring-blue-100' :
-                    t.status === 'closed'       ? 'border-green-200 opacity-80' :
-                                                  'border-gray-100'}`}
+                className={`bg-surface rounded-2xl border shadow-sm p-5 transition
+                  ${t.status === 'in_progress' ? 'border-primary-edge ring-2 ring-primary-muted' :
+                    t.status === 'closed'       ? 'border-success-line opacity-80' :
+                                                  'border-line-subtle'}`}
               >
                 {/* Ticket header */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-800 leading-tight">{t.subject}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5 font-mono">
+                    <p className="font-bold text-fg leading-tight">{t.subject}</p>
+                    <p className="text-[11px] text-fg-subtle mt-0.5 font-mono">
                       #{String(t.id).slice(-6).toUpperCase()} · {new Date(t.created_at).toLocaleString('en-PK', { dateStyle: 'medium', timeStyle: 'short' })}
                     </p>
                   </div>
@@ -251,7 +251,7 @@ function Support() {
                 </div>
 
                 {/* Original message */}
-                <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3 mb-4 line-clamp-2 italic">
+                <p className="text-sm text-fg-3 bg-surface-2 rounded-xl px-4 py-3 mb-4 line-clamp-2 italic">
                   "{t.message}"
                 </p>
 
@@ -260,41 +260,41 @@ function Support() {
 
                 {/* Status-specific banners */}
                 {t.status === 'in_progress' && (
-                  <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-start gap-3">
+                  <div className="mt-4 bg-primary-soft border border-primary-muted rounded-xl px-4 py-3 flex items-start gap-3">
                     <span className="text-xl animate-pulse mt-0.5">🔧</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-blue-700 text-sm font-bold">Hamari team kaam kar rahi hai!</p>
-                      <p className="text-blue-500 text-xs mt-0.5">Is ticket par actively kaam ho raha hai. Thodi dair mein hal ho jayega.</p>
+                      <p className="text-primary-strong text-sm font-bold">Hamari team kaam kar rahi hai!</p>
+                      <p className="text-primary-fg text-xs mt-0.5">Is ticket par actively kaam ho raha hai. Thodi dair mein hal ho jayega.</p>
                       {t.admin_reply && (
-                        <div className="mt-2 bg-white border border-blue-200 rounded-lg px-3 py-2">
-                          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1">💬 Support Team:</p>
-                          <p className="text-sm text-gray-700">{t.admin_reply}</p>
+                        <div className="mt-2 bg-surface border border-primary-line rounded-lg px-3 py-2">
+                          <p className="text-[10px] font-bold text-primary-fg uppercase tracking-wider mb-1">💬 Support Team:</p>
+                          <p className="text-sm text-fg-2">{t.admin_reply}</p>
                         </div>
                       )}
                     </div>
                   </div>
                 )}
                 {t.status === 'closed' && (
-                  <div className="mt-4 bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex items-start gap-3">
+                  <div className="mt-4 bg-success-soft border border-success-muted rounded-xl px-4 py-3 flex items-start gap-3">
                     <span className="text-xl mt-0.5">✅</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-green-700 text-sm font-bold">Ticket hal ho gaya!</p>
-                      <p className="text-green-500 text-xs mt-0.5">Agar masla dobara aaye to naya ticket submit karein.</p>
+                      <p className="text-success-strong text-sm font-bold">Ticket hal ho gaya!</p>
+                      <p className="text-success-fg text-xs mt-0.5">Agar masla dobara aaye to naya ticket submit karein.</p>
                       {t.admin_reply && (
-                        <div className="mt-2 bg-white border border-green-200 rounded-lg px-3 py-2">
-                          <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider mb-1">💬 Support Team:</p>
-                          <p className="text-sm text-gray-700">{t.admin_reply}</p>
+                        <div className="mt-2 bg-surface border border-success-line rounded-lg px-3 py-2">
+                          <p className="text-[10px] font-bold text-success-fg uppercase tracking-wider mb-1">💬 Support Team:</p>
+                          <p className="text-sm text-fg-2">{t.admin_reply}</p>
                         </div>
                       )}
                     </div>
                   </div>
                 )}
                 {t.status === 'open' && (
-                  <div className="mt-4 bg-yellow-50 border border-yellow-100 rounded-xl px-4 py-3 flex items-center gap-3">
+                  <div className="mt-4 bg-warning-soft border border-warning-muted rounded-xl px-4 py-3 flex items-center gap-3">
                     <span className="text-xl">⏳</span>
                     <div>
-                      <p className="text-yellow-700 text-sm font-bold">Queue mein hai</p>
-                      <p className="text-yellow-500 text-xs mt-0.5">Hamari team ne ticket receive kar li hai. Jald kaam shuru hoga.</p>
+                      <p className="text-warning-strong text-sm font-bold">Queue mein hai</p>
+                      <p className="text-warning-fg text-xs mt-0.5">Hamari team ne ticket receive kar li hai. Jald kaam shuru hoga.</p>
                     </div>
                   </div>
                 )}
@@ -306,12 +306,12 @@ function Support() {
 
       {/* Contact card (bottom) */}
       {!showForm && (
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl p-5 flex items-center gap-4 shadow-lg shadow-blue-200">
+        <div className="bg-gradient-to-r from-primary to-primary-hover text-white rounded-2xl p-5 flex items-center gap-4 shadow-lg shadow-primary-line">
           <span className="text-3xl">📞</span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-100">Urgent / Direct Support</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-white/80">Urgent / Direct Support</p>
             <p className="text-lg font-black">Babar Joya: 0301-2616367</p>
-            <p className="text-blue-200 text-xs mt-0.5">Zabardast mushkil ho to seedha call karein.</p>
+            <p className="text-white/80 text-xs mt-0.5">Zabardast mushkil ho to seedha call karein.</p>
           </div>
         </div>
       )}

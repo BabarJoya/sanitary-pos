@@ -53,27 +53,27 @@ export default function PWAInstallPrompt() {
   if (isInstalled || !showBanner) return null
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 bg-white rounded-2xl shadow-2xl border border-blue-100 p-4 animate-in slide-in-from-bottom duration-300">
+    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 bg-surface rounded-2xl shadow-2xl border border-primary-muted p-4 animate-in slide-in-from-bottom duration-300">
       <div className="flex items-start gap-3">
-        <img src="/edgex_pos_logo_platform.png" alt="EdgeX" className="w-10 h-10 rounded-xl flex-shrink-0 object-contain bg-blue-50 p-1 border border-blue-100" />
+        <img src="/edgex_pos_logo_platform.png" alt="EdgeX" className="w-10 h-10 rounded-xl flex-shrink-0 object-contain bg-primary-soft p-1 border border-primary-muted" />
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-gray-800 text-sm">Install EdgeX POS</p>
+          <p className="font-bold text-fg text-sm">Install EdgeX POS</p>
           {isIOS ? (
-            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+            <p className="text-xs text-fg-muted mt-0.5 leading-relaxed">
               Tap <span className="font-bold">Share</span> → <span className="font-bold">Add to Home Screen</span> to install and use offline.
             </p>
           ) : (
-            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+            <p className="text-xs text-fg-muted mt-0.5 leading-relaxed">
               Install the app to use it offline and get faster access.
             </p>
           )}
         </div>
-        <button onClick={handleDismiss} className="text-gray-400 hover:text-gray-600 flex-shrink-0 text-lg leading-none mt-0.5">×</button>
+        <button onClick={handleDismiss} className="text-fg-subtle hover:text-fg-3 flex-shrink-0 text-lg leading-none mt-0.5">×</button>
       </div>
       {!isIOS && installPrompt && (
         <button
           onClick={handleInstall}
-          className="mt-3 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-md shadow-blue-200"
+          className="mt-3 w-full py-2 bg-primary hover:bg-primary-hover text-white rounded-xl font-bold text-xs transition shadow-md shadow-primary-line"
         >
           📲 Install App
         </button>

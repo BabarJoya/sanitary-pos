@@ -384,8 +384,8 @@ function Purchases() {
 
         {/* Header */}
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-800">📥 Stock Purchase</h1>
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">{cart.length} items in cart</span>
+          <h1 className="text-xl font-bold text-fg">📥 Stock Purchase</h1>
+          <span className="text-xs bg-primary-muted text-primary-strong px-2 py-0.5 rounded-full font-bold">{cart.length} items in cart</span>
         </div>
 
         {/* Search + Filters */}
@@ -393,14 +393,14 @@ function Purchases() {
           <input
             type="text"
             placeholder="🔍 Search products / brands..."
-            className="flex-1 px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0"
+            className="flex-1 px-3 py-2 border rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-primary min-w-0"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           <select
             value={selectedBrand}
             onChange={e => setSelectedBrand(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none"
+            className="px-3 py-2 border rounded-lg text-sm bg-surface focus:outline-none"
           >
             <option value="">All Brands</option>
             {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
@@ -408,7 +408,7 @@ function Purchases() {
           {(search || selectedBrand) && (
             <button
               onClick={() => { setSearch(''); setSelectedBrand('') }}
-              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-sm transition"
+              className="px-3 py-2 bg-surface-3 hover:bg-surface-4 text-fg-3 rounded-lg text-sm transition"
             >
               Reset
             </button>
@@ -417,25 +417,25 @@ function Purchases() {
 
         {/* Product Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto flex-1 content-start">
-          {filteredProducts.length === 0 && <p className="text-gray-400 col-span-3 text-center py-10">No products found</p>}
+          {filteredProducts.length === 0 && <p className="text-fg-subtle col-span-3 text-center py-10">No products found</p>}
           {filteredProducts.map(p => (
             <div key={p.id}
-              className="bg-white rounded-xl shadow-sm p-3 text-left hover:shadow-md hover:bg-blue-50 transition border border-transparent hover:border-blue-300 h-fit group relative"
+              className="bg-surface rounded-xl shadow-sm p-3 text-left hover:shadow-md hover:bg-primary-soft transition border border-transparent hover:border-primary-edge h-fit group relative"
             >
               <button
                 onClick={() => addToCart(p)}
                 className="w-full text-left"
               >
-                <p className="font-semibold text-gray-800 text-sm leading-tight group-hover:text-blue-700">{p.name}</p>
-                {p.brand && <p className="text-xs text-gray-400">{p.brand}</p>}
+                <p className="font-semibold text-fg text-sm leading-tight group-hover:text-primary-strong">{p.name}</p>
+                {p.brand && <p className="text-xs text-fg-subtle">{p.brand}</p>}
                 <div className="flex justify-between items-end mt-2">
-                  <p className="text-xs font-bold text-green-600">Stock: {p.stock_quantity}</p>
-                  <p className="text-xs text-gray-500">Cost: Rs.{p.cost_price}</p>
+                  <p className="text-xs font-bold text-success-fg">Stock: {p.stock_quantity}</p>
+                  <p className="text-xs text-fg-muted">Cost: Rs.{p.cost_price}</p>
                 </div>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); openQuickView(p) }}
-                className="absolute top-2 right-2 w-6 h-6 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full text-xs font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                className="absolute top-2 right-2 w-6 h-6 bg-primary-muted hover:bg-primary-line text-primary-fg rounded-full text-xs font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
                 title="Quick View"
               >
                 👁
@@ -449,11 +449,11 @@ function Purchases() {
       {cart.length > 0 && (
         <button
           onClick={() => setShowMobileCart(true)}
-          className="md:hidden fixed bottom-5 right-5 z-40 bg-green-600 text-white rounded-full w-16 h-16 flex flex-col items-center justify-center shadow-2xl hover:bg-green-700 transition active:scale-95"
+          className="md:hidden fixed bottom-5 right-5 z-40 bg-success text-white rounded-full w-16 h-16 flex flex-col items-center justify-center shadow-2xl hover:bg-success-hover transition active:scale-95"
         >
           <span className="text-lg">🛒</span>
           <span className="text-[10px] font-black">{cart.length}</span>
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center">Rs.{total.toFixed(0)}</span>
+          <span className="absolute -top-1 -right-1 bg-danger text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center">Rs.{total.toFixed(0)}</span>
         </button>
       )}
 
@@ -463,19 +463,19 @@ function Purchases() {
       )}
 
       {/* RIGHT: Cart */}
-      <div className={`${showMobileCart ? 'fixed inset-0 z-50 w-full flex' : 'hidden md:flex'} md:static md:w-96 flex-col gap-2 bg-white rounded-xl shadow-lg p-4 h-[calc(100vh-80px)] md:h-full border border-gray-100 overflow-hidden`}>
+      <div className={`${showMobileCart ? 'fixed inset-0 z-50 w-full flex' : 'hidden md:flex'} md:static md:w-96 flex-col gap-2 bg-surface rounded-xl shadow-lg p-4 h-[calc(100vh-80px)] md:h-full border border-line-subtle overflow-hidden`}>
 
         {/* Mobile close button */}
-        <button onClick={() => setShowMobileCart(false)} className="md:hidden self-end text-gray-400 hover:text-gray-700 text-2xl font-bold mb-1">✕</button>
+        <button onClick={() => setShowMobileCart(false)} className="md:hidden self-end text-fg-subtle hover:text-fg-2 text-2xl font-bold mb-1">✕</button>
 
         {/* Cart Header */}
-        <h2 className="text-base font-bold text-gray-800 border-b pb-2 shrink-0 flex justify-between items-center">
+        <h2 className="text-base font-bold text-fg border-b pb-2 shrink-0 flex justify-between items-center">
           <span>🛒 Purchase Cart</span>
           <div className="flex gap-1">
             {heldPurchases.length > 0 && (
               <button
                 onClick={() => setShowHeldPurchases(true)}
-                className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold uppercase hover:bg-orange-200 transition"
+                className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded text-[10px] font-bold uppercase hover:bg-warning-line transition"
               >
                 ⏸️ Held ({heldPurchases.length})
               </button>
@@ -485,7 +485,7 @@ function Purchases() {
 
         {/* Supplier */}
         <select
-          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shrink-0"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary shrink-0"
           value={supplierId}
           onChange={e => setSupplierId(e.target.value)}
         >
@@ -499,13 +499,13 @@ function Purchases() {
         <div className="flex gap-2 shrink-0">
           <button
             onClick={() => setPaymentType('cash')}
-            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${paymentType === 'cash' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}
+            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${paymentType === 'cash' ? 'bg-success text-white shadow-md' : 'bg-surface-3 text-fg-3'}`}
           >
             💵 Cash Paid
           </button>
           <button
             onClick={() => setPaymentType('credit')}
-            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${paymentType === 'credit' ? 'bg-orange-500 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}
+            className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition ${paymentType === 'credit' ? 'bg-warning text-white shadow-md' : 'bg-surface-3 text-fg-3'}`}
           >
             📒 Credit
           </button>
@@ -513,77 +513,77 @@ function Purchases() {
 
         {/* Cart Items — scrollable */}
         <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pr-1 custom-scrollbar">
-          {cart.length === 0 && <p className="text-gray-400 text-xs text-center py-8">Products select karein ←</p>}
+          {cart.length === 0 && <p className="text-fg-subtle text-xs text-center py-8">Products select karein ←</p>}
           {cart.map(item => (
-            <div key={item.id} className="bg-gray-50 rounded-lg p-2 border border-gray-100">
+            <div key={item.id} className="bg-surface-2 rounded-lg p-2 border border-line-subtle">
               <div className="flex items-center gap-1">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-800 truncate">{item.name}</p>
-                  {item.brand && <p className="text-[10px] text-gray-400">{item.brand}</p>}
+                  <p className="text-xs font-semibold text-fg truncate">{item.name}</p>
+                  {item.brand && <p className="text-[10px] text-fg-subtle">{item.brand}</p>}
                 </div>
-                <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 font-bold pl-1 text-sm">×</button>
+                <button onClick={() => removeFromCart(item.id)} className="text-danger-fg hover:text-danger-strong font-bold pl-1 text-sm">×</button>
               </div>
               <div className="flex items-center gap-2 mt-1">
                 {/* Qty Controls */}
-                <div className="flex items-center bg-white border border-gray-200 rounded overflow-hidden">
+                <div className="flex items-center bg-surface border border-line rounded overflow-hidden">
                   <button
                     onClick={() => decrementQty(item.id)}
-                    className="px-2 py-0.5 text-gray-500 hover:bg-gray-100 text-xs font-bold transition"
+                    className="px-2 py-0.5 text-fg-muted hover:bg-surface-3 text-xs font-bold transition"
                   >−</button>
                   <input
                     type="number"
                     value={item.qty}
                     onChange={e => updateQty(item.id, e.target.value)}
-                    className="w-10 text-center text-xs font-bold outline-none border-x border-gray-200"
+                    className="w-10 text-center text-xs font-bold outline-none border-x border-line"
                     min="1"
                   />
                   <button
                     onClick={() => incrementQty(item.id)}
-                    className="px-2 py-0.5 text-gray-500 hover:bg-gray-100 text-xs font-bold transition"
+                    className="px-2 py-0.5 text-fg-muted hover:bg-surface-3 text-xs font-bold transition"
                   >+</button>
                 </div>
                 {/* Price */}
                 <div className="flex-1 flex flex-col gap-0.5">
-                  <div className="flex items-center gap-1 bg-white border border-gray-200 rounded px-1">
-                    <span className="text-[10px] text-gray-400">Rate</span>
+                  <div className="flex items-center gap-1 bg-surface border border-line rounded px-1">
+                    <span className="text-[10px] text-fg-subtle">Rate</span>
                     <input
                       type="number"
                       value={item.purchase_price}
                       onChange={e => updatePrice(item.id, e.target.value)}
-                      className={`w-full text-xs font-bold outline-none ${item.purchase_price > (item.cost_price || 0) ? 'text-red-600' : item.purchase_price < (item.cost_price || 0) ? 'text-green-600' : 'text-blue-600'}`}
+                      className={`w-full text-xs font-bold outline-none ${item.purchase_price > (item.cost_price || 0) ? 'text-danger-fg' : item.purchase_price < (item.cost_price || 0) ? 'text-success-fg' : 'text-primary-fg'}`}
                     />
                   </div>
-                  <p className="text-[8px] text-gray-400">Prev Cost: Rs.{item.cost_price || 0}</p>
+                  <p className="text-[8px] text-fg-subtle">Prev Cost: Rs.{item.cost_price || 0}</p>
                 </div>
               </div>
-              <p className="text-right text-[10px] font-bold text-gray-500 mt-0.5">Total: Rs. {(item.purchase_price * item.qty).toLocaleString()}</p>
+              <p className="text-right text-[10px] font-bold text-fg-muted mt-0.5">Total: Rs. {(item.purchase_price * item.qty).toLocaleString()}</p>
             </div>
           ))}
         </div>
 
         {/* Bottom section — fixed */}
-        <div className="bg-gray-50 rounded-lg p-2 border-t shrink-0 space-y-1 mt-auto">
+        <div className="bg-surface-2 rounded-lg p-2 border-t shrink-0 space-y-1 mt-auto">
           {/* Totals & Discount Mini-Grid */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-gray-600">
+              <div className="flex justify-between text-fg-3">
                 <span>Subtotal</span><span>Rs.{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
-                <label className="text-gray-600">Disc (Rs):</label>
+                <label className="text-fg-3">Disc (Rs):</label>
                 <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} className="w-16 px-1 border rounded text-right outline-none" min="0" placeholder="0" />
               </div>
             </div>
-            <div className="flex flex-col justify-end text-right border-l pl-2 border-gray-200">
-              <div className="text-gray-500 text-[10px] uppercase">Net Total</div>
-              <div className="font-black text-lg text-gray-800 leading-none">Rs.{total.toLocaleString()}</div>
+            <div className="flex flex-col justify-end text-right border-l pl-2 border-line">
+              <div className="text-fg-muted text-[10px] uppercase">Net Total</div>
+              <div className="font-black text-lg text-fg leading-none">Rs.{total.toLocaleString()}</div>
             </div>
           </div>
 
           <div className="flex gap-1 pt-1">
-            <button onClick={handleHoldPurchase} disabled={cart.length === 0} className="px-2 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold disabled:opacity-30">⏸️</button>
-            <button onClick={clearCart} disabled={cart.length === 0} className="px-2 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-bold disabled:opacity-30">🗑️</button>
-            <button onClick={handleCompletePurchase} disabled={saving || cart.length === 0} className="flex-1 py-1.5 bg-blue-600 text-white font-bold rounded-lg text-sm disabled:opacity-50">
+            <button onClick={handleHoldPurchase} disabled={cart.length === 0} className="px-2 py-1.5 bg-warning-muted text-warning-strong rounded-lg text-xs font-bold disabled:opacity-30">⏸️</button>
+            <button onClick={clearCart} disabled={cart.length === 0} className="px-2 py-1.5 bg-surface-4 text-fg-2 rounded-lg text-xs font-bold disabled:opacity-30">🗑️</button>
+            <button onClick={handleCompletePurchase} disabled={saving || cart.length === 0} className="flex-1 py-1.5 bg-primary text-white font-bold rounded-lg text-sm disabled:opacity-50">
               {saving ? 'Processing...' : '✅ Save Purchase'}
             </button>
           </div>
@@ -592,73 +592,73 @@ function Purchases() {
 
       {/* Quick View Modal */}
       {quickViewProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setQuickViewProduct(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setQuickViewProduct(null)}>
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 shrink-0">
-              <h3 className="text-lg font-bold text-gray-800">📋 Product Details & Price History</h3>
-              <button onClick={() => setQuickViewProduct(null)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+              <h3 className="text-lg font-bold text-fg">📋 Product Details & Price History</h3>
+              <button onClick={() => setQuickViewProduct(null)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-3">
               <div>
-                <p className="text-sm text-gray-500">Product Name</p>
-                <p className="font-bold text-gray-800">{quickViewProduct.name}</p>
+                <p className="text-sm text-fg-muted">Product Name</p>
+                <p className="font-bold text-fg">{quickViewProduct.name}</p>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <p className="text-sm text-gray-500">Brand</p>
-                  <p className="font-medium text-gray-700">{quickViewProduct.brand || '-'}</p>
+                  <p className="text-sm text-fg-muted">Brand</p>
+                  <p className="font-medium text-fg-2">{quickViewProduct.brand || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Stock</p>
-                  <p className={`font-bold ${quickViewProduct.stock_quantity <= 5 ? 'text-red-600' : 'text-green-600'}`}>{quickViewProduct.stock_quantity}</p>
+                  <p className="text-sm text-fg-muted">Stock</p>
+                  <p className={`font-bold ${quickViewProduct.stock_quantity <= 5 ? 'text-danger-fg' : 'text-success-fg'}`}>{quickViewProduct.stock_quantity}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">C. Rate</p>
-                  <p className="font-bold text-purple-600">{quickViewProduct.c_rate || 0}</p>
+                  <p className="text-sm text-fg-muted">C. Rate</p>
+                  <p className="font-bold text-info-fg">{quickViewProduct.c_rate || 0}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-blue-50 rounded-lg p-2 text-center">
-                  <p className="text-[10px] text-blue-500 uppercase font-bold">Current Cost</p>
-                  <p className="font-bold text-blue-700 text-lg">Rs. {quickViewProduct.cost_price || 0}</p>
+                <div className="bg-primary-soft rounded-lg p-2 text-center">
+                  <p className="text-[10px] text-primary-fg uppercase font-bold">Current Cost</p>
+                  <p className="font-bold text-primary-strong text-lg">Rs. {quickViewProduct.cost_price || 0}</p>
                 </div>
-                <div className="bg-green-50 rounded-lg p-2 text-center">
-                  <p className="text-[10px] text-green-500 uppercase font-bold">Sale Price</p>
-                  <p className="font-bold text-green-700 text-lg">Rs. {quickViewProduct.sale_price || 0}</p>
+                <div className="bg-success-soft rounded-lg p-2 text-center">
+                  <p className="text-[10px] text-success-fg uppercase font-bold">Sale Price</p>
+                  <p className="font-bold text-success-strong text-lg">Rs. {quickViewProduct.sale_price || 0}</p>
                 </div>
                 {wholesaleEnabled && (
-                  <div className="bg-amber-50 rounded-lg p-2 text-center sm:col-span-2">
-                    <p className="text-[10px] text-amber-600 uppercase font-bold">Wholesale Price</p>
-                    <p className="font-bold text-amber-700 text-lg">{Number(quickViewProduct.wholesale_price) > 0 ? `Rs. ${quickViewProduct.wholesale_price}` : '—'}</p>
+                  <div className="bg-wholesale-soft rounded-lg p-2 text-center sm:col-span-2">
+                    <p className="text-[10px] text-wholesale-fg uppercase font-bold">Wholesale Price</p>
+                    <p className="font-bold text-wholesale-strong text-lg">{Number(quickViewProduct.wholesale_price) > 0 ? `Rs. ${quickViewProduct.wholesale_price}` : '—'}</p>
                   </div>
                 )}
               </div>
 
               {/* Purchase Price History */}
               <div className="border-t pt-3">
-                <h4 className="font-bold text-gray-700 text-sm mb-2">📊 Purchase Price History</h4>
+                <h4 className="font-bold text-fg-2 text-sm mb-2">📊 Purchase Price History</h4>
                 {loadingHistory ? (
-                  <p className="text-center text-gray-400 text-xs py-4">Loading history...</p>
+                  <p className="text-center text-fg-subtle text-xs py-4">Loading history...</p>
                 ) : priceHistory.length === 0 ? (
-                  <p className="text-center text-gray-400 text-xs py-4 italic">No previous purchases found for this product.</p>
+                  <p className="text-center text-fg-subtle text-xs py-4 italic">No previous purchases found for this product.</p>
                 ) : (
                   <div className="border rounded-lg overflow-hidden overflow-x-auto">
                     <table className="w-full text-xs min-w-[360px]">
-                      <thead className="bg-gray-100">
+                      <thead className="bg-surface-3">
                         <tr>
-                          <th className="px-3 py-2 text-left text-gray-500 font-bold">Date</th>
-                          <th className="px-3 py-2 text-left text-gray-500 font-bold">Supplier</th>
-                          <th className="px-3 py-2 text-right text-gray-500 font-bold">Rate</th>
-                          <th className="px-3 py-2 text-right text-gray-500 font-bold">Qty</th>
+                          <th className="px-3 py-2 text-left text-fg-muted font-bold">Date</th>
+                          <th className="px-3 py-2 text-left text-fg-muted font-bold">Supplier</th>
+                          <th className="px-3 py-2 text-right text-fg-muted font-bold">Rate</th>
+                          <th className="px-3 py-2 text-right text-fg-muted font-bold">Qty</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-line-subtle">
                         {priceHistory.map((h, idx) => (
-                          <tr key={idx} className={`hover:bg-gray-50 ${idx === 0 ? 'bg-yellow-50 font-semibold' : ''}`}>
-                            <td className="px-3 py-1.5 text-gray-600">{h.date ? new Date(h.date).toLocaleDateString('en-PK') : '-'}</td>
-                            <td className="px-3 py-1.5 text-gray-600 truncate max-w-[100px]">{h.supplier}</td>
-                            <td className={`px-3 py-1.5 text-right font-bold ${idx > 0 && h.price !== priceHistory[idx - 1]?.price ? 'text-orange-600' : 'text-gray-800'}`}>Rs. {h.price}</td>
-                            <td className="px-3 py-1.5 text-right text-gray-500">{h.qty}</td>
+                          <tr key={idx} className={`hover:bg-surface-2 ${idx === 0 ? 'bg-warning-soft font-semibold' : ''}`}>
+                            <td className="px-3 py-1.5 text-fg-3">{h.date ? new Date(h.date).toLocaleDateString('en-PK') : '-'}</td>
+                            <td className="px-3 py-1.5 text-fg-3 truncate max-w-[100px]">{h.supplier}</td>
+                            <td className={`px-3 py-1.5 text-right font-bold ${idx > 0 && h.price !== priceHistory[idx - 1]?.price ? 'text-warning-fg' : 'text-fg'}`}>Rs. {h.price}</td>
+                            <td className="px-3 py-1.5 text-right text-fg-muted">{h.qty}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -669,7 +669,7 @@ function Purchases() {
             </div>
             <button
               onClick={() => { addToCart(quickViewProduct); setQuickViewProduct(null) }}
-              className="w-full mt-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md transition shrink-0"
+              className="w-full mt-4 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg shadow-md transition shrink-0"
             >
               + Add to Purchase Cart
             </button>
@@ -679,31 +679,31 @@ function Purchases() {
 
       {/* Held Purchases Modal */}
       {showHeldPurchases && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowHeldPurchases(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowHeldPurchases(false)}>
+          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800">⏸️ Held Purchases</h3>
-              <button onClick={() => setShowHeldPurchases(false)} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+              <h3 className="text-lg font-bold text-fg">⏸️ Held Purchases</h3>
+              <button onClick={() => setShowHeldPurchases(false)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
             </div>
             <div className="overflow-y-auto space-y-3 flex-1">
-              {heldPurchases.length === 0 && <p className="text-gray-400 text-center py-8">No held purchases</p>}
+              {heldPurchases.length === 0 && <p className="text-fg-subtle text-center py-8">No held purchases</p>}
               {heldPurchases.map(held => {
                 const sup = suppliers.find(s => String(s.id) === String(held.supplier_id))
                 return (
-                  <div key={held.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div key={held.id} className="bg-surface-2 rounded-lg p-3 border border-line">
                     <div className="flex justify-between items-center mb-1">
-                      <p className="text-xs text-gray-500">{new Date(held.saved_at).toLocaleString()}</p>
-                      <p className="font-bold text-gray-800">Rs. {held.total?.toLocaleString()}</p>
+                      <p className="text-xs text-fg-muted">{new Date(held.saved_at).toLocaleString()}</p>
+                      <p className="font-bold text-fg">Rs. {held.total?.toLocaleString()}</p>
                     </div>
-                    {sup && <p className="text-xs text-gray-600 mb-1">Supplier: {sup.name}</p>}
-                    <p className="text-xs text-gray-400">{held.items?.length} items</p>
+                    {sup && <p className="text-xs text-fg-3 mb-1">Supplier: {sup.name}</p>}
+                    <p className="text-xs text-fg-subtle">{held.items?.length} items</p>
                     <div className="flex gap-2 mt-2">
                       <button onClick={() => handleResumePurchase(held)}
-                        className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition">
+                        className="flex-1 py-1.5 bg-primary hover:bg-primary-hover text-white rounded-lg text-xs font-bold transition">
                         ▶ Resume
                       </button>
                       <button onClick={() => handleDeleteHeld(held.id)}
-                        className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-xs font-bold transition">
+                        className="px-3 py-1.5 bg-danger-muted hover:bg-danger-line text-danger-fg rounded-lg text-xs font-bold transition">
                         🗑
                       </button>
                     </div>
