@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { printHTML, getShopBranding } from '../utils/printUtils'
@@ -60,9 +61,9 @@ function Dashboard() {
 
       const fetchPromise = Promise.all([
         supabase.from('sales').select(`total_amount, discount, payment_type${wholesaleEnabled ? ', price_tier' : ''}, sale_items(cost_price, quantity, returned_qty)`).eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', today.toISOString()),
-        supabase.from('sales').select('total_amount, discount').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', firstDayOfMonth.toISOString()),
-        supabase.from('customers').select('id, name, outstanding_balance').eq('shop_id', user.shop_id),
-        supabase.from('products').select('id, stock_quantity, low_stock_threshold').eq('shop_id', user.shop_id),
+        fetchAllRows(() => supabase.from('sales').select('total_amount, discount').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', firstDayOfMonth.toISOString())),
+        fetchAllRows(() => supabase.from('customers').select('id, name, outstanding_balance').eq('shop_id', user.shop_id)),
+        fetchAllRows(() => supabase.from('products').select('id, stock_quantity, low_stock_threshold').eq('shop_id', user.shop_id)),
         supabase.rpc('get_shop_config', { p_shop_id: user.shop_id })
       ])
 

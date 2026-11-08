@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { db } from '../services/db'
@@ -73,13 +74,13 @@ function Reports() {
 
       // Parallel fetching
       const fetchPromise = Promise.all([
-        supabase.from('sales').select('*').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', startISO),
-        supabase.from('sale_items').select('*, sales!inner(created_at, sale_type, shop_id)').eq('sales.shop_id', user.shop_id).eq('sales.sale_type', 'sale').gte('sales.created_at', startISO),
+        fetchAllRows(() => supabase.from('sales').select('*').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', startISO)),
+        fetchAllRows(() => supabase.from('sale_items').select('*, sales!inner(created_at, sale_type, shop_id)').eq('sales.shop_id', user.shop_id).eq('sales.sale_type', 'sale').gte('sales.created_at', startISO)),
         supabase.from('expenses').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO),
         supabase.from('purchases').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO)
       ])
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
       const [salesRes, itemsRes, expensesRes, purchasesRes] = await Promise.race([fetchPromise, timeoutPromise])
 
       const sales = salesRes.data || []

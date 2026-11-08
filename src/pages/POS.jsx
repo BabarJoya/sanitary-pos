@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance } from '../services/integrity'
@@ -374,9 +375,9 @@ function POS() {
     if (!navigator.onLine) return;
     try {
       const [p, c, cu, b, s] = await Promise.all([
-        supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).or('status.eq.active,status.is.null'),
+        fetchAllRows(() => supabase.from('products').select('*, categories(name)').eq('shop_id', user.shop_id).or('status.eq.active,status.is.null')),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
-        supabase.from('customers').select('*').eq('shop_id', user.shop_id).order('name'),
+        fetchAllRows(() => supabase.from('customers').select('*').eq('shop_id', user.shop_id).order('name')),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
       ])
@@ -579,16 +580,29 @@ function POS() {
   const addToCart = (product, qty = 1) => {
     const parsedQty = parseFloat(qty)
     const addQty = isNaN(parsedQty) || parsedQty <= 0 ? 1 : parsedQty
+    const stock = Number(product.stock_quantity) || 0
+    // Quotations may include items not in stock; real sales may not.
+    const enforceStock = saleType !== 'quotation'
+    const existing = cart.find(i => i.id === product.id)
+    const wantedQty = Math.round(((existing ? Number(existing.qty) : 0) + addQty) * 1000) / 1000
+
+    if (enforceStock && stock <= 0) {
+      alert(`${product.name} is out of stock (stock: ${stock}).`)
+      return
+    }
+    if (enforceStock && wantedQty > stock) {
+      if (existing) { alert(`Not enough stock! Only ${stock} available.`); return }
+    }
+    // New line: never add more than the available stock (and never 0 or a negative quantity)
+    const lineQty = existing ? wantedQty : (enforceStock ? Math.min(addQty, stock) : addQty)
+    if (!(lineQty > 0)) return
+
     setCart(prev => {
-      const existing = prev.find(i => i.id === product.id)
-      if (existing) {
-        const newQty = Math.round((existing.qty + addQty) * 1000) / 1000
-        if (newQty > product.stock_quantity) { alert('Not enough stock!'); return prev }
-        return prev.map(i => i.id === product.id ? { ...i, qty: newQty } : i)
+      if (prev.some(i => i.id === product.id)) {
+        return prev.map(i => i.id === product.id ? { ...i, qty: lineQty } : i)
       }
-      const clampedQty = Math.min(addQty, product.stock_quantity)
       const { price, fallback } = getUnitPrice(product, activeTier)
-      return [{ ...product, qty: clampedQty, custom_price: price, price_fallback: fallback, price_overridden: false }, ...prev]
+      return [{ ...product, qty: lineQty, custom_price: price, price_fallback: fallback, price_overridden: false }, ...prev]
     })
   }
 
@@ -596,7 +610,7 @@ function POS() {
     const num = parseFloat(qty)
     if (isNaN(num) || num <= 0) return
     const product = products.find(p => p.id === id)
-    if (product && num > product.stock_quantity) { alert('Not enough stock!'); return }
+    if (saleType !== 'quotation' && product && num > Number(product.stock_quantity)) { alert(`Not enough stock! Only ${product.stock_quantity} available.`); return }
     setCart(prev => prev.map(i => i.id === id ? { ...i, qty: num } : i))
   }
 

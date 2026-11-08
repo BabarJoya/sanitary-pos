@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
@@ -1040,11 +1041,11 @@ function Settings() {
                 try {
                   const shopEq = 'shop_id';
                   const [p, c, cu, su, sa, pu, ex, us] = await Promise.all([
-                    supabase.from('products').select('*').eq(shopEq, user.shop_id),
+                    fetchAllRows(() => supabase.from('products').select('*').eq(shopEq, user.shop_id)),
                     supabase.from('categories').select('*').eq(shopEq, user.shop_id),
-                    supabase.from('customers').select('*').eq(shopEq, user.shop_id),
+                    fetchAllRows(() => supabase.from('customers').select('*').eq(shopEq, user.shop_id)),
                     supabase.from('suppliers').select('*').eq(shopEq, user.shop_id),
-                    supabase.from('sales').select('*').eq(shopEq, user.shop_id),
+                    fetchAllRows(() => supabase.from('sales').select('*').eq(shopEq, user.shop_id)),
                     supabase.from('purchases').select('*').eq(shopEq, user.shop_id),
                     supabase.from('expenses').select('*').eq(shopEq, user.shop_id),
                     supabase.from('users').select('*').eq(shopEq, user.shop_id)

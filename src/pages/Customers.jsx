@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import * as XLSX from 'xlsx'
@@ -56,13 +57,13 @@ function Customers() {
     }
 
     try {
-      const fetchPromise = supabase
+      const fetchPromise = fetchAllRows(() => supabase
         .from('customers')
         .select('*')
         .eq('shop_id', user.shop_id)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }))
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise])
 
       if (error) throw error

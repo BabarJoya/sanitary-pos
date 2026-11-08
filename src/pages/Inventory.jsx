@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { recordAuditLog } from '../services/auditService'
 import { db, addToSyncQueue } from '../services/db'
@@ -247,12 +248,12 @@ function Inventory() {
 
     try {
       const fetchPromise = Promise.all([
-        supabase.from('products').select('*, categories(name), suppliers(name, phone)').eq('shop_id', user.shop_id).order('name'),
+        fetchAllRows(() => supabase.from('products').select('*, categories(name), suppliers(name, phone)').eq('shop_id', user.shop_id).order('name')),
         supabase.from('categories').select('*').eq('shop_id', user.shop_id),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
       ])
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
       const [p, c, b] = await Promise.race([fetchPromise, timeoutPromise])
 
       if (p.error || c.error || b.error) throw new Error('Supabase fetch failed')

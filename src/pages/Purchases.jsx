@@ -3,6 +3,7 @@ import { hasFeature } from '../utils/featureGate'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
+import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance } from '../services/integrity'
@@ -50,7 +51,7 @@ function Purchases() {
     try {
       if (!navigator.onLine) throw new Error('Offline');
       const fetchPromise = Promise.all([
-        supabase.from('products').select('*').eq('shop_id', user.shop_id).order('name'),
+        fetchAllRows(() => supabase.from('products').select('*').eq('shop_id', user.shop_id).order('name')),
         supabase.from('suppliers').select('*').eq('shop_id', user.shop_id).order('name'),
         supabase.from('brands').select('*').eq('shop_id', user.shop_id).order('name')
       ])
