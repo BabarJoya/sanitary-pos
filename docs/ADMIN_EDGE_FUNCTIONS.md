@@ -16,7 +16,7 @@ reads/writes, `adminCall(action, params)` for dedicated actions).
 
 | Action | Used by | Notes |
 | --- | --- | --- |
-| `db` | all admin pages | Table + verb allow-list in `TABLES`. `sessions` is never exposed. Tenant tables are read-only. `update`/`delete` require a filter. `users.password` is stripped from responses; superadmin rows cannot be created, promoted, edited or deleted here. |
+| `db` | all admin pages | Table + verb allow-list in `TABLES`. `sessions` is never exposed. Tenant tables are read-only. `update`/`delete` require a filter. `users.password` is stripped from responses and `raw_password` is refused; superadmin rows cannot be created, promoted, edited or deleted here. |
 | `rpc` | Analytics | Only `get_global_growth_stats`, `get_top_performing_shops`, `get_inactive_shops`. |
 | `create_shop` | CreateShopModal | Shop + Supabase Auth owner + `users` row; rolls the shop back if the account fails. |
 | `delete_shop` | ShopsList | Re-checks the typed shop name server-side, deletes shop data and sessions. |
@@ -39,6 +39,13 @@ reads/writes, `adminCall(action, params)` for dedicated actions).
    - blocks creating/promoting `role = 'superadmin'` through PostgREST,
    - replaces `secure_login` with one canonical version (session token + features +
      billing fields + superadmin support; superadmin sessions expire after 12h).
+   Then run `sql/security_followups_migration.sql` (after deploying this app build):
+   - `audit_logs` becomes session-scoped (shops see and write only their own rows;
+     platform entries are service-role only). It previously had `USING (true)` read and
+     `WITH CHECK (true)` insert policies,
+   - drops `users.raw_password`, which stored every staff password in plaintext and
+     was readable by any member of the same shop. Superadmins now set a new password in
+     *Manage Users* and copy / WhatsApp it once; it is never stored readable.
 2. **Deploy the function** (Supabase CLI, logged in and linked to the project):
 
    ```bash

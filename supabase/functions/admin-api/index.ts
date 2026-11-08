@@ -175,7 +175,7 @@ function stripSecrets(table: string, rows: unknown): unknown {
   if (table !== 'users' || !rows) return rows
   const scrub = (r: unknown) => {
     if (!isPlainObject(r)) return r
-    const { password: _pw, ...rest } = r
+    const { password: _pw, raw_password: _raw, ...rest } = r
     return rest
   }
   return Array.isArray(rows) ? rows.map(scrub) : scrub(rows)
@@ -186,6 +186,7 @@ function checkUserValues(values: unknown) {
   for (const v of list) {
     if (!isPlainObject(v)) throw bad('Invalid values')
     if (v.role === 'superadmin') throw new HttpError(403, 'Superadmin accounts cannot be created or promoted here')
+    if ('raw_password' in v) throw bad('Plaintext passwords are not stored')
     if ('shop_id' in v && v.shop_id === null) throw bad('Users must belong to a shop')
   }
 }
@@ -360,18 +361,12 @@ async function createShop(req: Request, actor: Actor, body: Record<string, unkno
     id: authData.user.id,
     username,
     email,
-    password: await sha256Hex(password),
-    // Kept for the existing superadmin helpdesk view (ManageUsersModal). See docs/PROJECT_AUDIT.md.
-    raw_password: password,
+    password: await sha256Hex(password), // plaintext is never stored
     role: 'admin',
     shop_id: shopData.id,
     is_active: true,
   }
-  let { error: profileError } = await admin.from('users').insert([userInsert])
-  if (profileError && profileError.message?.includes('raw_password')) {
-    delete userInsert.raw_password
-    profileError = (await admin.from('users').insert([userInsert])).error
-  }
+  const { error: profileError } = await admin.from('users').insert([userInsert])
 
   await audit(req, actor, 'CREATE_SHOP', 'SHOP', shopData.id, { shopName: name, ownerEmail: email, planId })
   return {
