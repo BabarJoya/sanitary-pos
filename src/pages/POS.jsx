@@ -84,9 +84,11 @@ function POS() {
   const [saleType, setSaleType] = useState('sale')
 
   const subtotal = cart.reduce((sum, i) => sum + i.custom_price * i.qty, 0)
-  const totalDiscount = discountMode === 'percent'
+  const rawDiscount = discountMode === 'percent'
     ? Math.round((subtotal * (parseFloat(discountPercent) || 0)) / 100 * 100) / 100
     : parseFloat(discount) || 0
+  // Never more than the bill, never negative (a bigger discount used to save a negative net sale)
+  const totalDiscount = Math.min(subtotal, Math.max(0, rawDiscount))
   const total = Math.max(0, subtotal - totalDiscount)
   const totalProfit = cart.reduce((sum, i) => sum + (i.custom_price - (i.cost_price || 0)) * i.qty, 0) - totalDiscount
   const [saving, setSaving] = useState(false)
@@ -853,6 +855,20 @@ function POS() {
         }]
     const totalPaid = finalPayments.reduce((s, p) => s + Number(p.amount), 0)
 
+    // Only admin / manager may sell below cost (via a typed price, brand discount or bill discount)
+    const canSellBelowCost = user.role === 'admin' || user.role === 'manager'
+    if (saleType === 'sale' && !canSellBelowCost) {
+      const belowCost = cart.filter(i => Number(i.cost_price) > 0 && Number(i.custom_price) < Number(i.cost_price))
+      if (belowCost.length > 0) {
+        alert(`These items are priced below cost:\n${belowCost.map(i => `• ${i.name}: Rs. ${i.custom_price} (cost Rs. ${i.cost_price})`).join('\n')}\n\nOnly an admin or manager can sell below cost.`)
+        return
+      }
+      if (totalProfit < 0) {
+        alert('This discount makes the bill a loss. Only an admin or manager can approve it.')
+        return
+      }
+    }
+
     if ((paymentType === 'credit' || totalPaid < total) && !customerId) {
       alert('Balance amount (Credit) ke liye customer select karna zaroori hai!');
       return
@@ -874,7 +890,7 @@ function POS() {
       customer_name: customerId ? null : walkInName,
       total_amount: subtotal,
       discount: totalDiscount,
-      paid_amount: saleType === 'quotation' ? 0 : totalPaid,
+      paid_amount: saleType === 'quotation' ? 0 : Math.min(total, totalPaid),
       payment_type: primaryPaymentMethod,
       payment_method: primaryPaymentMethod,
       online_provider: paymentType === 'online' ? onlineProvider : null,
@@ -1030,8 +1046,12 @@ function POS() {
       finalSale.id,
       {
         total,
+        discount: totalDiscount,
         items_count: cart.length,
         payment_type: paymentType,
+        price_overrides: cart
+          .filter(i => i.price_overridden && Number(i.custom_price) !== Number(i.sale_price))
+          .map(i => ({ product: i.name, list_price: Number(i.sale_price), sold_at: Number(i.custom_price) })),
         customer: customerId ? customers.find(c => c.id === customerId)?.name : walkInName
       },
       user.id,

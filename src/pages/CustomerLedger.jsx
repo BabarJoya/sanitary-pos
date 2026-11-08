@@ -6,7 +6,7 @@ import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { printHTML, getShopBranding } from '../utils/printUtils'
 import { db } from '../services/db'
-import { adjustCustomerBalance } from '../services/integrity'
+import { adjustCustomerBalance, applySaleEffects, must } from '../services/integrity'
 import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 
 function CustomerLedger() {
@@ -383,58 +383,63 @@ function CustomerLedger() {
         }
     }
 
+    // Delete one ledger entry and undo its effect with atomic changes:
+    // a sale returns its stock and removes its unpaid amount; a debit/payment/return
+    // reverses its balance effect. Balances are never clamped at 0 (an overpayment is
+    // a real advance the customer has with the shop).
+    const deleteLedgerEntry = async (item) => {
+        if (item.type === 'sale') {
+            const lineItems = item.items || []
+            if (navigator.onLine) {
+                const { error: itemsErr } = await supabase.from('sale_items').delete().eq('sale_id', item.id)
+                if (itemsErr) throw itemsErr
+                const { error } = await supabase.from('sales').delete().eq('id', item.id)
+                if (error) {
+                    if (lineItems.length) await supabase.from('sale_items').upsert(lineItems)
+                    throw error
+                }
+            } else {
+                const lItems = await db.sale_items.toArray()
+                const toDelIds = lItems.filter(i => String(i.sale_id) === String(item.id)).map(i => i.id)
+                await db.sale_items.bulkDelete(toDelIds)
+                await db.sales.delete(item.id)
+                for (const delId of toDelIds) {
+                    await db.sync_queue.add({ table: 'sale_items', action: 'DELETE', data: { id: delId }, timestamp: new Date().toISOString() })
+                }
+                await db.sync_queue.add({ table: 'sales', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+            }
+            return applySaleEffects(
+                { sale_type: 'sale', customer_id: id, total_amount: item.amount, discount: 0, paid_amount: item.paid_amount },
+                lineItems,
+                'reverse'
+            )
+        }
+
+        // payment, debit or return — delete from customer_payments
+        if (navigator.onLine) {
+            const { error } = await supabase.from('customer_payments').delete().eq('id', item.id)
+            if (error) throw error
+        } else {
+            await db.customer_payments.delete(item.id)
+            await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+        }
+        let delta = 0
+        if (item.payment_type === 'refund') delta = 0                   // cash handed back: no balance effect
+        else if (item.payment_type === 'debit') delta = -Number(item.amount)
+        else delta = Math.abs(Number(item.amount))                      // payment / return had lowered the balance
+        if (!delta) return []
+        const r = await adjustCustomerBalance(id, delta)
+        return r.ok ? [] : ['customer balance']
+    }
+
     const handleDeleteTransaction = async (item) => {
         if (item.id === 'opening') { alert('Opening balance entry directly delete nahi ho sakti.'); return }
         const label = item.type === 'sale' ? 'Sale/Invoice' : item.type === 'payment' ? 'Payment' : 'Return'
         if (!confirm(`Yeh transaction delete karein?\n\nType: ${label}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nCustomer ka outstanding balance bhi adjust ho ga.`)) return
 
         try {
-            let newBalance = customer.outstanding_balance || 0
-
-            if (item.type === 'sale') {
-                // Cascade: delete sale_items first, then sale
-                if (navigator.onLine) {
-                    await supabase.from('sale_items').delete().eq('sale_id', item.id)
-                    const { error } = await supabase.from('sales').delete().eq('id', item.id)
-                    if (error) throw error
-                } else {
-                    const lItems = await db.sale_items.toArray()
-                    const toDelIds = lItems.filter(i => String(i.sale_id) === String(item.id)).map(i => i.id)
-                    await db.sale_items.bulkDelete(toDelIds)
-                    await db.sales.delete(item.id)
-                    await db.sync_queue.add({ table: 'sales', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                }
-                // Reverse: sale was adding unpaid portion to balance
-                const owed = Math.max(0, item.amount - (item.paid_amount || 0))
-                newBalance = Math.max(0, newBalance - owed)
-            } else {
-                // payment or return — delete from customer_payments
-                if (navigator.onLine) {
-                    const { error } = await supabase.from('customer_payments').delete().eq('id', item.id)
-                    if (error) throw error
-                } else {
-                    await db.customer_payments.delete(item.id)
-                    await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                }
-                // Reverse balance effect
-                if (item.payment_type === 'refund') {
-                    // no change
-                } else if (item.payment_type === 'debit') {
-                    newBalance = Math.max(0, newBalance - Number(item.amount))
-                } else {
-                    newBalance = newBalance + Math.abs(item.amount)
-                }
-            }
-
-            // Update customer outstanding balance (skip gracefully if customer no longer exists)
-            try {
-                if (navigator.onLine) {
-                    await supabase.from('customers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
-                } else {
-                    await db.customers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
-                }
-                setCustomer(c => c ? ({ ...c, outstanding_balance: Math.max(0, newBalance) }) : c)
-            } catch (_) { /* customer may already be deleted — ignore */ }
+            const failed = await deleteLedgerEntry(item)
+            if (failed.length) alert(`Deleted, but these updates failed: ${failed.join(', ')}`)
             fetchCustomerData()
         } catch (err) {
             alert('Delete nahi hua: ' + err.message)
@@ -464,45 +469,17 @@ function CustomerLedger() {
         if (!toDelete.length) return
         if (!confirm(`${toDelete.length} transactions delete karein?\n\nCustomer ka outstanding balance bhi adjust ho ga.`)) return
 
-        let newBalance = customer.outstanding_balance || 0
+        const failures = []
         try {
             for (const item of toDelete) {
-                if (item.type === 'sale') {
-                    if (navigator.onLine) {
-                        await supabase.from('sale_items').delete().eq('sale_id', item.id)
-                        await supabase.from('sales').delete().eq('id', item.id)
-                    } else {
-                        const lItems = await db.sale_items.toArray()
-                        const toDelIds = lItems.filter(i => String(i.sale_id) === String(item.id)).map(i => i.id)
-                        await db.sale_items.bulkDelete(toDelIds)
-                        await db.sales.delete(item.id)
-                        await db.sync_queue.add({ table: 'sales', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                    }
-                    const owed = Math.max(0, item.amount - (item.paid_amount || 0))
-                    newBalance = Math.max(0, newBalance - owed)
-                } else {
-                    if (navigator.onLine) {
-                        await supabase.from('customer_payments').delete().eq('id', item.id)
-                    } else {
-                        await db.customer_payments.delete(item.id)
-                        await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                    }
-                    if (item.payment_type === 'refund') { /* no change */ }
-                    else if (item.payment_type === 'debit') { newBalance = Math.max(0, newBalance - Number(item.amount)) }
-                    else { newBalance = newBalance + Math.abs(item.amount) }
-                }
+                const failed = await deleteLedgerEntry(item)
+                if (failed.length) failures.push(`${item.note}: ${failed.join(', ')}`)
             }
-            try {
-                if (navigator.onLine) {
-                    await supabase.from('customers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
-                } else {
-                    await db.customers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
-                }
-                setCustomer(c => c ? ({ ...c, outstanding_balance: Math.max(0, newBalance) }) : c)
-            } catch (_) { /* customer may already be deleted — ignore */ }
+            if (failures.length) alert(`Deleted, but some updates failed:\n${failures.join('\n')}`)
             setSelectedIds(new Set())
         } catch (err) {
             alert('Kuch entries delete nahi huin: ' + err.message)
+        } finally {
             fetchCustomerData()
         }
     }
@@ -515,13 +492,13 @@ function CustomerLedger() {
 
         try {
             if (navigator.onLine) {
-                await supabase.from('customers').update({ outstanding_balance: Math.max(0, computedBalance) }).eq('id', id)
+                await must(supabase.from('customers').update({ outstanding_balance: computedBalance }).eq('id', id))
             } else {
-                await db.customers.update(parseInt(id), { outstanding_balance: Math.max(0, computedBalance) })
-                await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: Math.max(0, computedBalance) }, timestamp: new Date().toISOString() })
+                await db.customers.update(parseInt(id), { outstanding_balance: computedBalance })
+                await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: computedBalance }, timestamp: new Date().toISOString() })
             }
-            setCustomer(c => c ? { ...c, outstanding_balance: Math.max(0, computedBalance) } : c)
-            alert(`✅ Balance reconciled successfully to Rs. ${Math.max(0, computedBalance)}`)
+            setCustomer(c => c ? { ...c, outstanding_balance: computedBalance } : c)
+            alert(`✅ Balance reconciled successfully to Rs. ${computedBalance}`)
         } catch (err) {
             alert('Reconcile error: ' + err.message)
         }

@@ -165,3 +165,48 @@ export async function applySaleEffects(sale, items, direction) {
   }
   return failed
 }
+
+/**
+ * How a sale return is refunded.
+ * - The bill-level discount is shared across all items in proportion to their value,
+ *   so returning goods from a discounted bill refunds what was actually paid for them.
+ * - Goods that were never paid for (credit sale) come off the customer's balance;
+ *   only the remainder is handed back as cash. With refundType 'credit' the whole
+ *   refund goes to the balance (store credit).
+ * Returns the refund split plus the sale's new total / discount / paid_amount.
+ */
+export function splitReturnRefund({ sale, saleItems, returnLines, refundType, unpaidOnSale }) {
+  const round2 = (n) => Math.round(n * 100) / 100
+  const gross = (saleItems || []).reduce((s, it) => s + Number(it.unit_price || 0) * Number(it.quantity || 0), 0)
+  const discount = Number(sale?.discount || 0)
+  const ratio = gross > 0 ? Math.min(1, Math.max(0, discount / gross)) : 0
+  const returnGross = (returnLines || []).reduce((s, l) => s + Number(l.unit_price || 0) * Number(l.qty || 0), 0)
+  const refund = round2(returnGross * (1 - ratio))
+  const discountShare = round2(returnGross * ratio)
+
+  const hasCustomer = !!sale?.customer_id
+  let creditPart = 0
+  if (hasCustomer) {
+    creditPart = refundType === 'credit' ? refund : Math.min(refund, Math.max(0, Number(unpaidOnSale || 0)))
+  }
+  creditPart = round2(creditPart)
+  const cashPart = round2(refund - creditPart)
+
+  return {
+    refund,
+    creditPart,
+    cashPart,
+    newTotal: round2(Math.max(0, Number(sale?.total_amount || 0) - returnGross)),
+    newDiscount: round2(Math.max(0, discount - discountShare)),
+    newPaid: round2(Math.max(0, Number(sale?.paid_amount ?? sale?.amount_paid ?? 0) - cashPart)),
+  }
+}
+
+// Await a Supabase query and throw if it failed (supabase-js returns errors
+// instead of throwing, so a bare `await supabase.from(...).update(...)` silently
+// ignores failures).
+export async function must(query) {
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}

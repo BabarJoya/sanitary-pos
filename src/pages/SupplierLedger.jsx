@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
-import { adjustSupplierBalance } from '../services/integrity'
+import { adjustSupplierBalance, adjustStock, must } from '../services/integrity'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 
@@ -201,6 +201,59 @@ function SupplierLedger() {
     }
 
     // ── Delete Transaction ──────────────────────────────────────────────────────
+    // Delete one supplier-ledger entry and undo its effect with atomic changes.
+    // A purchase takes its (un-returned) stock back out; only a CREDIT purchase had
+    // raised the supplier balance. Balances are not clamped at 0 (advance to supplier).
+    const deleteSupplierEntry = async (item) => {
+        const failed = []
+        if (item.type === 'purchase') {
+            const lineItems = item.items || []
+            if (navigator.onLine) {
+                const { error: itemsErr } = await supabase.from('purchase_items').delete().eq('purchase_id', item.id)
+                if (itemsErr) throw itemsErr
+                const { error } = await supabase.from('purchases').delete().eq('id', item.id)
+                if (error) {
+                    if (lineItems.length) await supabase.from('purchase_items').upsert(lineItems)
+                    throw error
+                }
+            } else {
+                const lItems = await db.purchase_items.toArray()
+                const toDelIds = lItems.filter(i => String(i.purchase_id) === String(item.id)).map(i => i.id)
+                if (toDelIds.length) await db.purchase_items.bulkDelete(toDelIds)
+                await db.purchases.delete(item.id)
+                for (const delId of toDelIds) {
+                    await db.sync_queue.add({ table: 'purchase_items', action: 'DELETE', data: { id: delId }, timestamp: new Date().toISOString() })
+                }
+                await db.sync_queue.add({ table: 'purchases', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+            }
+            for (const it of lineItems) {
+                const remaining = Number(it.quantity || 0) - Number(it.returned_qty || 0)
+                if (remaining > 0 && it.product_id != null) {
+                    const r = await adjustStock(it.product_id, -remaining)
+                    if (!r.ok) failed.push(it.product_name || `product ${it.product_id}`)
+                }
+            }
+            if (item.payment_type === 'credit') {
+                const r = await adjustSupplierBalance(id, -Number(item.amount))
+                if (!r.ok) failed.push('supplier balance')
+            }
+            return failed
+        }
+
+        // debit / payment / return — from supplier_payments table
+        if (navigator.onLine) {
+            const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
+            if (error) throw error
+        } else {
+            await db.supplier_payments.delete(item.id)
+            await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
+        }
+        const delta = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
+        const r = await adjustSupplierBalance(id, delta)
+        if (!r.ok) failed.push('supplier balance')
+        return failed
+    }
+
     const handleDeleteTransaction = async (item) => {
         const typeLabel = item.type === 'purchase' ? 'Purchase Order'
             : item.type === 'debit' ? 'Debit Entry'
@@ -212,45 +265,8 @@ function SupplierLedger() {
         if (!confirmed) return
 
         try {
-            let newBalance = supplier?.outstanding_balance || 0
-
-            if (item.type === 'purchase') {
-                // Cascade: delete purchase_items first, then purchase
-                if (navigator.onLine) {
-                    await supabase.from('purchase_items').delete().eq('purchase_id', item.id)
-                    const { error } = await supabase.from('purchases').delete().eq('id', item.id)
-                    if (error) throw error
-                } else {
-                    const lItems = await db.purchase_items.toArray()
-                    const toDelIds = lItems.filter(i => String(i.purchase_id) === String(item.id)).map(i => i.id)
-                    await db.purchase_items.bulkDelete(toDelIds)
-                    await db.purchases.delete(item.id)
-                    await db.sync_queue.add({ table: 'purchases', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                }
-                // Reverse: purchase was adding to balance (we owe supplier more)
-                newBalance = Math.max(0, newBalance - Number(item.amount))
-            } else {
-                // debit / payment / return — from supplier_payments table
-                const balanceEffect = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
-                newBalance = newBalance + balanceEffect
-
-                if (navigator.onLine) {
-                    const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
-                    if (error) throw error
-                } else {
-                    await db.supplier_payments.delete(item.id)
-                    await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                }
-            }
-
-            try {
-                if (navigator.onLine) {
-                    await supabase.from('suppliers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
-                } else {
-                    await db.suppliers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
-                }
-                setSupplier(s => s ? ({ ...s, outstanding_balance: Math.max(0, newBalance) }) : s)
-            } catch (_) { /* supplier may already be deleted — ignore */ }
+            const failed = await deleteSupplierEntry(item)
+            if (failed.length) alert(`Deleted, but these updates failed: ${failed.join(', ')}`)
             fetchSupplierData()
         } catch (err) {
             alert('Delete nahi hua: ' + err.message)
@@ -332,16 +348,15 @@ function SupplierLedger() {
             if (navigator.onLine) {
                 const { error } = await supabase.from('supplier_payments').insert(insertRows)
                 if (error) throw error
-                const newBal = (supplier?.outstanding_balance || 0) + balanceDelta
-                await supabase.from('suppliers').update({ outstanding_balance: newBal }).eq('id', id)
+                const r = await adjustSupplierBalance(id, balanceDelta) // atomic change, not a stale total
+                if (!r.ok) throw r.error || new Error('Supplier balance update failed')
             } else {
                 for (const row of insertRows) {
                     const rec = { ...row, id: crypto.randomUUID() }
                     await db.supplier_payments.add(rec)
                     await db.sync_queue.add({ table: 'supplier_payments', action: 'INSERT', data: rec, timestamp: rec.created_at })
                 }
-                const newBal = (supplier?.outstanding_balance || 0) + balanceDelta
-                await db.suppliers.update(id, { outstanding_balance: newBal })
+                await adjustSupplierBalance(id, balanceDelta) // queued (previously never synced)
             }
 
             alert(`${insertRows.length} entries import ho gayi! ✅`)
@@ -401,50 +416,17 @@ function SupplierLedger() {
     }
 
     const _doDeleteItems = async (toDelete) => {
-        // Compute new balance by reversing the effect of each deleted item
-        let newBalance = supplier?.outstanding_balance || 0
         const errors = []
         for (const item of toDelete) {
             try {
-                if (item.type === 'purchase') {
-                    if (navigator.onLine) {
-                        await supabase.from('purchase_items').delete().eq('purchase_id', item.id)
-                        const { error } = await supabase.from('purchases').delete().eq('id', item.id)
-                        if (error) throw error
-                    } else {
-                        const lItems = await db.purchase_items.toArray()
-                        const toDelIds = lItems.filter(i => String(i.purchase_id) === String(item.id)).map(i => i.id)
-                        if (toDelIds.length) await db.purchase_items.bulkDelete(toDelIds)
-                        await db.purchases.delete(item.id)
-                        await db.sync_queue.add({ table: 'purchases', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                    }
-                    newBalance = Math.max(0, newBalance - Number(item.amount))
-                } else {
-                    if (navigator.onLine) {
-                        const { error } = await supabase.from('supplier_payments').delete().eq('id', item.id)
-                        if (error) throw error
-                    } else {
-                        await db.supplier_payments.delete(item.id)
-                        await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
-                    }
-                    const balanceEffect = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
-                    newBalance = newBalance + balanceEffect
-                }
+                const failed = await deleteSupplierEntry(item)
+                if (failed.length) errors.push(`${item.note}: ${failed.join(', ')} not updated`)
             } catch (err) {
                 errors.push(err.message)
             }
         }
-        // Update supplier balance (skip gracefully if supplier no longer exists)
-        try {
-            if (navigator.onLine) {
-                await supabase.from('suppliers').update({ outstanding_balance: Math.max(0, newBalance) }).eq('id', id)
-            } else {
-                await db.suppliers.update(parseInt(id), { outstanding_balance: Math.max(0, newBalance) })
-            }
-            setSupplier(s => s ? ({ ...s, outstanding_balance: Math.max(0, newBalance) }) : s)
-        } catch (_) { /* supplier may already be deleted — ignore */ }
         setSelectedIds(new Set())
-        if (errors.length) alert(`${errors.length} entries delete nahi huin:\n${errors.slice(0, 3).join('\n')}`)
+        if (errors.length) alert(`${errors.length} entries had problems:\n${errors.slice(0, 3).join('\n')}`)
         fetchSupplierData()
     }
 
@@ -456,13 +438,13 @@ function SupplierLedger() {
 
         try {
             if (navigator.onLine) {
-                await supabase.from('suppliers').update({ outstanding_balance: Math.max(0, computedBalance) }).eq('id', id)
+                await must(supabase.from('suppliers').update({ outstanding_balance: computedBalance }).eq('id', id))
             } else {
-                await db.suppliers.update(parseInt(id), { outstanding_balance: Math.max(0, computedBalance) })
-                await db.sync_queue.add({ table: 'suppliers', action: 'UPDATE', data: { id, outstanding_balance: Math.max(0, computedBalance) }, timestamp: new Date().toISOString() })
+                await db.suppliers.update(parseInt(id), { outstanding_balance: computedBalance })
+                await db.sync_queue.add({ table: 'suppliers', action: 'UPDATE', data: { id, outstanding_balance: computedBalance }, timestamp: new Date().toISOString() })
             }
-            setSupplier(s => s ? { ...s, outstanding_balance: Math.max(0, computedBalance) } : s)
-            alert(`✅ Balance reconciled successfully to Rs. ${Math.max(0, computedBalance)}`)
+            setSupplier(s => s ? { ...s, outstanding_balance: computedBalance } : s)
+            alert(`✅ Balance reconciled successfully to Rs. ${computedBalance}`)
         } catch (err) {
             alert('Reconcile error: ' + err.message)
         }

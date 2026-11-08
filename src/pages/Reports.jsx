@@ -35,6 +35,8 @@ function Reports() {
   const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const [tierSplit, setTierSplit] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Set when figures come from this device's saved data instead of the server
+  const [fromCache, setFromCache] = useState(null)
   const [range, setRange] = useState('month') // today, week, month, all
 
   const [stats, setStats] = useState({
@@ -58,6 +60,7 @@ function Reports() {
 
   const fetchReportData = async () => {
     setLoading(true)
+    setFromCache(null)
 
     let startDate = new Date()
     startDate.setHours(0, 0, 0, 0)
@@ -162,6 +165,7 @@ function Reports() {
       setCategoryData(Object.entries(catMap).map(([name, value]) => ({ name, value })).filter(c => c.value > 0))
     } catch (e) {
       console.log('Reports: Offline mode, calculating from local DB...')
+      setFromCache(!navigator.onLine ? 'offline' : (e?.message === 'Timeout' ? 'timeout' : 'error'))
       try {
         const sid = String(user.shop_id)
         const [lSales, lItems, lExpenses, lPurchases, lProducts, lCats] = await Promise.all([
@@ -332,6 +336,16 @@ function Reports() {
         <div className="py-20 text-center text-gray-400 animate-pulse text-lg">Calculating statistics...</div>
       ) : (
         <>
+          {fromCache && (
+            <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span>
+                ⚠️ Showing figures saved on this device — {fromCache === 'offline' ? 'you are offline' : fromCache === 'timeout' ? 'the server took too long to answer' : 'the server could not be reached'}.
+                Numbers may be incomplete.
+              </span>
+              <button type="button" onClick={fetchReportData} className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white hover:bg-amber-700">Try again</button>
+            </div>
+          )}
+
           {/* Main Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard title="Gross Sales" value={stats.grossSales} sub={`Disc: Rs. ${stats.totalDiscount}`} color="blue" />

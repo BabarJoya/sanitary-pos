@@ -252,8 +252,9 @@ function Categories() {
         if (name) {
           const exists = categories.find(c => c.name.toLowerCase() === name.toLowerCase())
           if (!exists) {
-            await supabase.from('categories').insert([{ name, description, low_stock_threshold: lowStock, shop_id: user.shop_id }])
-            importedCount++
+            const { error } = await supabase.from('categories').insert([{ name, description, low_stock_threshold: lowStock, shop_id: user.shop_id }])
+            if (!error) importedCount++
+            else console.warn(`Category import skipped "${name}":`, error.message)
           }
         }
       }

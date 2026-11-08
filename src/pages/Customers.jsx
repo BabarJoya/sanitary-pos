@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../services/supabase'
+import { must } from '../services/integrity'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
@@ -231,10 +232,10 @@ function Customers() {
             const allSaleIds = [...new Set([...saleIds, ...onlineIds])]
             
             if (allSaleIds.length > 0) {
-              await supabase.from('sale_items').delete().in('sale_id', allSaleIds)
+              await must(supabase.from('sale_items').delete().in('sale_id', allSaleIds))
             }
-            await supabase.from('sales').delete().eq('customer_id', id)
-            await supabase.from('customer_payments').delete().eq('customer_id', id)
+            await must(supabase.from('sales').delete().eq('customer_id', id))
+            await must(supabase.from('customer_payments').delete().eq('customer_id', id))
           } else {
             for (const sId of saleIds) {
               const items = await db.sale_items.where({ sale_id: sId }).toArray()

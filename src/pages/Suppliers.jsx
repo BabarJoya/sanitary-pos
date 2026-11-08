@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustSupplierBalance } from '../services/integrity'
+import { adjustSupplierBalance, must } from '../services/integrity'
 import PasswordModal from '../components/PasswordModal'
 
 function Suppliers() {
@@ -505,12 +505,12 @@ function Suppliers() {
             const allPurchaseIds = [...new Set([...purchaseIds, ...onlineIds])]
 
             if (allPurchaseIds.length > 0) {
-              await supabase.from('purchase_items').delete().in('purchase_id', allPurchaseIds)
+              await must(supabase.from('purchase_items').delete().in('purchase_id', allPurchaseIds))
             }
-            await supabase.from('purchases').delete().eq('supplier_id', id)
-            await supabase.from('supplier_payments').delete().eq('supplier_id', id)
+            await must(supabase.from('purchases').delete().eq('supplier_id', id))
+            await must(supabase.from('supplier_payments').delete().eq('supplier_id', id))
             // Unlink products — set supplier_id = null (products themselves stay)
-            await supabase.from('products').update({ supplier_id: null }).eq('supplier_id', id)
+            await must(supabase.from('products').update({ supplier_id: null }).eq('supplier_id', id))
           } else {
             for (const pId of purchaseIds) {
               const items = await db.purchase_items.where({ purchase_id: pId }).toArray()
