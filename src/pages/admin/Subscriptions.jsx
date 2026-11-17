@@ -5,6 +5,7 @@ import { logAction } from '../../services/auditService'
 import { useAuth } from '../../context/AuthContext'
 import { buildWhatsAppUrl, formatRenewalMessage } from '../../utils/whatsappTemplates'
 import * as XLSX from 'xlsx'
+import BillingDateModal, { BillingBadge } from '../../components/admin/BillingDateModal'
 
 export default function Subscriptions() {
     const { user } = useAuth()
@@ -19,8 +20,7 @@ export default function Subscriptions() {
     const [ledgerModalOpen, setLedgerModalOpen] = useState(false)
     const [ledgerData, setLedgerData] = useState([])
     const [ledgerLoading, setLedgerLoading] = useState(false)
-    const [extendModalOpen, setExtendModalOpen] = useState(false)
-    const [extendDays, setExtendDays] = useState('7')
+    const [billingShop, setBillingShop] = useState(null)
     const [subFilter, setSubFilter] = useState('all')
 
     // WhatsApp Reminder Modal
@@ -161,56 +161,7 @@ export default function Subscriptions() {
         }
     }
 
-    const handleExtendBilling = async (e) => {
-        e.preventDefault()
-        if (!selectedShop || !extendDays) return
-
-        setProcessing(true)
-        try {
-            let nextDate = new Date(selectedShop.next_billing_date || new Date())
-            const today = new Date()
-            if (nextDate < today) {
-                nextDate = today
-            }
-            nextDate.setDate(nextDate.getDate() + parseInt(extendDays))
-
-            const { error: updateError } = await adminDb
-                .from('shops')
-                .update({ 
-                    next_billing_date: nextDate.toISOString().split('T')[0],
-                    status: 'active',
-                    suspension_reason: null
-                })
-                .eq('id', selectedShop.id)
-
-            if (updateError) throw updateError
-
-            alert(`Billing date extended by ${extendDays} days. Shop status updated to active.`)
-
-            await logAction({
-                actor_id: user?.id,
-                actor_email: user?.email || user?.username,
-                action_type: 'EXTEND_BILLING_CYCLE',
-                target_type: 'SHOP',
-                target_id: selectedShop.id,
-                details: { extendDays, nextBillingDate: nextDate.toISOString().split('T')[0] }
-            })
-
-            setExtendModalOpen(false)
-            fetchSubscriptions()
-        } catch (err) {
-            console.error(err)
-            alert('Error extending billing: ' + err.message)
-        } finally {
-            setProcessing(false)
-        }
-    }
-
-    const openExtendModal = (shop) => {
-        setSelectedShop(shop)
-        setExtendDays('7')
-        setExtendModalOpen(true)
-    }
+    const openExtendModal = (shop) => setBillingShop(shop)
 
     const openPaymentModal = (shop) => {
         setSelectedShop(shop)
@@ -449,7 +400,7 @@ export default function Subscriptions() {
                         <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-bold">
                             <th className="p-4 pl-6">Client / Shop</th>
                             <th className="p-4">Plan / Fee</th>
-                            <th className="p-4">Next Billing Date</th>
+                            <th className="p-4">Trial / Billing</th>
                             <th className="p-4">Status</th>
                             <th className="p-4 text-right pr-6">Payment Actions</th>
                         </tr>
@@ -525,14 +476,7 @@ export default function Subscriptions() {
                                             )}
                                         </td>
                                         <td className="p-4">
-                                            {shop.next_billing_date ? (
-                                                <div className={`flex items-center gap-2 font-medium ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>
-                                                    {isOverdue ? <AlertTriangle size={16} /> : <Clock size={16} />}
-                                                    {new Date(shop.next_billing_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                                                </div>
-                                            ) : (
-                                                <span className="text-slate-400 text-xs italic">Not Set</span>
-                                            )}
+                                            <BillingBadge shop={shop} onClick={() => openExtendModal(shop)} />
                                         </td>
                                         <td className="p-4">
                                             {shop.status === 'suspended' ? (
@@ -568,9 +512,9 @@ export default function Subscriptions() {
                                                 <button
                                                     onClick={() => openExtendModal(shop)}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
-                                                    title="Extend Billing Date"
+                                                    title="Change trial / billing date"
                                                 >
-                                                    <Clock size={14} /> Extend
+                                                    <Clock size={14} /> Set date
                                                 </button>
                                                 <button
                                                     onClick={() => openPaymentModal(shop)}
@@ -751,54 +695,13 @@ export default function Subscriptions() {
                     </div>
                 </div>
             )}
-            {/* Extend Billing Modal */}
-            {extendModalOpen && selectedShop && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="p-6 border-b border-gray-100 bg-slate-50 flex justify-between items-center">
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-800">Extend Billing Cycle</h3>
-                                <p className="text-sm text-gray-500">For {selectedShop.name}</p>
-                            </div>
-                        </div>
-                        <form onSubmit={handleExtendBilling} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Days to Extend</label>
-                                <select
-                                    required
-                                    value={extendDays}
-                                    onChange={e => setExtendDays(e.target.value)}
-                                    className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white font-bold"
-                                >
-                                    <option value="3">3 Days (Quick grace)</option>
-                                    <option value="7">7 Days (Standard extension)</option>
-                                    <option value="15">15 Days (Half month)</option>
-                                    <option value="30">30 Days (Full month)</option>
-                                </select>
-                            </div>
-                            <div className="p-4 rounded-xl text-sm bg-blue-50 text-blue-800 flex items-start gap-2">
-                                <CheckCircle2 size={24} className="shrink-0 text-blue-500" />
-                                <p>This will extend the next billing date without recording a payment transaction, and automatically activate the shop if suspended.</p>
-                            </div>
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setExtendModalOpen(false)}
-                                    className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={processing}
-                                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition disabled:opacity-50"
-                                >
-                                    {processing ? 'Saving...' : 'Confirm Extension'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+            {/* Trial / billing date */}
+            {billingShop && (
+                <BillingDateModal
+                    shop={billingShop}
+                    onClose={() => setBillingShop(null)}
+                    onSaved={() => { setBillingShop(null); fetchSubscriptions() }}
+                />
             )}
 
             {/* WhatsApp Reminder Modal */}

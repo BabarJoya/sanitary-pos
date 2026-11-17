@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { adminDb, adminCall } from '../../services/adminApi'
 import { X, Store, User, Mail, Key, Zap, AlertTriangle, CheckCircle2, MessageSquare, Copy, Check } from 'lucide-react'
 import { buildWhatsAppUrl, formatOnboardingMessage } from '../../utils/whatsappTemplates'
+import { today, addDays, addMonths, toDateInput, formatLongDate } from '../../utils/billingDates'
 
 const STORE_TYPES = [
   { id: 'general', name: 'General Retail / Mart' },
@@ -25,6 +26,8 @@ export default function CreateShopModal({ onClose, onCreated }) {
   const [ownerUsername, setOwnerUsername] = useState('')
   const [ownerPassword, setOwnerPassword] = useState('')
   const [selectedPlanId, setSelectedPlanId] = useState('')
+  const [periodChoice, setPeriodChoice] = useState('auto')
+  const [exactDate, setExactDate] = useState('')
 
   // Success State for WhatsApp Onboarding
   const [createdData, setCreatedData] = useState(null)
@@ -51,6 +54,24 @@ export default function CreateShopModal({ onClose, onCreated }) {
       setPlansLoading(false)
     }
   }
+
+  const planForPeriod = plans.find(p => p.id === selectedPlanId)
+  const isTrialPlan = !planForPeriod || String(planForPeriod.name).toLowerCase() === 'trial' || Number(planForPeriod.price || 0) === 0
+  const cycle = String(planForPeriod?.billing_cycle || '').toLowerCase()
+  const autoPeriod = isTrialPlan ? 'd14' : (cycle.startsWith('year') || cycle === 'annually' ? 'y1' : 'm1')
+  const effectivePeriod = periodChoice === 'auto' ? autoPeriod : periodChoice
+  const firstBillingDate = (() => {
+    const start = today()
+    switch (effectivePeriod) {
+      case 'd7': return toDateInput(addDays(start, 7))
+      case 'd14': return toDateInput(addDays(start, 14))
+      case 'd30': return toDateInput(addDays(start, 30))
+      case 'm1': return toDateInput(addMonths(start, 1))
+      case 'y1': return toDateInput(addMonths(start, 12))
+      case 'exact': return exactDate || null
+      default: return null
+    }
+  })()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -82,6 +103,15 @@ export default function CreateShopModal({ onClose, onCreated }) {
       if (createError) throw new Error(createError.message)
       if (warning) console.warn(warning)
       const shopData = created.shop
+
+      // Trial end / first billing date (the create_shop action leaves it empty).
+      if (firstBillingDate && shopData?.id) {
+        const { error: dateError } = await adminDb
+          .from('shops')
+          .update({ next_billing_date: firstBillingDate })
+          .eq('id', shopData.id)
+        if (dateError) console.warn('Could not set billing date:', dateError.message)
+      }
 
       const activePlan = plans.find(p => p.id === selectedPlanId)
 
@@ -255,6 +285,45 @@ export default function CreateShopModal({ onClose, onCreated }) {
                   ✓ Selected: {selectedPlan.name} — Rs. {selectedPlan.price?.toLocaleString()}/{selectedPlan.billing_cycle || 'month'}
                 </p>
               )}
+            </div>
+
+            {/* Trial end / first billing date */}
+            <div>
+              <label htmlFor="create-shop-period" className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                {isTrialPlan ? 'Trial length' : 'First billing date'}
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  id="create-shop-period"
+                  value={periodChoice}
+                  onChange={e => setPeriodChoice(e.target.value)}
+                  className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700"
+                >
+                  <option value="auto">Automatic ({isTrialPlan ? '14-day trial' : 'one billing period'})</option>
+                  <option value="d7">7-day trial</option>
+                  <option value="d14">14-day trial</option>
+                  <option value="d30">30-day trial</option>
+                  <option value="m1">1 month</option>
+                  <option value="y1">1 year</option>
+                  <option value="exact">Exact date…</option>
+                  <option value="none">No end date (lifetime)</option>
+                </select>
+                {periodChoice === 'exact' && (
+                  <input
+                    type="date"
+                    value={exactDate}
+                    onChange={e => setExactDate(e.target.value)}
+                    required
+                    aria-label="Exact date"
+                    className="px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700"
+                  />
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                {firstBillingDate
+                  ? `${isTrialPlan ? 'Trial ends' : 'Next billing'} on ${formatLongDate(firstBillingDate)}. Auto-suspended 7 days later if not renewed.`
+                  : 'No end date: never auto-suspended.'}
+              </p>
             </div>
 
             {/* Business Domain / Store Type */}

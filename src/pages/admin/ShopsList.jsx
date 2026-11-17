@@ -7,112 +7,8 @@ import ManageUsersModal from '../../components/admin/ManageUsersModal'
 import { useAuth } from '../../context/AuthContext'
 import { logAction } from '../../services/auditService'
 import * as XLSX from 'xlsx'
-
-const toDateInput = (d) => {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function isBillingDatePast(date) {
-  if (!date) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return new Date(`${String(date).slice(0, 10)}T00:00:00`) < today
-}
-
-function addPeriod(months) {
-  const d = new Date()
-  d.setMonth(d.getMonth() + months)
-  return toDateInput(d)
-}
-
-function ReactivateShopDialog({ shop, onClose, onConfirm }) {
-  const [choice, setChoice] = useState('month')
-  const [customDate, setCustomDate] = useState(addPeriod(1))
-  const [saving, setSaving] = useState(false)
-  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return toDateInput(d) })()
-
-  const nextDate = choice === 'month' ? addPeriod(1)
-    : choice === 'year' ? addPeriod(12)
-      : choice === 'custom' ? customDate
-        : null
-  const invalid = choice === 'custom' && (!customDate || customDate < tomorrow)
-
-  const options = [
-    { id: 'month', label: 'Extend 1 month', hint: `Next billing date ${addPeriod(1)}` },
-    { id: 'year', label: 'Extend 1 year', hint: `Next billing date ${addPeriod(12)}` },
-    { id: 'custom', label: 'Pick a date', hint: 'Any future date' },
-    { id: 'none', label: 'No billing date', hint: 'Lifetime / never auto-suspend' },
-  ]
-
-  const submit = async (e) => {
-    e.preventDefault()
-    if (invalid) return
-    setSaving(true)
-    await onConfirm(nextDate)
-    setSaving(false)
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4" onClick={onClose}>
-      <form
-        onSubmit={submit}
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="reactivate-title"
-        className="w-full max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-2xl shadow-2xl"
-      >
-        <div className="p-5 border-b border-slate-100 flex items-start gap-3">
-          <AlertTriangle className="text-orange-500 shrink-0 mt-0.5" size={22} />
-          <div className="flex-1">
-            <h2 id="reactivate-title" className="font-black text-slate-800">Activate {shop.name}</h2>
-            <p className="text-sm text-slate-600 mt-1">
-              Its billing date (<span className="font-bold">{new Date(`${String(shop.next_billing_date).slice(0, 10)}T00:00:00`).toLocaleDateString()}</span>) has passed.
-              The nightly auto-suspend job will suspend it again unless you set a new date.
-            </p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="p-1 text-slate-400 hover:text-slate-700 rounded-lg">
-            <XCircle size={20} />
-          </button>
-        </div>
-        <div className="p-5 space-y-2">
-          {options.map(o => (
-            <label key={o.id} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${choice === o.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 hover:border-blue-300'}`}>
-              <input type="radio" name="reactivate-choice" className="mt-1" checked={choice === o.id} onChange={() => setChoice(o.id)} />
-              <span className="flex-1">
-                <span className="block font-bold text-slate-800 text-sm">{o.label}</span>
-                <span className="block text-xs text-slate-500">{o.hint}</span>
-                {o.id === 'custom' && choice === 'custom' && (
-                  <input
-                    type="date"
-                    min={tomorrow}
-                    value={customDate}
-                    onChange={e => setCustomDate(e.target.value)}
-                    className="mt-2 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                  />
-                )}
-              </span>
-            </label>
-          ))}
-          <p className="text-xs text-slate-500 pt-1">
-            If the shop has paid, you can also record the payment in Billing &amp; Subs, which moves the date for you.
-          </p>
-        </div>
-        <div className="p-5 pt-0 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-          <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50">
-            Cancel
-          </button>
-          <button type="submit" disabled={saving || invalid} className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-black text-sm">
-            {saving ? 'Activating…' : 'Activate shop'}
-          </button>
-        </div>
-      </form>
-    </div>
-  )
-}
+import BillingDateModal, { BillingBadge } from '../../components/admin/BillingDateModal'
+import { billingStatus } from '../../utils/billingDates'
 
 export default function ShopsList() {
   const { impersonate, user } = useAuth()
@@ -125,7 +21,7 @@ export default function ShopsList() {
   const [managingUsersShop, setManagingUsersShop] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [backingUp, setBackingUp] = useState({})
-  const [activatingShop, setActivatingShop] = useState(null)
+  const [billingShop, setBillingShop] = useState(null) // { shop, mode }
 
   useEffect(() => {
     fetchShops()
@@ -185,8 +81,9 @@ export default function ShopsList() {
     // the nightly suspend_overdue_shops() job runs, so ask for a new date first.
     if (newStatus === 'active') {
       const shop = shops.find(s => s.id === id)
-      if (shop && isBillingDatePast(shop.next_billing_date)) {
-        setActivatingShop(shop)
+      const tone = shop ? billingStatus(shop).tone : 'none'
+      if (tone === 'grace' || tone === 'overdue') {
+        setBillingShop({ shop, mode: 'activate' })
         return
       }
     }
@@ -318,6 +215,9 @@ export default function ShopsList() {
     const isActive = s.status === 'active' || !s.status
     if (statusFilter === 'active') return isActive
     if (statusFilter === 'suspended') return s.status === 'suspended'
+    const tone = billingStatus(s).tone
+    if (statusFilter === 'ending soon') return tone === 'soon'
+    if (statusFilter === 'overdue') return tone === 'grace' || tone === 'overdue'
     return true
   })
 
@@ -337,13 +237,13 @@ export default function ShopsList() {
             />
           </div>
           {/* Quick Filter Tabs */}
-          <div className="flex bg-slate-100 p-1 rounded-xl gap-1 shrink-0">
-            {['all', 'active', 'suspended'].map(filter => (
+          <div className="flex bg-slate-100 p-1 rounded-xl gap-1 shrink-0 overflow-x-auto">
+            {['all', 'active', 'suspended', 'ending soon', 'overdue'].map(filter => (
               <button
                 key={filter}
                 type="button"
                 onClick={() => setStatusFilter(filter)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition ${
+                className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider whitespace-nowrap transition ${
                   statusFilter === filter
                     ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
                     : 'text-slate-500 hover:text-slate-800'
@@ -390,6 +290,7 @@ export default function ShopsList() {
                 <th className="p-4 hidden lg:table-cell">Location</th>
                 <th className="p-4 text-center">Users</th>
                 <th className="p-4 text-center">Status</th>
+                <th className="p-4">Trial / Billing</th>
                 <th className="p-4 text-center hidden lg:table-cell">Joined</th>
                 <th className="p-4 text-center hidden xl:table-cell">Last Active</th>
                 <th className="p-4 text-right pr-6">Actions</th>
@@ -397,9 +298,9 @@ export default function ShopsList() {
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {loading ? (
-                <tr><td colSpan="8" className="p-8 text-center text-slate-400">Loading tenants...</td></tr>
+                <tr><td colSpan="9" className="p-8 text-center text-slate-400">Loading tenants...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="8" className="p-8 text-center text-slate-400">No shops found.</td></tr>
+                <tr><td colSpan="9" className="p-8 text-center text-slate-400">No shops found.</td></tr>
               ) : (
                 filtered.map(shop => (
                   <tr key={shop.id} className="hover:bg-slate-50/50 transition">
@@ -442,6 +343,9 @@ export default function ShopsList() {
                           )}
                         </div>
                       )}
+                    </td>
+                    <td className="p-4">
+                      <BillingBadge shop={shop} onClick={() => setBillingShop({ shop, mode: 'edit' })} />
                     </td>
                     <td className="p-4 text-center text-slate-500 text-xs hidden lg:table-cell">
                       {new Date(shop.created_at).toLocaleDateString()}
@@ -553,13 +457,9 @@ export default function ShopsList() {
                   <span><span className="font-bold text-slate-600">{shop.userCount || 0}</span> staff</span>
                   <span>·</span>
                   <span>Joined {new Date(shop.created_at).toLocaleDateString()}</span>
-                  {shop.next_billing_date && (
-                    <>
-                      <span>·</span>
-                      <span>Bill: {new Date(shop.next_billing_date).toLocaleDateString()}</span>
-                    </>
-                  )}
                 </div>
+
+                <BillingBadge shop={shop} onClick={() => setBillingShop({ shop, mode: 'edit' })} className="w-full" />
 
                 {shop.notes && (
                   <p className="text-[10px] text-slate-400 italic border-l-2 border-slate-200 pl-2 line-clamp-2">
@@ -611,19 +511,12 @@ export default function ShopsList() {
       {isModalOpen && (
         <CreateShopModal onClose={() => setIsModalOpen(false)} onCreated={fetchShops} />
       )}
-      {activatingShop && (
-        <ReactivateShopDialog
-          shop={activatingShop}
-          onClose={() => setActivatingShop(null)}
-          onConfirm={async (nextBillingDate) => {
-            const ok = await applyStatus(
-              activatingShop.id,
-              activatingShop.status,
-              { status: 'active', suspension_reason: null, next_billing_date: nextBillingDate },
-              { previousBillingDate: activatingShop.next_billing_date, nextBillingDate }
-            )
-            if (ok) setActivatingShop(null)
-          }}
+      {billingShop && (
+        <BillingDateModal
+          shop={billingShop.shop}
+          mode={billingShop.mode}
+          onClose={() => setBillingShop(null)}
+          onSaved={() => { setBillingShop(null); fetchShops() }}
         />
       )}
       {editingShop && (

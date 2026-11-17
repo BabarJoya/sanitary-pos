@@ -16,6 +16,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
   const [email, setEmail] = useState('')
   const [notes, setNotes] = useState('')
   const [planId, setPlanId] = useState('')
+  const [billingDate, setBillingDate] = useState('')
   const [allPlans, setAllPlans] = useState([])
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
       setEmail(shop.email || '')
       setNotes(shop.notes || '')
       setPlanId(shop.plan_id || '')
+      setBillingDate(shop.next_billing_date ? String(shop.next_billing_date).slice(0, 10) : '')
     }
   }, [shop])
 
@@ -52,7 +54,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
     try {
       const { error: updateError } = await adminDb
         .from('shops')
-        .update({ name: shopName, phone, address, email, notes, plan_id: planId || null })
+        .update({ name: shopName, phone, address, email, notes, plan_id: planId || null, next_billing_date: billingDate || null })
         .eq('id', shop.id)
       if (updateError) {
         if (updateError.message.includes("could not find the 'email' column")) {
@@ -67,7 +69,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
         action_type: 'UPDATE_SHOP',
         target_type: 'SHOP',
         target_id: shop.id,
-        details: { name: shopName, phone, address, email, notes }
+        details: { name: shopName, phone, address, email, notes, previousBillingDate: shop.next_billing_date || null, nextBillingDate: billingDate || null }
       })
 
       onUpdated()
@@ -147,6 +149,29 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="edit-shop-billing-date" className="block text-xs font-bold text-slate-500 uppercase mb-1">Trial ends / Next billing date</label>
+              <div className="flex gap-2">
+                <input
+                  id="edit-shop-billing-date"
+                  type="date"
+                  value={billingDate}
+                  onChange={e => setBillingDate(e.target.value)}
+                  className="flex-1 min-w-0 px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold text-slate-700"
+                />
+                {billingDate && (
+                  <button type="button" onClick={() => setBillingDate('')} className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                {billingDate
+                  ? 'Shop is auto-suspended 7 days after this date unless it is moved forward (payment or extension).'
+                  : 'No date: the shop is never auto-suspended.'}
+              </p>
             </div>
 
             <div>
