@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
-import { adjustSupplierBalance, adjustStock, must, isNetworkError } from '../services/integrity'
+import { adjustSupplierBalance, adjustStock, must, isNetworkError, purchaseUnpaidAmount } from '../services/integrity'
 import { supplierLedgerDelta, withRunningBalance, paymentRowType, openingRow } from '../utils/ledgerMath'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
@@ -89,6 +89,7 @@ function SupplierLedger() {
                 date: p.created_at,
                 type: 'purchase',
                 payment_type: p.payment_type,
+                paid_amount: p.paid_amount,
                 bill_number: '',
                 amount: p.total_amount,
                 note: `Bill #${String(p.id).slice(-8)}`,
@@ -226,12 +227,14 @@ function SupplierLedger() {
             for (const it of lineItems) {
                 const remaining = Number(it.quantity || 0) - Number(it.returned_qty || 0)
                 if (remaining > 0 && it.product_id != null) {
-                    const r = await adjustStock(it.product_id, -remaining)
+                    const r = await adjustStock(it.product_id, -remaining, { reason: 'purchase_delete', refTable: 'purchases', refId: item.id, createdBy: user.username })
                     if (!r.ok) failed.push(it.product_name || `product ${it.product_id}`)
                 }
             }
-            if (item.payment_type === 'credit') {
-                const r = await adjustSupplierBalance(id, -Number(item.amount))
+            // Only the part still owed had raised the supplier balance
+            const unpaid = purchaseUnpaidAmount({ payment_type: item.payment_type, total_amount: item.amount, paid_amount: item.paid_amount })
+            if (unpaid > 0) {
+                const r = await adjustSupplierBalance(id, -unpaid)
                 if (!r.ok) failed.push('supplier balance')
             }
             return failed

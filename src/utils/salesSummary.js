@@ -139,3 +139,26 @@ export function periodStart(range, now = new Date()) {
   if (range === 'year') return new Date(d.getFullYear(), 0, 1)
   return new Date(2000, 0, 1)
 }
+
+/**
+ * Dated return documents (sale_returns, sql/transactions_migration.sql).
+ * A return lowers its sale's stored totals, so a period's sales are rebuilt as
+ *   sales made in the period at their original value  (current + their returns)
+ *   − returns made in the period                      (whatever day the sale was)
+ * Returns recorded before the migration have no document and stay on the sale's day.
+ *  returnsOfPeriodSales: sale_returns whose sale was made in the period
+ *  returnsInPeriod:      sale_returns created in the period
+ */
+export function applyReturns(sum, returnsOfPeriodSales = [], returnsInPeriod = []) {
+  const add = (rows, k) => rows.reduce((a, r) => a + num(r[k]), 0)
+  const net = sum.net + add(returnsOfPeriodSales, 'refund_total') - add(returnsInPeriod, 'refund_total')
+  const cogs = sum.cogs + add(returnsOfPeriodSales, 'cost_total') - add(returnsInPeriod, 'cost_total')
+  return {
+    ...sum,
+    net: round2(net),
+    cogs: round2(cogs),
+    profit: round2(net - cogs),
+    returns: round2(add(returnsInPeriod, 'refund_total')),
+    returnCount: returnsInPeriod.length,
+  }
+}

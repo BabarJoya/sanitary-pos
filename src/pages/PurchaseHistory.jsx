@@ -4,7 +4,7 @@ import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustSupplierBalance, applyPurchaseEffects, saleRowOnly, isNetworkError } from '../services/integrity'
+import { adjustStock, adjustSupplierBalance, applyPurchaseEffects, saleRowOnly, isNetworkError, toIntId, applyLocalDelta, runTx, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
@@ -153,7 +153,10 @@ function PurchaseHistory() {
         const newPurchaseTotal = round2(Math.max(0, Number(selectedPurchase.total_amount || 0) - totalReturnAmount))
         const purchaseUpdate = { total_amount: newPurchaseTotal }
         if (selectedPurchase.discount != null) purchaseUpdate.discount = round2(Math.max(0, billDiscount - returnGross * ratio))
-        const isCredit = selectedPurchase.payment_type === 'credit' && !!selectedPurchase.supplier_id
+        // The refund always comes off what the shop owes the supplier (for a bill already
+        // paid it becomes an advance with the supplier). This keeps the stored balance equal
+        // to the ledger, where the purchase total drops and the 'return' row is a record only.
+        const isCredit = !!selectedPurchase.supplier_id
         const returnRow = isCredit ? {
             shop_id: user.shop_id,
             supplier_id: selectedPurchase.supplier_id,
@@ -161,6 +164,50 @@ function PurchaseHistory() {
             payment_type: 'return',
             note: `Return from Purchase PR-${String(selectedPurchase.id).slice(-6)}`
         } : null
+
+        // ── One database transaction with a dated return document (sql/transactions_migration.sql) ──
+        const allSynced = toIntId(selectedPurchase.id) != null && itemsToReturn.every(it => toIntId(it.id) != null)
+        if (navigator.onLine && allSynced) {
+            const tx = await runTx('process_purchase_return', {
+                p_return: {
+                    client_ref: crypto.randomUUID(),
+                    purchase_id: toIntId(selectedPurchase.id),
+                    created_by: user.username,
+                    lines: itemsToReturn.map(it => ({ purchase_item_id: toIntId(it.id), qty: qtyOf(it) })),
+                }
+            })
+            if (tx.ok) {
+                const doc = tx.data.return || {}
+                if (!tx.data.duplicate) {
+                    for (const it of itemsToReturn) {
+                        await db.purchase_items.update(it.id, { returned_qty: Number(it.returned_qty || 0) + qtyOf(it) }).catch(() => {})
+                        if (it.product_id != null) await applyLocalDelta('products', 'stock_quantity', it.product_id, -qtyOf(it))
+                    }
+                    if (Number(doc.balance_change) > 0 && selectedPurchase.supplier_id) {
+                        await applyLocalDelta('suppliers', 'outstanding_balance', selectedPurchase.supplier_id, -Number(doc.balance_change))
+                    }
+                }
+                await recordAuditLog('PURCHASE_RETURN', 'purchases', selectedPurchase.id, {
+                    purchase: selectedPurchase.id,
+                    returned_amount: Number(doc.refund_total) || 0,
+                    items: itemsToReturn.map(it => ({ name: it.product_name, qty: qtyOf(it) }))
+                }, user.id, user.shop_id)
+                setReturnQtys({})
+                alert(`Return successful! Purchase invoice updated.${Number(doc.balance_change) > 0 ? `\nSupplier balance kam hua: Rs. ${Number(doc.balance_change).toFixed(0)}` : ''}`)
+                const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).maybeSingle()
+                if (updatedPurchase) setSelectedPurchase(updatedPurchase)
+                const localItems = await db.purchase_items.where({ purchase_id: selectedPurchase.id }).toArray().catch(() => [])
+                if (localItems.length > 0) setPurchaseItems(localItems)
+                fetchPurchases()
+                setReturning(false)
+                return
+            }
+            if (tx.business || (!tx.missing && !tx.network)) {
+                alert('Error processing return: ' + txErrorMessage(tx.error))
+                setReturning(false)
+                return
+            }
+        }
 
         // Each step runs once. If the connection drops halfway, the remaining steps are
         // queued instead of re-applying the ones that already reached the server.
@@ -178,7 +225,7 @@ function PurchaseHistory() {
                 await db.purchase_items.update(item.id, { returned_qty: newRetQty }).catch(() => {})
                 if (wentOffline) await addToSyncQueue('purchase_items', 'UPDATE', { id: item.id, returned_qty: newRetQty })
                 // Atomic −qty (queued automatically when offline)
-                const sr = await adjustStock(item.product_id, -qtyOf(item))
+                const sr = await adjustStock(item.product_id, -qtyOf(item), { reason: 'purchase_return', refTable: 'purchases', refId: selectedPurchase.id, createdBy: user.username })
                 if (!sr.ok) throw sr.error || new Error(`Stock update failed for ${item.product_name}`)
                 done.items++
             }

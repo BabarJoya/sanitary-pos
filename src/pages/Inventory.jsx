@@ -353,7 +353,7 @@ function Inventory() {
       }
       const delta = Math.round((counted - current) * 1000) / 1000
       if (delta !== 0) {
-        const r = await adjustStock(selectedProduct.id, delta)
+        const r = await adjustStock(selectedProduct.id, delta, { reason: 'stocktake', note: adjustmentNote || 'Manual stock count', createdBy: user.username })
         if (!r.ok) throw r.error || new Error('Stock update failed')
       }
       await recordAuditLog('STOCK_ADJUSTMENT', 'products', selectedProduct.id, {
@@ -386,7 +386,7 @@ function Inventory() {
 
     setSaving(true)
     try {
-      const r = await adjustStock(returnProduct.id, qty)
+      const r = await adjustStock(returnProduct.id, qty, { reason: 'other', note: 'Returned without a bill', createdBy: user.username })
       if (!r.ok) throw r.error || new Error('Stock update failed')
       await recordAuditLog('PRODUCT_RETURN', 'products', returnProduct.id, {
         product: returnProduct.name,

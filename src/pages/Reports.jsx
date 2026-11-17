@@ -7,7 +7,7 @@ import { db } from '../services/db'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
-import { summarizeSales, netOf, periodStart } from '../utils/salesSummary'
+import { summarizeSales, netOf, periodStart, applyReturns } from '../utils/salesSummary'
 import { localDateKey } from '../utils/dates'
 
 // Net sales and gross profit split by price tier (sales.price_tier; missing = retail)
@@ -53,7 +53,9 @@ function Reports() {
     cash: 0,
     online: 0,
     credit: 0,
-    linesWithoutCost: 0
+    linesWithoutCost: 0,
+    returns: 0,
+    returnCount: 0
   })
 
   const [topProducts, setTopProducts] = useState([])
@@ -74,8 +76,8 @@ function Reports() {
     const startISO = startDate.toISOString()
 
     // Same calculation for server data and this device's saved data
-    const applyReport = ({ sales, items, expenses, purchases, categoryOfItem }) => {
-      const sum = summarizeSales(sales, items)
+    const applyReport = ({ sales, items, expenses, purchases, categoryOfItem, returnsOfSales = [], returnsInPeriod = [] }) => {
+      const sum = applyReturns(summarizeSales(sales, items), returnsOfSales, returnsInPeriod)
       const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
       const totalPurchases = purchases.reduce((s, p) => s + Number(p.total_amount || 0), 0)
 
@@ -93,6 +95,8 @@ function Reports() {
         online: sum.online,
         credit: sum.credit,
         linesWithoutCost: sum.linesWithoutCost,
+        returns: sum.returns,
+        returnCount: sum.returnCount,
       })
 
       // Share of each bill that was given away as bill discount (so line figures add up to the bill)
@@ -122,10 +126,14 @@ function Reports() {
       // Sales trend: net sales per local day (or per month for long ranges), oldest first
       const byMonth = range === 'year' || range === 'all'
       const trendMap = {}
+      const dayKey = (d) => byMonth ? localDateKey(d).slice(0, 7) : localDateKey(d)
       sales.forEach(s => {
-        const key = byMonth ? localDateKey(s.created_at).slice(0, 7) : localDateKey(s.created_at)
+        const key = dayKey(s.created_at)
         trendMap[key] = (trendMap[key] || 0) + netOf(s)
       })
+      // Returns: back on the sale's day at full value, then off on the day they came back
+      returnsOfSales.forEach(r => { if (r.sales?.created_at) { const k = dayKey(r.sales.created_at); trendMap[k] = (trendMap[k] || 0) + Number(r.refund_total || 0) } })
+      returnsInPeriod.forEach(r => { const k = dayKey(r.created_at); trendMap[k] = (trendMap[k] || 0) - Number(r.refund_total || 0) })
       setSalesTrend(Object.keys(trendMap).sort().map(key => {
         const [y, m, d] = key.split('-').map(Number)
         const label = byMonth
@@ -155,11 +163,14 @@ function Reports() {
         fetchAllRows(() => supabase.from('sale_items').select('*, sales!inner(created_at, sale_type, shop_id), products(category_id)').eq('sales.shop_id', user.shop_id).eq('sales.sale_type', 'sale').gte('sales.created_at', startISO)),
         fetchAllRows(() => supabase.from('expenses').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO)),
         fetchAllRows(() => supabase.from('purchases').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO)),
-        supabase.from('categories').select('id, name').eq('shop_id', user.shop_id)
+        supabase.from('categories').select('id, name').eq('shop_id', user.shop_id),
+        // Dated return documents (empty until sql/transactions_migration.sql has run)
+        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', startISO)),
+        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', startISO)),
       ])
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000))
-      const [salesRes, itemsRes, expensesRes, purchasesRes, catsRes] = await Promise.race([fetchPromise, timeoutPromise])
+      const [salesRes, itemsRes, expensesRes, purchasesRes, catsRes, retInRes, retOfRes] = await Promise.race([fetchPromise, timeoutPromise])
       const failed = [salesRes, itemsRes, expensesRes, purchasesRes].find(r => r.error)
       if (failed) throw failed.error
 
@@ -176,7 +187,12 @@ function Reports() {
       await db.expenses.bulkPut(JSON.parse(JSON.stringify(expenses))).catch(() => {})
       await db.purchases.bulkPut(JSON.parse(JSON.stringify(purchases))).catch(() => {})
 
-      applyReport({ sales, items, expenses, purchases, categoryOfItem: (i) => catName[String(i.__category_id)] })
+      applyReport({
+        sales, items, expenses, purchases,
+        categoryOfItem: (i) => catName[String(i.__category_id)],
+        returnsInPeriod: retInRes.error ? [] : (retInRes.data || []),
+        returnsOfSales: retOfRes.error ? [] : (retOfRes.data || []),
+      })
     } catch (e) {
       console.log('Reports: calculating from local DB', e?.message)
       setFromCache(!navigator.onLine ? 'offline' : (e?.message === 'Timeout' ? 'timeout' : 'error'))
@@ -321,6 +337,9 @@ function Reports() {
             <div className="rounded-xl border border-info-muted bg-info-soft px-4 py-2 flex justify-between"><span className="text-info-strong">📱 Online / wallet</span><span className="font-bold text-info-strong">Rs. {Math.round(stats.online).toLocaleString()}</span></div>
             <div className="rounded-xl border border-warning-muted bg-warning-soft px-4 py-2 flex justify-between"><span className="text-warning-strong">📒 Credit (unpaid)</span><span className="font-bold text-warning-strong">Rs. {Math.round(stats.credit).toLocaleString()}</span></div>
           </div>
+          {stats.returnCount > 0 && (
+            <p className="text-sm text-fg-3">↩️ Returns this period: {stats.returnCount} · Rs. {Math.round(stats.returns).toLocaleString()} (already taken off Net Sales on the day they came back)</p>
+          )}
           {stats.linesWithoutCost > 0 && (
             <p role="status" className="text-sm text-warning-strong">⚠️ {stats.linesWithoutCost} sold item line(s) have no cost price, so profit is overstated for this period. Add cost prices in Products.</p>
           )}

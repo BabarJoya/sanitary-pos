@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { printHTML, getShopBranding } from '../utils/printUtils'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
-import { summarizeSales, summarizeCashBook, isCompletedSale, periodStart } from '../utils/salesSummary'
+import { summarizeSales, summarizeCashBook, isCompletedSale, periodStart, applyReturns } from '../utils/salesSummary'
 import { isLowStock } from '../utils/stockRules'
 import { todayLocal } from '../utils/dates'
 
@@ -77,12 +77,15 @@ function Dashboard() {
         fetchAllRows(() => supabase.from('customers').select('id, name, outstanding_balance').eq('shop_id', user.shop_id)),
         fetchAllRows(() => supabase.from('products').select('id, stock_quantity, low_stock_threshold, category_id').eq('shop_id', user.shop_id)),
         supabase.from('categories').select('id, low_stock_threshold').eq('shop_id', user.shop_id),
-        supabase.rpc('get_shop_config', { p_shop_id: user.shop_id })
+        supabase.rpc('get_shop_config', { p_shop_id: user.shop_id }),
+        // Dated returns (empty until sql/transactions_migration.sql has run)
+        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())),
+        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', today.toISOString())),
       ])
 
       // Mobile data can be slow: wait longer before falling back to this device's copy
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 12000))
-      const [todayRes, monthRes, custRes, prodRes, catRes, shopConfigRes] = await Promise.race([fetchPromise, timeoutPromise])
+      const [todayRes, monthRes, custRes, prodRes, catRes, shopConfigRes, retInRes, retOfRes] = await Promise.race([fetchPromise, timeoutPromise])
 
       const config = shopConfigRes.data || {}
       if (config.status === 'suspended' && !user.isImpersonating) {
@@ -113,6 +116,8 @@ function Dashboard() {
         products: prodRes.data || [],
         categories: catRes.data || [],
         planInfo: config,
+        returnsInPeriod: retInRes.error ? [] : (retInRes.data || []),
+        returnsOfSales: retOfRes.error ? [] : (retOfRes.data || []),
       }))
     } catch (err) {
       console.log('Dashboard: Calculating stats from local DB', err?.message)
@@ -157,8 +162,9 @@ function Dashboard() {
     }
   }
 
-  const buildStats = ({ todaySales, todayItems, monthSales, customers, products, categories, planInfo }) => {
-    const t = summarizeSales(todaySales, todayItems)
+  const buildStats = ({ todaySales, todayItems, monthSales, customers, products, categories, planInfo, returnsInPeriod = [], returnsOfSales = [] }) => {
+    // Today's sales and profit count returns on the day they came back
+    const t = applyReturns(summarizeSales(todaySales, todayItems), returnsOfSales, returnsInPeriod)
     const m = summarizeSales(monthSales)
     return {
       todaySales: t.net,
