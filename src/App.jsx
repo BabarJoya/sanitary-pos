@@ -42,6 +42,7 @@ const Analytics = lazy(() => import('./pages/admin/Analytics'))
 const Backups = lazy(() => import('./pages/admin/Backups'))
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'))
 const EmailBroadcast = lazy(() => import('./pages/admin/EmailBroadcast'))
+const AdminNotifications = lazy(() => import('./pages/admin/Notifications'))
 const ResetPassword = lazy(() => import('./pages/admin/ResetPassword'))
 
 function PageFallback() {
@@ -81,6 +82,7 @@ function App() {
               <Route path="backups" element={<Backups />} />
               <Route path="audit-logs" element={<AuditLogs />} />
               <Route path="broadcast" element={<EmailBroadcast />} />
+              <Route path="notifications" element={<AdminNotifications />} />
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </Route>
             <Route path="/admin/reset-password" element={<ResetPassword />} />
