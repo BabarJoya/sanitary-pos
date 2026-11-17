@@ -71,6 +71,15 @@ function customerLine(r) {
 }
 
 // ── TEMPLATE 1 — SIMPLE / MINIMAL ────────────────────────────
+// Customer account on the bill: what they owed before this bill and in total after it
+// ("Sabiqa baqaya / Kul baqaya"). Only when the receipt carries the balances (POS).
+function accountRows(r, isQuotation, render) {
+  if (isQuotation || r?.previousBalance == null || r?.balanceAfter == null) return ''
+  const prev = safeNum(r.previousBalance), after = safeNum(r.balanceAfter)
+  if (prev === 0 && after === 0) return ''
+  return render('Previous Balance', prev) + render('Total Balance', after)
+}
+
 function template1(r, isQuotation, s, isPurchase = false) {
   const isThermal = s.print_size !== 'a4'
   const footer = isPurchase ? '' : (isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں'))
@@ -105,6 +114,7 @@ function template1(r, isQuotation, s, isPurchase = false) {
     ${r.totalDiscount > 0 ? `<p class="r">Discount: -Rs. ${safeNum(r.totalDiscount).toFixed(0)}</p>` : ''}
     <p class="r tot">TOTAL: Rs. ${safeNum(r.total).toFixed(0)}</p>
     ${!isQuotation && remaining > 0 ? `<p class="r" style="color:red">Balance: Rs. ${remaining.toFixed(0)}</p>` : ''}
+    ${accountRows(r, isQuotation, (l, v) => `<p class="r" style="color:red">${l}: Rs. ${v.toFixed(0)}</p>`)}
     ${!isQuotation && remaining <= 0 ? `<p class="r" style="color:green;font-weight:bold">✓ PAID</p>` : ''}
     <div class="dot"></div>
     <p class="c" style="font-size:1.1em;margin-top:6px">${footer}</p>
@@ -153,6 +163,7 @@ function template1(r, isQuotation, s, isPurchase = false) {
     ${r.totalDiscount > 0 ? `<div class="tot-row"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
     <div class="tot-row grand"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
     ${!isQuotation && remaining > 0 ? `<div class="tot-row" style="color:red"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+    ${accountRows(r, isQuotation, (l, v) => `<div class="tot-row" style="color:red"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
     ${!isQuotation && remaining <= 0 ? `<div class="tot-row" style="color:green"><span>Status</span><span>✓ PAID IN FULL</span></div>` : ''}
   </div>
   <div class="footer-line">${footer}</div>
@@ -204,6 +215,7 @@ function template2(r, isQuotation, s, isPurchase = false) {
       <tr><td class="b">TOTAL</td><td class="r b" style="font-size:1.1em">Rs. ${safeNum(r.total).toFixed(0)}</td></tr>
       ${!isQuotation && r.sale?.paid_amount ? `<tr><td>Paid</td><td class="r">Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</td></tr>` : ''}
       ${!isQuotation && remaining > 0 ? `<tr style="color:red"><td class="b">Balance</td><td class="r b">Rs. ${remaining.toFixed(0)}</td></tr>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<tr style="color:red"><td class="b">${l}</td><td class="r b">Rs. ${v.toFixed(0)}</td></tr>`)}
       ${!isQuotation && r.change > 0 ? `<tr style="color:green"><td>Change</td><td class="r">Rs. ${safeNum(r.change).toFixed(0)}</td></tr>` : ''}
     </table>
     <hr/>
@@ -262,6 +274,7 @@ function template2(r, isQuotation, s, isPurchase = false) {
       ${r.totalDiscount > 0 ? `<div class="tot-row"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && r.sale?.paid_amount ? `<div class="tot-row"><span>Paid</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && remaining > 0 ? `<div class="tot-row" style="color:#dc2626"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<div class="tot-row" style="color:#dc2626"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
       <div class="tot-row"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
     </div>
   </div>
@@ -320,6 +333,7 @@ function template3(r, isQuotation, s, isPurchase = false) {
       <tr style="font-size:1.15em"><td class="b">NET TOTAL</td><td class="r b">Rs. ${safeNum(r.total).toFixed(0)}</td></tr>
       ${!isQuotation && r.sale?.paid_amount ? `<tr><td>Amount Paid</td><td class="r" style="color:green">Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</td></tr>` : ''}
       ${!isQuotation && remaining > 0 ? `<tr style="color:red"><td class="b">BALANCE DUE</td><td class="r b">Rs. ${remaining.toFixed(0)}</td></tr>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<tr style="color:red"><td class="b">${l}</td><td class="r b">Rs. ${v.toFixed(0)}</td></tr>`)}
       ${!isQuotation && r.change > 0 ? `<tr style="color:blue"><td>Change</td><td class="r">Rs. ${safeNum(r.change).toFixed(0)}</td></tr>` : ''}
     </table>
     ${paymentLine(r)}
@@ -420,6 +434,7 @@ function template3(r, isQuotation, s, isPurchase = false) {
         ${r.totalDiscount > 0 ? `<div class="tot-r" style="color:#16a34a"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
         ${!isQuotation && r.sale?.paid_amount ? `<div class="tot-r"><span>Amount Paid</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
         ${!isQuotation && remaining > 0 ? `<div class="tot-r" style="color:#dc2626;font-weight:700"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+        ${accountRows(r, isQuotation, (l, v) => `<div class="tot-r" style="color:#dc2626;font-weight:700"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
         <div class="grand-r"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
       </div>
     </div>
@@ -503,6 +518,7 @@ function template4(r, isQuotation, s, isPurchase = false) {
       ${r.totalDiscount > 0 ? `<div class="total-row" style="color:#16a34a"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && r.sale?.paid_amount ? `<div class="total-row"><span>Amount Paid</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && remaining > 0 ? `<div class="total-row" style="color:#dc2626;font-weight:600"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<div class="total-row" style="color:#dc2626;font-weight:600"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
       ${!isQuotation && r.change > 0 ? `<div class="total-row" style="color:#2563eb"><span>Change</span><span>Rs. ${safeNum(r.change).toFixed(0)}</span></div>` : ''}
       <div class="grand-row"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
     </div>
@@ -610,6 +626,7 @@ function template4(r, isQuotation, s, isPurchase = false) {
           ${r.totalDiscount > 0 ? `<div class="summary-row" style="color:#16a34a;font-weight:500"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
           ${!isQuotation && r.sale?.paid_amount ? `<div class="summary-row"><span>Paid Amount</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
           ${!isQuotation && remaining > 0 ? `<div class="summary-row" style="color:#dc2626;font-weight:600"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+          ${accountRows(r, isQuotation, (l, v) => `<div class="summary-row" style="color:#dc2626;font-weight:600"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
           <div class="summary-grand"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
+import StocktakeModal from '../components/StocktakeModal'
 
 function Inventory() {
   const { user } = useAuth()
@@ -35,6 +36,7 @@ function Inventory() {
   const [editingProducts, setEditingProducts] = useState([])
   const [historyProduct, setHistoryProduct] = useState(null)
   const [historyLogs, setHistoryLogs] = useState([])
+  const [showStocktake, setShowStocktake] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   const handleExport = () => {
@@ -408,7 +410,25 @@ function Inventory() {
     setHistoryProduct(product)
     setLoadingHistory(true)
     try {
-      // Fetch from local DB for speed and offline support
+      // Stock movement history (sql/transactions_migration.sql): every change with its reason
+      if (navigator.onLine && !isTempId(String(product.id))) {
+        const { data: moves, error: mErr } = await supabase.from('stock_movements')
+          .select('*').eq('product_id', product.id).order('created_at', { ascending: false }).limit(300)
+        if (!mErr && moves && moves.length > 0) {
+          const label = { sale: 'SALE', purchase: 'PURCHASE', sale_return: 'RETURN IN', purchase_return: 'RETURN OUT', stocktake: 'COUNT', adjustment: 'ADJUST', sale_delete: 'SALE DELETED', purchase_delete: 'PURCHASE DELETED', restore: 'RESTORED' }
+          setHistoryLogs(moves.map(m => ({
+            date: m.created_at,
+            type: label[m.reason] || 'OTHER',
+            desc: `${Number(m.qty_change) > 0 ? '+' : ''}${Number(m.qty_change)} → stock ${m.stock_after ?? '?'}`
+              + (m.unit_cost != null ? ` · cost Rs. ${Number(m.unit_cost)}` : '')
+              + (m.ref_table ? ` · ${m.ref_table === 'sales' ? 'Invoice' : 'PR'} #${String(m.ref_id || '').slice(-6)}` : '')
+              + (m.note ? ` · ${m.note}` : '')
+              + (m.created_by ? ` · by ${m.created_by}` : ''),
+          })))
+          return
+        }
+      }
+      // Older data / offline: rebuild from this device's saved records
       const [logs, sales, purchases] = await Promise.all([
         db.audit_logs.where('entity_id').equals(product.id).toArray(),
         db.sale_items.where('product_id').equals(product.id).toArray(),
@@ -686,6 +706,14 @@ function Inventory() {
             >
               📱 Reorder WA
             </button>
+            {(user.role === 'admin' || user.role === 'manager') && (
+              <button
+                onClick={() => setShowStocktake(true)}
+                className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+              >
+                📋 Stock Count
+              </button>
+            )}
             {(user.role === 'admin' || user.role === 'manager') && (
               <button
                 onClick={() => setReturnProduct({})}
@@ -1125,6 +1153,15 @@ function Inventory() {
             </div>
           </div>
         </div>
+      )}
+
+      {showStocktake && (
+        <StocktakeModal
+          products={filtered}
+          user={user}
+          onClose={() => setShowStocktake(false)}
+          onDone={() => { setShowStocktake(false); fetchInventory() }}
+        />
       )}
 
       {/* Bulk Price Editor Modal */}

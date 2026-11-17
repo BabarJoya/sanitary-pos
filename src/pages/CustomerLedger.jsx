@@ -10,6 +10,7 @@ import { adjustCustomerBalance, applySaleEffects, must, isNetworkError } from '.
 import { customerLedgerDelta, withRunningBalance, isLedgerSale, paymentRowType, openingRow } from '../utils/ledgerMath'
 import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { todayLocal, entryTimestamp } from '../utils/dates'
+import CustomerStatement, { AgeingStrip } from '../components/CustomerStatement'
 
 function CustomerLedger() {
     const { id } = useParams()
@@ -34,6 +35,7 @@ function CustomerLedger() {
     const [saving, setSaving] = useState(false)
     const [expandedSale, setExpandedSale] = useState(null)
     const [lastPayment, setLastPayment] = useState(null) // for print voucher after recording
+    const [showStatement, setShowStatement] = useState(false)
     const [selectedIds, setSelectedIds] = useState(new Set())
 
     useEffect(() => {
@@ -519,6 +521,9 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
                     )}
                 </div>
             )}
+            {showStatement && customer && (
+                <CustomerStatement ledger={ledger} customer={customer} user={user} onClose={() => setShowStatement(false)} />
+            )}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <button onClick={() => navigate('/customers')} className="text-primary-fg mb-2 hover:underline text-sm font-semibold">← Back to Customers</button>
@@ -573,6 +578,12 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
                                 <span>💬</span> WhatsApp Reminder
                             </button>
                         )}
+                        <button
+                            onClick={() => setShowStatement(true)}
+                            className="w-full sm:w-auto px-4 py-2.5 bg-surface border border-line hover:bg-surface-2 text-fg-2 rounded-lg transition font-semibold flex items-center justify-center gap-1.5"
+                        >
+                            📄 Statement
+                        </button>
                         {user?.role === 'admin' && (
                         <button
                             onClick={handleReconcileBalance}
@@ -591,6 +602,7 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
                 </div>
             </div>
 
+            <AgeingStrip ledger={ledger} />
             {selectedIds.size > 0 && (
                 <div className="mb-3 flex items-center gap-3 bg-danger-soft border border-danger-line rounded-xl px-4 py-3">
                     <span className="text-sm font-bold text-danger-strong">{selectedIds.size} selected</span>

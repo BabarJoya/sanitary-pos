@@ -893,6 +893,23 @@ function POS() {
       return
     }
 
+    // Credit limit (customers.credit_limit; empty / 0 = no limit). Admin / manager may go over it.
+    if (saleType === 'sale' && customerId) {
+      const cust = customers.find(c => String(c.id) === String(customerId))
+      const limit = Number(cust?.credit_limit) || 0
+      const unpaidNow = total - Math.min(total, totalPaid)
+      const newBalance = (Number(cust?.outstanding_balance) || 0) + unpaidNow
+      if (limit > 0 && unpaidNow > 0 && newBalance > limit) {
+        const msg = `${cust.name} ki credit limit Rs. ${limit.toLocaleString()} hai.\nIs bill ke baad baqaya Rs. ${Math.round(newBalance).toLocaleString()} ho jayega (Rs. ${Math.round(newBalance - limit).toLocaleString()} zyada).`
+        if (user.role === 'admin' || user.role === 'manager') {
+          if (!confirm(msg + '\n\nPhir bhi udhaar dena hai?')) return
+        } else {
+          alert(msg + '\n\nAdmin ya manager se approve karwayein, ya zyada payment lein.')
+          return
+        }
+      }
+    }
+
     setSaving(true)
 
     // Sanitize integer FK — offline-created customers have UUID ids
@@ -1117,6 +1134,11 @@ function POS() {
       receivedAmount: tendered,
       changeDue: changeDueVal,
       change: changeDueVal, // bill templates read `change`
+      // Customer account on the bill (Sabiqa / Kul baqaya); balance as it was before this sale
+      ...(customer && saleType === 'sale' ? {
+        previousBalance: Number(customer.outstanding_balance) || 0,
+        balanceAfter: (Number(customer.outstanding_balance) || 0) + balanceIncrease,
+      } : {}),
       totalProfit,
       isQuotation: saleType === 'quotation'
     })
