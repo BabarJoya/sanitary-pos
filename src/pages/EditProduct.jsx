@@ -46,6 +46,9 @@ function EditProduct() {
     low_stock_threshold: '10',
     status: 'active'
   })
+  // Stock as loaded. Saving sends stock only when the user changed it, so a price
+  // edit never writes back a stale count over sales made in the meantime.
+  const [loadedStock, setLoadedStock] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -78,14 +81,15 @@ function EditProduct() {
         category_id: product.category_id || '',
         supplier_id: product.supplier_id || '',
         unit_id: product.unit_id || '',
-        c_rate: product.c_rate || '',
-        cost_price: product.cost_price || '',
-        wholesale_price: product.wholesale_price || '',
-        sale_price: product.sale_price || '',
-        stock_quantity: product.stock_quantity || '',
+        c_rate: product.c_rate ?? '',
+        cost_price: product.cost_price ?? '',
+        wholesale_price: product.wholesale_price ?? '',
+        sale_price: product.sale_price ?? '',
+        stock_quantity: product.stock_quantity ?? '',
         low_stock_threshold: product.low_stock_threshold || '10',
         status: product.status || 'active'
       })
+      setLoadedStock(product.stock_quantity ?? null)
 
       const sid = String(user.shop_id)
 
@@ -125,14 +129,15 @@ function EditProduct() {
                 category_id: localProd.category_id || '',
                 supplier_id: localProd.supplier_id || '',
                 unit_id: localProd.unit_id || '',
-                c_rate: localProd.c_rate || '',
-                cost_price: localProd.cost_price || '',
-                wholesale_price: localProd.wholesale_price || '',
-                sale_price: localProd.sale_price || '',
-                stock_quantity: localProd.stock_quantity || '',
+                c_rate: localProd.c_rate ?? '',
+                cost_price: localProd.cost_price ?? '',
+                wholesale_price: localProd.wholesale_price ?? '',
+                sale_price: localProd.sale_price ?? '',
+                stock_quantity: localProd.stock_quantity ?? '',
                 low_stock_threshold: localProd.low_stock_threshold || '10',
                 status: localProd.status || 'active'
             })
+            setLoadedStock(localProd.stock_quantity ?? null)
         }
         const offlineSid = String(user.shop_id)
         const lUnits = await db.units.toArray().catch(() => [])
@@ -225,7 +230,18 @@ function EditProduct() {
     const updatedProductData = { ...form }
     
     // Ensure numeric fields are parsed correctly, treating empty strings as null/0 based on DB defaults
-    if(updatedProductData.c_rate === '') updatedProductData.c_rate = 0;
+    // Empty numeric inputs would be rejected by Postgres ('' is not a number)
+    for (const k of ['c_rate', 'cost_price', 'sale_price', 'wholesale_price']) {
+      if (k in updatedProductData) updatedProductData[k] = Number(updatedProductData[k]) || 0
+    }
+    updatedProductData.low_stock_threshold = updatedProductData.low_stock_threshold === '' ? null : Number(updatedProductData.low_stock_threshold)
+    const stockChanged = updatedProductData.stock_quantity !== '' && Number(updatedProductData.stock_quantity) !== Number(loadedStock)
+    if (stockChanged) {
+      updatedProductData.stock_quantity = Number(updatedProductData.stock_quantity)
+      if (!confirm(`Stock ${loadedStock ?? 0} se ${updatedProductData.stock_quantity} set ho jayega (is dauran hui sales/purchases is number se replace ho jayengi). Continue?`)) { setLoading(false); return }
+    } else {
+      delete updatedProductData.stock_quantity
+    }
     // Only send wholesale_price when the shop uses Wholesale Mode (keeps un-migrated DBs working)
     if (wholesaleEnabled) updatedProductData.wholesale_price = Number(updatedProductData.wholesale_price) || 0
     else delete updatedProductData.wholesale_price

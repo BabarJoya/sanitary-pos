@@ -637,13 +637,30 @@ export function buildBillHTML(r, isQuotation = false, shopSettings = {}, isPurch
 // ── SALES REPORT (daily / weekly / monthly) ──────────────────
 export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
   const s = shopSettings
-  const total   = sales.reduce((acc, s) => acc + safeNum(s.total_amount || s.net_amount), 0)
-  const paid    = sales.reduce((acc, s) => acc + safeNum(s.amount_paid), 0)
+  // total_amount is the bill before discount; paid_amount is what was paid toward it
+  const netOf  = (x) => Math.max(0, safeNum(x.total_amount) - safeNum(x.discount))
+  const paidOf = (x) => Math.min(netOf(x), safeNum(x.paid_amount ?? x.amount_paid))
+  const methodOf = (x) => String(x.payment_type || x.payment_method || 'cash').toLowerCase()
+  const total   = sales.reduce((acc, x) => acc + netOf(x), 0)
+  const paid    = sales.reduce((acc, x) => acc + paidOf(x), 0)
   const balance = total - paid
-  const disc    = sales.reduce((acc, s) => acc + safeNum(s.discount), 0)
-  const cash    = sales.filter(s => s.payment_method === 'cash').reduce((acc, s) => acc + safeNum(s.net_amount || s.total_amount), 0)
-  const card    = sales.filter(s => s.payment_method === 'card').reduce((acc, s) => acc + safeNum(s.net_amount || s.total_amount), 0)
-  const credit  = sales.filter(s => s.payment_method === 'credit').reduce((acc, s) => acc + safeNum(s.net_amount || s.total_amount), 0)
+  const disc    = sales.reduce((acc, x) => acc + safeNum(x.discount), 0)
+  // Money received, by method. Split bills use their payment lines (capped at what was applied).
+  let cash = 0, card = 0
+  sales.forEach(x => {
+    const applied = paidOf(x)
+    if (methodOf(x) === 'split' && Array.isArray(x.payment_details)) {
+      let left = applied
+      x.payment_details.forEach(pd => {
+        const amt = Math.min(left, safeNum(pd.amount))
+        left -= amt
+        if (String(pd.method || '').toLowerCase() === 'cash') cash += amt
+        else card += amt
+      })
+    } else if (methodOf(x) === 'cash') cash += applied
+    else if (methodOf(x) !== 'credit') card += applied
+  })
+  const credit  = balance
 
   const periodLabel = {
     today: "Today's Sales Report",
@@ -657,10 +674,10 @@ export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#64748b">${new Date(sale.created_at).toLocaleString('en-PK')}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-weight:600">INV-${String(sale.id).slice(-8)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${sale.customer_name || 'Walk-in'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${sale.customers?.name || sale.customer_name || 'Walk-in'}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center">${itemCount}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px;color:#64748b">${sale.payment_method || 'cash'}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700">Rs. ${safeNum(sale.net_amount || sale.total_amount).toFixed(0)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px;color:#64748b">${sale.payment_type || sale.payment_method || 'cash'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700">Rs. ${netOf(sale).toFixed(0)}</td>
     </tr>`
   }).join('')
 
@@ -707,8 +724,8 @@ export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
   </div>
   <div class="payment-grid">
     <div class="pay-card" style="background:#dcfce7;color:#166534">💵 Cash: Rs. ${cash.toFixed(0)}</div>
-    <div class="pay-card" style="background:#dbeafe;color:#1e40af">💳 Card: Rs. ${card.toFixed(0)}</div>
-    <div class="pay-card" style="background:#fef3c7;color:#92400e">📒 Credit: Rs. ${credit.toFixed(0)}</div>
+    <div class="pay-card" style="background:#dbeafe;color:#1e40af">💳 Online / Card: Rs. ${card.toFixed(0)}</div>
+    <div class="pay-card" style="background:#fef3c7;color:#92400e">📒 Credit (unpaid): Rs. ${credit.toFixed(0)}</div>
   </div>
   <table>
     <thead><tr><th>Date & Time</th><th>Invoice #</th><th>Customer</th><th style="text-align:center">Items</th><th>Payment</th><th style="text-align:right">Amount</th></tr></thead>

@@ -5,8 +5,10 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { adjustSupplierBalance, adjustStock, must } from '../services/integrity'
+import { supplierLedgerDelta, withRunningBalance } from '../utils/ledgerMath'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import { todayLocal, entryTimestamp } from '../utils/dates'
 
 function SupplierLedger() {
     const { id } = useParams()
@@ -31,7 +33,7 @@ function SupplierLedger() {
     // Transaction entry form
     const [txForm, setTxForm] = useState({
         bill_number: '',
-        date: new Date().toISOString().slice(0, 10),
+        date: todayLocal(),
         purchase_amount: '',
         paid_amount: '',
         details: '',
@@ -108,12 +110,7 @@ function SupplierLedger() {
         ]
         combined.sort((a, b) => new Date(a.date) - new Date(b.date))
 
-        let running = 0
-        const withBalance = combined.map(item => {
-            if (item.type === 'purchase' || item.type === 'debit') running += Number(item.amount)
-            else running -= Math.abs(Number(item.amount))
-            return { ...item, balance: running }
-        })
+        const withBalance = withRunningBalance(combined, supplierLedgerDelta)
         setLedger(withBalance.reverse())
     }
 
@@ -132,7 +129,7 @@ function SupplierLedger() {
         }
 
         setSaving(true)
-        const now = txForm.date ? new Date(txForm.date + 'T12:00:00').toISOString() : new Date().toISOString()
+        const now = entryTimestamp(txForm.date)
 
         try {
             if (!navigator.onLine) throw new TypeError('Failed to fetch')
@@ -196,7 +193,7 @@ function SupplierLedger() {
     }
 
     const resetForm = () => {
-        setTxForm({ bill_number: '', date: new Date().toISOString().slice(0, 10), purchase_amount: '', paid_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })
+        setTxForm({ bill_number: '', date: todayLocal(), purchase_amount: '', paid_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })
         setShowModal(false)
     }
 
@@ -248,7 +245,10 @@ function SupplierLedger() {
             await db.supplier_payments.delete(item.id)
             await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
         }
-        const delta = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
+        // Undo exactly what this line did. A return row is a record only (the purchase
+        // total itself was reduced), so deleting it leaves the balance alone.
+        const delta = -supplierLedgerDelta(item)
+        if (!delta) return failed
         const r = await adjustSupplierBalance(id, delta)
         if (!r.ok) failed.push('supplier balance')
         return failed
@@ -260,7 +260,7 @@ function SupplierLedger() {
             : item.type === 'payment' ? 'Payment'
             : 'Return'
         const confirmed = window.confirm(
-            `Yeh transaction delete karein?\n\nType: ${typeLabel}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nSupplier balance bhi adjust ho ga.`
+            `Yeh transaction delete karein?\n\nType: ${typeLabel}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\n${item.type === 'return' ? 'Yeh sirf record hai — balance change nahi hoga (purchase pehle hi kam ho chuki hai).' : 'Supplier balance bhi adjust ho ga.'}`
         )
         if (!confirmed) return
 
@@ -433,7 +433,19 @@ function SupplierLedger() {
     const handleReconcileBalance = async () => {
         if (!ledger.length && supplier?.outstanding_balance === 0) return
         const computedBalance = ledger.length > 0 ? ledger[0].balance : 0
-        const confirmed = confirm(`Balance Reconcile Karein?\n\nPresent Stored Balance: Rs. ${supplier?.outstanding_balance || 0}\nCalculated Ledger Sum: Rs. ${computedBalance}\n\nSupplier balance transaction ledger ke mutabiq sync ho jayega.`)
+        // Admin only. The ledger does not list opening balances that came from an Excel
+        // import or the add form, so overwriting the stored balance can erase real dues.
+        if (user?.role !== 'admin') return
+        const storedBal = Number(supplier?.outstanding_balance || 0)
+        const confirmed = confirm(`Balance Reconcile Karein?
+
+Present Stored Balance: Rs. ${storedBal}
+Calculated Ledger Sum: Rs. ${computedBalance}
+Difference: Rs. ${storedBal - computedBalance}
+
+⚠️ Opening balance (purani dues) jo import ya form se aya ho, ledger mein shamil nahi hota. Agar difference opening balance ki wajah se hai to Reconcile NA karein — warna woh dues mit jayengi.
+
+Supplier balance transaction ledger ke mutabiq sync ho jayega.`)
         if (!confirmed) return
 
         try {
@@ -482,11 +494,13 @@ function SupplierLedger() {
                             📤 Import Excel
                         </button>
                         <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
+                        {user?.role === 'admin' && (
                         <button onClick={handleReconcileBalance}
                             className="px-4 py-2 bg-warning hover:bg-warning-hover text-white rounded-lg font-semibold text-sm shadow transition"
                             title="Recalculate supplier balance from transaction ledger sum">
                             ⚡ Reconcile
                         </button>
+                        )}
                         <button onClick={() => setShowModal(true)}
                             className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold text-sm shadow transition">
                             ➕ Add Transaction

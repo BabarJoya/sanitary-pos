@@ -166,6 +166,42 @@ export async function applySaleEffects(sale, items, direction) {
   return failed
 }
 
+// ── Purchase delete / restore ────────────────────────────────────────
+// A purchase added its (un-returned) stock and, when bought on credit, raised the
+// supplier balance by what is still unpaid. Deleting it must undo both; restoring
+// it from Trash applies them again.
+
+// Amount the purchase added to the supplier balance (0 for a cash purchase)
+export function purchaseUnpaidAmount(purchase) {
+  if (purchase?.payment_type !== 'credit') return 0
+  const total = Number(purchase?.total_amount || 0)
+  const paid = Math.min(total, Number(purchase?.paid_amount || 0))
+  return Math.max(0, total - paid)
+}
+
+/**
+ * direction = 'reverse' (purchase deleted: stock out, supplier balance down)
+ *           | 'apply'   (purchase restored: stock in, supplier balance up)
+ * Returns the names of updates that failed.
+ */
+export async function applyPurchaseEffects(purchase, items, direction) {
+  if (!purchase) return []
+  const sign = direction === 'reverse' ? -1 : 1
+  const failed = []
+  for (const it of items || []) {
+    const remaining = Number(it.quantity || 0) - Number(it.returned_qty || 0)
+    if (remaining <= 0 || it.product_id == null) continue
+    const r = await adjustStock(it.product_id, sign * remaining)
+    if (!r.ok) failed.push(it.product_name || `product ${it.product_id}`)
+  }
+  const unpaid = purchaseUnpaidAmount(purchase)
+  if (purchase.supplier_id && unpaid > 0) {
+    const r = await adjustSupplierBalance(purchase.supplier_id, sign * unpaid)
+    if (!r.ok) failed.push('supplier balance')
+  }
+  return failed
+}
+
 /**
  * How a sale return is refunded.
  * - The bill-level discount is shared across all items in proportion to their value,

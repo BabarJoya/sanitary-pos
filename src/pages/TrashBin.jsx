@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, restoreFromTrash, addToSyncQueue } from '../services/db'
-import { applySaleEffects, saleRowOnly, isNetworkError } from '../services/integrity'
+import { applySaleEffects, applyPurchaseEffects, saleRowOnly, isNetworkError } from '../services/integrity'
 import PasswordModal from '../components/PasswordModal'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
@@ -112,6 +112,34 @@ function TrashBin() {
         return applySaleEffects(header, lineItems, 'apply')
     }
 
+    // Restore a deleted purchase: header + line items, then put the stock back and
+    // re-add its credit amount to the supplier (both were undone on delete).
+    const restorePurchase = async (item) => {
+        const lineItems = Array.isArray(item.data?.__items) ? item.data.__items : []
+        const header = saleRowOnly(item.data)
+        let online = navigator.onLine
+        if (online) {
+            const { error } = await supabase.from('purchases').upsert([header])
+            if (error && !isNetworkError(error)) throw new Error(`Purchase PR-${String(header.id).slice(-6)}: ${error.message}`)
+            if (error) online = false
+            else if (lineItems.length) {
+                const { error: itemsErr } = await supabase.from('purchase_items').upsert(lineItems)
+                if (itemsErr && !isNetworkError(itemsErr)) throw new Error(`Purchase PR-${String(header.id).slice(-6)} items: ${itemsErr.message}`)
+                if (itemsErr) await addToSyncQueue('purchase_items', 'INSERT', lineItems)
+            }
+        }
+        if (!online) {
+            await addToSyncQueue('purchases', 'INSERT', header)
+            if (lineItems.length) await addToSyncQueue('purchase_items', 'INSERT', lineItems)
+        }
+        await db.purchases.put(header)
+        if (lineItems.length) await db.purchase_items.bulkPut(lineItems)
+        await db.trash.delete(item.id)
+        // Purchases deleted before this fix never had stock/balance reversed — don't apply them twice
+        if (!Array.isArray(item.data?.__items)) return []
+        return applyPurchaseEffects(header, lineItems, 'apply')
+    }
+
     const handleRestore = async (items) => {
         try {
             const effectFailures = []
@@ -119,6 +147,11 @@ function TrashBin() {
                 if (item.original_table === 'sales') {
                     const failed = await restoreSale(item)
                     if (failed.length) effectFailures.push(`#${String(item.original_id).slice(-8)}: ${failed.join(', ')}`)
+                    continue
+                }
+                if (item.original_table === 'purchases') {
+                    const failed = await restorePurchase(item)
+                    if (failed.length) effectFailures.push(`PR-${String(item.original_id).slice(-6)}: ${failed.join(', ')}`)
                     continue
                 }
                 await restoreFromTrash(item)

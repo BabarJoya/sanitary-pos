@@ -7,7 +7,9 @@ import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import { adjustSupplierBalance, must } from '../services/integrity'
+import { supplierLedgerDelta, withRunningBalance } from '../utils/ledgerMath'
 import PasswordModal from '../components/PasswordModal'
+import { todayLocal, entryTimestamp } from '../utils/dates'
 
 function Suppliers() {
   const { user } = useAuth()
@@ -42,7 +44,7 @@ function Suppliers() {
   const [txImporting, setTxImporting] = useState(false)
   const txFileRef = useRef(null)
   const [txForm, setTxForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: todayLocal(),
     bill_number: '',
     type: 'debit',
     amount: '',
@@ -81,15 +83,7 @@ function Suppliers() {
       })
     ]
     combined.sort((a, b) => new Date(a.date) - new Date(b.date))
-    let running = 0
-    return combined.map(item => {
-      if (item.type === 'purchase' || item.type === 'debit') {
-        running += Number(item.amount)
-      } else {
-        running -= Math.abs(Number(item.amount))
-      }
-      return { ...item, balance: running }
-    }).reverse()
+    return withRunningBalance(combined, supplierLedgerDelta).reverse()
   }
 
   const openTxModal = async (sup) => {
@@ -123,7 +117,7 @@ function Suppliers() {
     setTxSaving(true)
     const amount = parseFloat(txForm.amount)
     const isDebit = txForm.type === 'debit'
-    const txDate = new Date(txForm.date).toISOString()
+    const txDate = entryTimestamp(txForm.date)
     const noteText = [txForm.bill_number ? `[Bill #${txForm.bill_number}]` : '', txForm.note].filter(Boolean).join(' ')
 
     const payload = {
@@ -148,7 +142,7 @@ function Suppliers() {
       setTxSup({ ...txSup, outstanding_balance: newBal })
       setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
 
-      setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', type: 'debit', amount: '', note: '' })
+      setTxForm({ date: todayLocal(), bill_number: '', type: 'debit', amount: '', note: '' })
       setShowAddTx(false)
       await openTxModal({ ...txSup, outstanding_balance: newBal })
     } catch (err) {
@@ -162,7 +156,7 @@ function Suppliers() {
         await adjustSupplierBalance(txSup.id, delta) // queued (previously never synced)
         setTxSup({ ...txSup, outstanding_balance: newBal })
         setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
-        setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', type: 'debit', amount: '', note: '' })
+        setTxForm({ date: todayLocal(), bill_number: '', type: 'debit', amount: '', note: '' })
         setShowAddTx(false)
         await openTxModal({ ...txSup, outstanding_balance: newBal })
         alert('Offline: Locally saved, will sync when online.')

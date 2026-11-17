@@ -517,15 +517,19 @@ function Settings() {
 
       let sales = [], saleItems = []
       if (navigator.onLine) {
-        const { data: s } = await supabase.from('sales').select('*').eq('shop_id', user.shop_id).gte('created_at', fromDate).order('created_at', { ascending: false })
+        // Completed sales only (quotations are not revenue), every page of them
+        const { data: s, error: sErr } = await fetchAllRows(() => supabase.from('sales').select('*, customers(name)').eq('shop_id', user.shop_id).or('sale_type.is.null,sale_type.neq.quotation').gte('created_at', fromDate).order('created_at', { ascending: false }))
+        if (sErr) throw sErr
         sales = s || []
-        if (sales.length > 0) {
-          const ids = sales.map(s => s.id)
-          const { data: si } = await supabase.from('sale_items').select('*').in('sale_id', ids)
-          saleItems = si || []
+        // Items in chunks: one huge `in (...)` list can exceed the URL limit and return nothing
+        const ids = sales.map(s => s.id)
+        for (let k = 0; k < ids.length; k += 150) {
+          const { data: si, error: siErr } = await supabase.from('sale_items').select('*').in('sale_id', ids.slice(k, k + 150))
+          if (siErr) throw siErr
+          saleItems.push(...(si || []))
         }
       } else {
-        sales = await db.sales.where('shop_id').equals(user.shop_id).filter(s => s.created_at >= fromDate).toArray()
+        sales = await db.sales.where('shop_id').equals(user.shop_id).filter(s => s.created_at >= fromDate && s.sale_type !== 'quotation').toArray()
         const ids = sales.map(s => s.id)
         saleItems = await db.sale_items.where('sale_id').anyOf(ids).toArray()
       }

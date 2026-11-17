@@ -830,8 +830,9 @@ function POS() {
         if (isInCart) {
           updated = updated.map(i => i.id === product.id ? { ...i, custom_price: discountedPrice, price_overridden: true } : i)
         } else {
-          // Only reached in 'add_all' mode
-          updated = [...updated, { ...product, qty: 1, custom_price: discountedPrice, price_overridden: true }]
+          // Only reached in 'add_all' mode. Out-of-stock items are skipped for a sale.
+          if (saleType !== 'quotation' && !(Number(product.stock_quantity) > 0)) return
+          updated = [...updated, { ...product, qty: Math.min(1, Number(product.stock_quantity) || 1), custom_price: discountedPrice, price_overridden: true }]
         }
       })
       return updated
@@ -842,6 +843,23 @@ function POS() {
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) { alert('Cart khali hai!'); return }
+
+    // Stock is checked again here: a converted quotation, a resumed held bill or a
+    // brand "add all" fills the cart without going through addToCart.
+    if (saleType === 'sale') {
+      const short = cart.filter(i => {
+        const p = products.find(x => String(x.id) === String(i.id))
+        const stock = Number((p ?? i).stock_quantity) || 0
+        return Number(i.qty) > stock
+      }).map(i => {
+        const p = products.find(x => String(x.id) === String(i.id))
+        return `• ${i.name}: ${i.qty} in bill, ${Number((p ?? i).stock_quantity) || 0} in stock`
+      })
+      if (short.length > 0) {
+        alert(`Stock kam hai — in items ki quantity kam karein:\n${short.join('\n')}`)
+        return
+      }
+    }
 
     // If split payment not used, default to single payment
     const singleMethod = paymentType === 'online' ? onlineProvider : paymentType
@@ -1028,6 +1046,7 @@ function POS() {
       paymentType,
       receivedAmount: tendered,
       changeDue: changeDueVal,
+      change: changeDueVal, // bill templates read `change`
       totalProfit,
       isQuotation: saleType === 'quotation'
     })
@@ -1156,9 +1175,10 @@ function POS() {
 
   const printQuotation = () => {
     const customer = customers.find(c => String(c.id) === String(customerId))
-    const sub = cart.reduce((s, i) => s + i.custom_price * i.qty, 0)
-    const disc = parseFloat(discount) || 0
-    const tot = Math.max(0, sub - disc)
+    // Same figures as the cart (percent mode included), never a stale typed amount
+    const sub = subtotal
+    const disc = totalDiscount
+    const tot = total
     const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
     printHTML(buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true))
   }
@@ -1168,9 +1188,10 @@ function POS() {
     if (btn) { btn.disabled = true; btn.textContent = '⏳...' }
     try {
       const customer = customers.find(c => String(c.id) === String(customerId))
-      const sub = cart.reduce((s, i) => s + i.custom_price * i.qty, 0)
-      const disc = parseFloat(discount) || 0
-      const tot = Math.max(0, sub - disc)
+      // Same figures as the cart (percent mode included), never a stale typed amount
+      const sub = subtotal
+      const disc = totalDiscount
+      const tot = total
       const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
       const html = buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true)
       const pdfBlob = await generateBillPDF(html)

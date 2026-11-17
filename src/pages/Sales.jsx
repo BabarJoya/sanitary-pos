@@ -10,6 +10,7 @@ import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
 import { buildBillHTML } from '../utils/billTemplates'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
+import { localDateKey } from '../utils/dates'
 
 function Sales() {
   const { user } = useAuth()
@@ -374,7 +375,7 @@ function Sales() {
       paymentFilter === 'online' ? (sPay !== 'cash' && sPay !== 'credit' && sPay !== 'split' && sPay !== 'quotation') :
       sPay === paymentFilter
     ) : true
-    const matchDate = dateFilter ? s.created_at?.startsWith(dateFilter) : true
+    const matchDate = dateFilter ? localDateKey(s.created_at) === dateFilter : true
     const sTier = s.price_tier === 'wholesale' ? 'wholesale' : 'retail'
     const matchTier = wholesaleEnabled && tierFilter !== 'all' ? sTier === tierFilter : true
     return matchSearch && matchType && matchPayment && matchDate && matchTier
