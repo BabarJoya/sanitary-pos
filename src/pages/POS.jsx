@@ -11,6 +11,7 @@ import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
 import { getPricingConfig, getShopSettings, isWholesaleEnabled, getUnitPrice, normalizeTier } from '../utils/businessPresets'
+import { isLowStock as isLowStockRule } from '../utils/stockRules'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
   { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
@@ -1291,7 +1292,7 @@ function POS() {
           {filtered.length === 0 && <p className="text-fg-subtle col-span-full text-center py-10">No products found</p>}
           {filtered.map(p => {
             const isOutOfStock = Number(p.stock_quantity) <= 0
-            const isLowStock = !isOutOfStock && Number(p.stock_quantity) <= (p.low_stock_threshold || 5)
+            const isLowStock = !isOutOfStock && isLowStockRule(p, categories)
             const catName = categoryNameMap[String(p.category_id)] || p.categories?.name || ''
             const catStyle = getCategoryColor(catName)
 

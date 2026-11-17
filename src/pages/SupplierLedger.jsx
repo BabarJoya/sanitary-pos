@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { db } from '../services/db'
-import { adjustSupplierBalance, adjustStock, must } from '../services/integrity'
-import { supplierLedgerDelta, withRunningBalance } from '../utils/ledgerMath'
+import { db, addToSyncQueue } from '../services/db'
+import { adjustSupplierBalance, adjustStock, must, isNetworkError } from '../services/integrity'
+import { supplierLedgerDelta, withRunningBalance, paymentRowType, openingRow } from '../utils/ledgerMath'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { todayLocal, entryTimestamp } from '../utils/dates'
@@ -97,7 +97,7 @@ function SupplierLedger() {
             ...payments.map(p => ({
                 id: p.id,
                 date: p.created_at,
-                type: p.payment_type === 'debit' ? 'debit' : p.payment_type === 'return' ? 'return' : 'payment',
+                type: paymentRowType(p),
                 payment_type: p.payment_type,
                 bill_number: p.bill_number || '',
                 amount: p.amount,
@@ -430,6 +430,36 @@ function SupplierLedger() {
         fetchSupplierData()
     }
 
+    // Stored balance that the ledger lines do not explain — usually old dues from
+    // before the shop started using the app (Excel import / add form)
+    const ledgerSum = ledger.length > 0 ? ledger[0].balance : 0
+    const balanceGap = supplier ? Math.round((Number(supplier.outstanding_balance || 0) - ledgerSum) * 100) / 100 : 0
+    const canFixGap = user?.role === 'admin' || user?.role === 'manager'
+
+    const recordOpeningGap = async () => {
+        if (!supplier || Math.abs(balanceGap) < 1) return
+        if (!confirm(`Rs. ${balanceGap.toLocaleString()} ko "Opening Balance (purani dues)" ke taur par ledger mein darj karein? Supplier ka balance change NAHI hoga — sirf ledger mein entry aayegi.`)) return
+        const first = ledger.length ? ledger[ledger.length - 1].date : (supplier.created_at || new Date().toISOString())
+        const date = new Date(new Date(first).getTime() - 1000).toISOString() // just before the first entry
+        const row = openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: supplier.id, amount: balanceGap, date })
+        try {
+            let saved = false
+            if (navigator.onLine) {
+                const { error } = await supabase.from('supplier_payments').insert([row])
+                if (error && !isNetworkError(error)) throw error
+                saved = !error
+            }
+            if (!saved) {
+                const localRow = { ...row, id: crypto.randomUUID() }
+                await db.supplier_payments.add(localRow)
+                await addToSyncQueue('supplier_payments', 'INSERT', localRow)
+            }
+            fetchSupplierData()
+        } catch (err) {
+            alert('Opening balance save nahi hua: ' + (err?.message || String(err)))
+        }
+    }
+
     const handleReconcileBalance = async () => {
         if (!ledger.length && supplier?.outstanding_balance === 0) return
         const computedBalance = ledger.length > 0 ? ledger[0].balance : 0
@@ -470,6 +500,19 @@ Supplier balance transaction ledger ke mutabiq sync ho jayega.`)
 
     return (
         <div>
+            {supplier && Math.abs(balanceGap) >= 1 && (
+                <div role="status" className="mb-4 rounded-xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-strong flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span>
+                        Stored balance Rs. {Number(supplier.outstanding_balance || 0).toLocaleString()} hai, ledger entries ka total Rs. {ledgerSum.toLocaleString()}.
+                        Farq Rs. {balanceGap.toLocaleString()} aksar purani dues (opening balance) hota hai.
+                    </span>
+                    {canFixGap && (
+                        <button type="button" onClick={recordOpeningGap} className="shrink-0 rounded-lg bg-warning px-3 py-1.5 font-bold text-white hover:bg-warning-hover">
+                            Record as opening balance
+                        </button>
+                    )}
+                </div>
+            )}
             {/* ── Header ── */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>

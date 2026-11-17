@@ -211,9 +211,11 @@ export async function applyPurchaseEffects(purchase, items, direction) {
  *   refund goes to the balance (store credit).
  * Returns the refund split plus the sale's new total / discount / paid_amount.
  */
-export function splitReturnRefund({ sale, saleItems, returnLines, refundType, unpaidOnSale }) {
+export function splitReturnRefund({ sale, saleItems, returnLines, refundType, unpaidOnSale, currentBalance = null }) {
   const round2 = (n) => Math.round(n * 100) / 100
-  const gross = (saleItems || []).reduce((s, it) => s + Number(it.unit_price || 0) * Number(it.quantity || 0), 0)
+  // Goods not returned yet carry the discount that is left (an earlier return already
+  // took its share off sale.discount), so a second return from the same bill is not over-refunded.
+  const gross = (saleItems || []).reduce((s, it) => s + Number(it.unit_price || 0) * (Number(it.quantity || 0) - Number(it.returned_qty || 0)), 0)
   const discount = Number(sale?.discount || 0)
   const ratio = gross > 0 ? Math.min(1, Math.max(0, discount / gross)) : 0
   const returnGross = (returnLines || []).reduce((s, l) => s + Number(l.unit_price || 0) * Number(l.qty || 0), 0)
@@ -223,7 +225,10 @@ export function splitReturnRefund({ sale, saleItems, returnLines, refundType, un
   const hasCustomer = !!sale?.customer_id
   let creditPart = 0
   if (hasCustomer) {
-    creditPart = refundType === 'credit' ? refund : Math.min(refund, Math.max(0, Number(unpaidOnSale || 0)))
+    // Unpaid goods come off the balance — but if the customer has since paid the bill
+    // through the ledger, only what they still owe can be taken off; the rest is cash.
+    const stillOwed = currentBalance == null ? Infinity : Math.max(0, Number(currentBalance) || 0)
+    creditPart = refundType === 'credit' ? refund : Math.min(refund, Math.max(0, Number(unpaidOnSale || 0)), stillOwed)
   }
   creditPart = round2(creditPart)
   const cashPart = round2(refund - creditPart)

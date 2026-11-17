@@ -165,9 +165,24 @@ function Sales() {
     }
 
     setReturning(true)
+    // Customer's balance right now (a credit bill may have been paid off in the ledger since)
+    let currentBalance = null
+    if (selectedSale.customer_id) {
+      try {
+        if (navigator.onLine) {
+          const { data: c } = await supabase.from('customers').select('outstanding_balance').eq('id', selectedSale.customer_id).maybeSingle()
+          if (c) currentBalance = Number(c.outstanding_balance) || 0
+        }
+        if (currentBalance == null) {
+          const lc = await db.customers.get(selectedSale.customer_id)
+          if (lc) currentBalance = Number(lc.outstanding_balance) || 0
+        }
+      } catch { /* unknown balance: fall back to the bill's own unpaid amount */ }
+    }
     // Refund what the customer actually paid for the goods: the bill discount is shared
     // across items, and unpaid (credit) goods are taken off the balance, not refunded in cash.
     const plan = splitReturnRefund({
+      currentBalance,
       sale: selectedSale,
       saleItems,
       returnLines: itemsToReturn.map(it => ({ unit_price: it.unit_price, qty: qtyOf(it) })),

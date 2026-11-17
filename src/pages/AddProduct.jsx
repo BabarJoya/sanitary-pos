@@ -42,7 +42,7 @@ function AddProduct() {
     wholesale_price: '',
     sale_price: '',
     stock_quantity: '',
-    low_stock_threshold: '10',
+    low_stock_threshold: '', // empty = use the category's alert level (or 10)
     status: 'active'
   })
 
@@ -218,6 +218,7 @@ function AddProduct() {
     // Ensure numeric fields are parsed correctly, treating empty strings as null/0 based on DB defaults
     if (productData.supplier_id === '') productData.supplier_id = null;
     if (productData.c_rate === '') productData.c_rate = 0;
+    if (productData.low_stock_threshold === '') productData.low_stock_threshold = null;
     // Only send wholesale_price when the shop uses Wholesale Mode (keeps un-migrated DBs working)
     if (wholesaleEnabled) productData.wholesale_price = Number(productData.wholesale_price) || 0
     else delete productData.wholesale_price
@@ -500,7 +501,7 @@ function AddProduct() {
                 value={form.low_stock_threshold}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="10"
+                placeholder="Blank = category level (or 10)"
               />
             </div>
           </div>

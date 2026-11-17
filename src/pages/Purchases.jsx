@@ -191,8 +191,12 @@ function Purchases() {
   }
 
   const subtotal = cart.reduce((sum, i) => sum + i.purchase_price * i.qty, 0)
-  const totalDiscount = parseFloat(discount) || 0
+  // Bill discount: never negative, never more than the bill
+  const totalDiscount = Math.min(subtotal, Math.max(0, parseFloat(discount) || 0))
   const total = Math.max(0, subtotal - totalDiscount)
+  // Share of each rupee taken off by the bill discount → net unit cost per line
+  const discountRatio = subtotal > 0 ? totalDiscount / subtotal : 0
+  const costMethod = getShopSettings(user?.shop_id).cost_method === 'average' ? 'average' : 'last'
 
   // Hold Purchase
   const handleHoldPurchase = async () => {
@@ -242,6 +246,7 @@ function Purchases() {
         shop_id: user.shop_id,
         supplier_id: toIntId(supplierId),
         total_amount: total,
+        discount: Math.round(totalDiscount * 100) / 100, // kept so returns refund the discounted cost
         paid_amount: paymentType === 'cash' ? total : 0,
         payment_type: paymentType,
         status: 'completed',
@@ -255,7 +260,8 @@ function Purchases() {
         if (!navigator.onLine || hasUnsyncedRef) throw new TypeError('Failed to fetch')
         let { data, error: pError } = await supabase.from('purchases').insert([purchaseData]).select().single()
         if (pError && isMissingColumn(pError)) {
-          const { client_ref: _omit, ...withoutRef } = purchaseData
+          // Database not migrated yet (client_ref / discount): save without the optional columns
+          const { client_ref: _omit, discount: _d, ...withoutRef } = purchaseData
           ;({ data, error: pError } = await supabase.from('purchases').insert([withoutRef]).select().single())
         }
         if (pError) throw pError
@@ -298,12 +304,29 @@ function Purchases() {
         await addToSyncQueue('purchase_items', 'INSERT', localItems)
       }
 
-      // ── 3. Stock (+qty) as atomic changes, cost price as latest purchase price ──
+      // ── 3. Stock (+qty) as atomic changes; cost price per the shop's cost method ──
+      // Net unit cost = purchase price after this bill's discount share.
+      //  last    → cost = net unit cost of this purchase
+      //  average → cost = (stock on hand × old cost + qty × net cost) / (stock on hand + qty)
       const failed = []
       for (const item of cart) {
-        const r = await adjustStock(item.id, Number(item.qty))
+        const qty = Number(item.qty)
+        const netUnitCost = Math.round(Number(item.purchase_price) * (1 - discountRatio) * 100) / 100
+        let newCost = netUnitCost
+        if (costMethod === 'average') {
+          let onHand = Number(item.stock_quantity) || 0
+          let oldCost = Number(item.cost_price) || 0
+          if (navigator.onLine && !isTempId(String(item.id))) {
+            // Fresh figures just before the stock change (another device may have sold/bought)
+            const { data: live } = await supabase.from('products').select('stock_quantity, cost_price').eq('id', item.id).maybeSingle()
+            if (live) { onHand = Number(live.stock_quantity) || 0; oldCost = Number(live.cost_price) || 0 }
+          }
+          onHand = Math.max(0, onHand)
+          if (onHand + qty > 0 && oldCost > 0) newCost = Math.round(((onHand * oldCost + qty * netUnitCost) / (onHand + qty)) * 100) / 100
+        }
+        const r = await adjustStock(item.id, qty)
         if (!r.ok) failed.push(item.name)
-        const costUpdate = { cost_price: item.purchase_price }
+        const costUpdate = { cost_price: newCost }
         if (navigator.onLine && !isTempId(String(item.id))) {
           const { error: cErr } = await supabase.from('products').update(costUpdate).eq('id', item.id)
           if (cErr) {

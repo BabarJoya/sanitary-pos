@@ -142,8 +142,17 @@ function PurchaseHistory() {
 
         setReturning(true)
         const round2 = (n) => Math.round(n * 100) / 100
-        const totalReturnAmount = round2(itemsToReturn.reduce((s, it) => s + Number(it.unit_price || 0) * qtyOf(it), 0))
+        // The purchase bill discount is shared across all lines, so returned goods are
+        // refunded at what the shop actually paid for them (not the pre-discount price).
+        const billDiscount = Number(selectedPurchase.discount || 0)
+        // Remaining (not yet returned) goods carry the remaining discount
+        const gross = purchaseItems.reduce((s, it) => s + Number(it.unit_price || 0) * (Number(it.quantity || 0) - Number(it.returned_qty || 0)), 0)
+        const ratio = gross > 0 ? Math.min(1, Math.max(0, billDiscount / gross)) : 0
+        const returnGross = itemsToReturn.reduce((s, it) => s + Number(it.unit_price || 0) * qtyOf(it), 0)
+        const totalReturnAmount = round2(returnGross * (1 - ratio))
         const newPurchaseTotal = round2(Math.max(0, Number(selectedPurchase.total_amount || 0) - totalReturnAmount))
+        const purchaseUpdate = { total_amount: newPurchaseTotal }
+        if (selectedPurchase.discount != null) purchaseUpdate.discount = round2(Math.max(0, billDiscount - returnGross * ratio))
         const isCredit = selectedPurchase.payment_type === 'credit' && !!selectedPurchase.supplier_id
         const returnRow = isCredit ? {
             shop_id: user.shop_id,
@@ -175,12 +184,12 @@ function PurchaseHistory() {
             }
 
             if (!wentOffline) {
-                const { error } = await supabase.from('purchases').update({ total_amount: newPurchaseTotal }).eq('id', selectedPurchase.id)
+                const { error } = await supabase.from('purchases').update(purchaseUpdate).eq('id', selectedPurchase.id)
                 if (error && !isNetworkError(error)) throw error
                 if (error) wentOffline = true
             }
-            await db.purchases.update(selectedPurchase.id, { total_amount: newPurchaseTotal }).catch(() => {})
-            if (wentOffline) await addToSyncQueue('purchases', 'UPDATE', { id: selectedPurchase.id, total_amount: newPurchaseTotal })
+            await db.purchases.update(selectedPurchase.id, purchaseUpdate).catch(() => {})
+            if (wentOffline) await addToSyncQueue('purchases', 'UPDATE', { id: selectedPurchase.id, ...purchaseUpdate })
             done.total = true
 
             // Credit purchase: the returned goods come off what the shop owes the supplier
@@ -218,7 +227,7 @@ function PurchaseHistory() {
             setReturnQtys({})
             if (wentOffline) {
                 alert('Offline mode: Return processed locally. Stock, invoice and supplier balance will sync when online. 🔄')
-                setSelectedPurchase({ ...selectedPurchase, total_amount: newPurchaseTotal })
+                setSelectedPurchase({ ...selectedPurchase, ...purchaseUpdate })
                 const localItems = await db.purchase_items.where({ purchase_id: selectedPurchase.id }).toArray().catch(() => [])
                 if (localItems.length > 0) setPurchaseItems(localItems)
             } else {

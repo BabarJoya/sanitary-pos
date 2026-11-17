@@ -1,3 +1,4 @@
+import { summarizeSales, netOf } from './salesSummary'
 // ============================================================
 // Bill Templates Utility — 3 templates × 2 sizes (80mm / A4)
 // Usage: buildBillHTML(r, isQuotation, shopSettings)
@@ -637,30 +638,10 @@ export function buildBillHTML(r, isQuotation = false, shopSettings = {}, isPurch
 // ── SALES REPORT (daily / weekly / monthly) ──────────────────
 export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
   const s = shopSettings
-  // total_amount is the bill before discount; paid_amount is what was paid toward it
-  const netOf  = (x) => Math.max(0, safeNum(x.total_amount) - safeNum(x.discount))
-  const paidOf = (x) => Math.min(netOf(x), safeNum(x.paid_amount ?? x.amount_paid))
-  const methodOf = (x) => String(x.payment_type || x.payment_method || 'cash').toLowerCase()
-  const total   = sales.reduce((acc, x) => acc + netOf(x), 0)
-  const paid    = sales.reduce((acc, x) => acc + paidOf(x), 0)
-  const balance = total - paid
-  const disc    = sales.reduce((acc, x) => acc + safeNum(x.discount), 0)
-  // Money received, by method. Split bills use their payment lines (capped at what was applied).
-  let cash = 0, card = 0
-  sales.forEach(x => {
-    const applied = paidOf(x)
-    if (methodOf(x) === 'split' && Array.isArray(x.payment_details)) {
-      let left = applied
-      x.payment_details.forEach(pd => {
-        const amt = Math.min(left, safeNum(pd.amount))
-        left -= amt
-        if (String(pd.method || '').toLowerCase() === 'cash') cash += amt
-        else card += amt
-      })
-    } else if (methodOf(x) === 'cash') cash += applied
-    else if (methodOf(x) !== 'credit') card += applied
-  })
-  const credit  = balance
+  // Same rules as Dashboard / End of Day / Reports (utils/salesSummary.js)
+  const sum = summarizeSales(sales)
+  const total = sum.net, paid = sum.paid, balance = sum.credit, disc = sum.discount
+  const cash = sum.cash, card = sum.online, credit = sum.credit
 
   const periodLabel = {
     today: "Today's Sales Report",

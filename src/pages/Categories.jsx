@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import * as XLSX from 'xlsx'
 import { db, addToSyncQueue } from '../services/db'
+import { isLowStock } from '../utils/stockRules'
 
 function Categories() {
   const { user } = useAuth()
@@ -43,10 +44,7 @@ function Categories() {
 
   const getLowStockCount = (cat) => {
     if (!cat.low_stock_threshold) return 0
-    return products.filter(p =>
-      p.category_id === cat.id &&
-      p.stock_quantity <= cat.low_stock_threshold
-    ).length
+    return products.filter(p => p.category_id === cat.id && isLowStock(p, categories)).length
   }
 
   const fetchCategories = async () => {

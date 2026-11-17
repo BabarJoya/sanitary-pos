@@ -10,7 +10,7 @@ const MAX_RETRIES = 5
 // Optional columns an un-migrated database may not have yet
 const OPTIONAL_COLUMNS = {
     sales: ['online_provider', 'transaction_ref', 'price_tier', 'client_ref'],
-    purchases: ['client_ref'],
+    purchases: ['client_ref', 'discount'],
 }
 
 // A payload that still references an unsynced record (temp UUID in a *_id field

@@ -86,7 +86,7 @@ function EditProduct() {
         wholesale_price: product.wholesale_price ?? '',
         sale_price: product.sale_price ?? '',
         stock_quantity: product.stock_quantity ?? '',
-        low_stock_threshold: product.low_stock_threshold || '10',
+        low_stock_threshold: product.low_stock_threshold ?? '',
         status: product.status || 'active'
       })
       setLoadedStock(product.stock_quantity ?? null)
@@ -134,7 +134,7 @@ function EditProduct() {
                 wholesale_price: localProd.wholesale_price ?? '',
                 sale_price: localProd.sale_price ?? '',
                 stock_quantity: localProd.stock_quantity ?? '',
-                low_stock_threshold: localProd.low_stock_threshold || '10',
+                low_stock_threshold: localProd.low_stock_threshold ?? '',
                 status: localProd.status || 'active'
             })
             setLoadedStock(localProd.stock_quantity ?? null)
@@ -507,7 +507,7 @@ function EditProduct() {
                 value={form.low_stock_threshold}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="10"
+                placeholder="Blank = category level (or 10)"
               />
             </div>
           </div>
