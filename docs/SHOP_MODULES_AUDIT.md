@@ -7,6 +7,8 @@ Not re-reported (already fixed in PRs #2/#3, commits `e5e6d34`, `d632d90`): retu
 
 **Status (2026-11-18):** Phase 1 (items 1–10) and Phase 2 (items 11–19) are implemented on branches `fix/shop-calc-phase1` and `fix/shop-calc-phase2`. Phase 2 notes: the weighted-average cost is computed in the app from a fresh server read just before the stock change (not in an RPC yet); the cost-method setting is stored per device in shop settings; returns are still booked against the original sale date (M8, Phase 3). Also fixed in Phase 2: a second return from the same discounted bill was over-refunded (the discount share used the original gross).
 
+**Phase 3 status (2026-11-18):** implemented on `feat/shop-phase3` (items 20–25). Needs, in order: `sql/purchase_discount_migration.sql`, `sql/transactions_migration.sql`, `sql/units_decimals_migration.sql`. The SQL was tested on a local PostgreSQL 17 copy of the schema, not on the hosted database. Still partial: the Urdu toggle covers navigation, the main POS labels and the Dashboard heading (other screens and printed bills stay English); offline returns still use the step-by-step queue (no dated return document until online); returns recorded before the migration stay on the sale's date.
+
 Severity: **High** = money or stock is wrong in normal daily use, or a button can destroy correct data. **Medium** = wrong in a common edge case, or a report gives a misleading total. **Low** = cosmetic, rare, or off by a day at night.
 
 ---

@@ -9,6 +9,7 @@ import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { summarizeSales, summarizeCashBook, isCompletedSale, periodStart, applyReturns } from '../utils/salesSummary'
 import { isLowStock } from '../utils/stockRules'
 import { todayLocal } from '../utils/dates'
+import { useLang } from '../context/LanguageContext'
 
 const StatCard = ({ title, value, icon, color, subValue }) => (
   <div className="bg-surface p-6 rounded-2xl shadow-sm border border-line-subtle hover:shadow-md transition">
@@ -27,6 +28,7 @@ const StatCard = ({ title, value, icon, color, subValue }) => (
 
 function Dashboard() {
   const { user, logout } = useAuth()
+  const { t, lang } = useLang()
   const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -361,7 +363,7 @@ function Dashboard() {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-fg">Assalam-o-Alaikum, {user.username}! 👋</h1>
-          <p className="text-fg-muted mt-1">Today's Summary</p>
+          <p className="text-fg-muted mt-1" lang={lang} dir="auto">{t("Today's Summary")}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -369,7 +371,7 @@ function Dashboard() {
             className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-bold rounded-xl transition shadow"
             title="End of Day Summary"
           >
-            🌙 Close Day
+            🌙 <span lang={lang}>{t('Close Day')}</span>
           </button>
           <button
             onClick={fetchDashboardStats}

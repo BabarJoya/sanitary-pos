@@ -461,3 +461,9 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Urdu labels (LanguageContext): Nastaliq where the device has one */
+:lang(ur) {
+  font-family: 'Noto Nastaliq Urdu', 'Urdu Typesetting', 'Jameel Noori Nastaleeq', 'Noto Naskh Arabic', system-ui, sans-serif;
+  line-height: 1.9;
+}

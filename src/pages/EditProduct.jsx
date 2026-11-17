@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, useParams } from 'react-router-dom'
 import { db, addToSyncQueue } from '../services/db'
-import { toIntId } from '../services/integrity'
+import { toIntId, isMissingColumn } from '../services/integrity'
 import { getShopPreset, getPricingConfig, isWholesaleEnabled } from '../utils/businessPresets'
 
 function EditProduct() {
@@ -44,6 +44,8 @@ function EditProduct() {
     sale_price: '',
     stock_quantity: '',
     low_stock_threshold: '10',
+    pack_name: '',
+    pack_size: '',
     status: 'active'
   })
   // Stock as loaded. Saving sends stock only when the user changed it, so a price
@@ -87,6 +89,8 @@ function EditProduct() {
         sale_price: product.sale_price ?? '',
         stock_quantity: product.stock_quantity ?? '',
         low_stock_threshold: product.low_stock_threshold ?? '',
+        pack_name: product.pack_name ?? '',
+        pack_size: product.pack_size ?? '',
         status: product.status || 'active'
       })
       setLoadedStock(product.stock_quantity ?? null)
@@ -135,6 +139,8 @@ function EditProduct() {
                 sale_price: localProd.sale_price ?? '',
                 stock_quantity: localProd.stock_quantity ?? '',
                 low_stock_threshold: localProd.low_stock_threshold ?? '',
+                pack_name: localProd.pack_name ?? '',
+                pack_size: localProd.pack_size ?? '',
                 status: localProd.status || 'active'
             })
             setLoadedStock(localProd.stock_quantity ?? null)
@@ -235,6 +241,12 @@ function EditProduct() {
       if (k in updatedProductData) updatedProductData[k] = Number(updatedProductData[k]) || 0
     }
     updatedProductData.low_stock_threshold = updatedProductData.low_stock_threshold === '' ? null : Number(updatedProductData.low_stock_threshold)
+    // Pack fields only when filled in (columns added by sql/units_decimals_migration.sql)
+    const packSize = Number(updatedProductData.pack_size) || 0
+    const packName = String(updatedProductData.pack_name || '').trim()
+    if (packSize > 0) { updatedProductData.pack_size = packSize; updatedProductData.pack_name = packName || 'Box' }
+    else if (form.pack_size !== '' || form.pack_name) { updatedProductData.pack_size = null; updatedProductData.pack_name = null } // cleared
+    else { delete updatedProductData.pack_size; delete updatedProductData.pack_name }
     const stockChanged = updatedProductData.stock_quantity !== '' && Number(updatedProductData.stock_quantity) !== Number(loadedStock)
     if (stockChanged) {
       updatedProductData.stock_quantity = Number(updatedProductData.stock_quantity)
@@ -256,7 +268,12 @@ function EditProduct() {
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
 
-      const { error } = await supabase.from('products').update(updatedProductData).eq('id', id)
+      let { error } = await supabase.from('products').update(updatedProductData).eq('id', id)
+      if (error && isMissingColumn(error) && 'pack_size' in updatedProductData) {
+        const { pack_size: ps, pack_name: _pn, ...rest } = updatedProductData
+        ;({ error } = await supabase.from('products').update(rest).eq('id', id))
+        if (!error && ps) alert('Pack size needs a database update first (sql/units_decimals_migration.sql). Other changes were saved.')
+      }
       if (error) throw error
 
       alert('Product updated successfully!')
@@ -483,6 +500,21 @@ function EditProduct() {
             </div>
           )}
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="pack-name" className="block text-fg-2 font-medium mb-1">Pack name (optional)</label>
+              <input id="pack-name" type="text" name="pack_name" value={form.pack_name ?? ''} onChange={handleChange} list="pack-names"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" placeholder="e.g. Box, Carton, Dozen" />
+              <datalist id="pack-names"><option value="Box" /><option value="Carton" /><option value="Dozen" /><option value="Bundle" /><option value="Packet" /></datalist>
+            </div>
+            <div>
+              <label htmlFor="pack-size" className="block text-fg-2 font-medium mb-1">Pieces per pack</label>
+              <input id="pack-size" type="number" step="any" min="0" name="pack_size" value={form.pack_size ?? ''} onChange={handleChange}
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" placeholder="e.g. 12" />
+              <p className="text-[11px] text-fg-subtle mt-1">Stock stays in pieces; POS and Purchases get a "+1 pack" button.</p>
+            </div>
+          </div>
+
           {/* Stock */}
           <h2 className="font-semibold text-fg-2 border-b pb-2 pt-2">Stock</h2>
 
@@ -491,6 +523,7 @@ function EditProduct() {
               <label className="block text-fg-2 font-medium mb-1">Stock Quantity *</label>
               <input
                 type="number"
+                step="any"
                 name="stock_quantity"
                 value={form.stock_quantity}
                 onChange={handleChange}

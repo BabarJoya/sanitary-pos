@@ -166,8 +166,9 @@ function Purchases() {
   }
 
   const updateQty = (id, qty) => {
-    const num = parseInt(qty)
-    if (isNaN(num) || num < 1) return
+    // Decimals allowed (2.5 m of pipe, 1.5 kg)
+    const num = parseFloat(qty)
+    if (isNaN(num) || num <= 0) return
     setCart(prev => prev.map(i => i.id === id ? { ...i, qty: num } : i))
   }
 
@@ -625,16 +626,26 @@ function Purchases() {
                   >−</button>
                   <input
                     type="number"
+                    step="any"
                     value={item.qty}
                     onChange={e => updateQty(item.id, e.target.value)}
-                    className="w-10 text-center text-xs font-bold outline-none border-x border-line"
-                    min="1"
+                    className="w-12 text-center text-xs font-bold outline-none border-x border-line"
+                    min="0"
+                    aria-label={`Quantity of ${item.name}`}
                   />
                   <button
                     onClick={() => incrementQty(item.id)}
                     className="px-2 py-0.5 text-fg-muted hover:bg-surface-3 text-xs font-bold transition"
                   >+</button>
                 </div>
+                {Number(item.pack_size) > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => updateQty(item.id, Math.round((Number(item.qty) + Number(item.pack_size)) * 1000) / 1000)}
+                    className="px-1.5 py-0.5 text-[10px] font-bold rounded border border-line text-primary-fg hover:bg-primary-soft whitespace-nowrap"
+                    title={`Add one ${item.pack_name || 'pack'} (${item.pack_size} pcs)`}
+                  >+1 {item.pack_name || 'Pack'}</button>
+                )}
                 {/* Price */}
                 <div className="flex-1 flex flex-col gap-0.5">
                   <div className="flex items-center gap-1 bg-surface border border-line rounded px-1">
@@ -649,7 +660,12 @@ function Purchases() {
                   <p className="text-[8px] text-fg-subtle">Prev Cost: Rs.{item.cost_price || 0}</p>
                 </div>
               </div>
-              <p className="text-right text-[10px] font-bold text-fg-muted mt-0.5">Total: Rs. {(item.purchase_price * item.qty).toLocaleString()}</p>
+              <p className="text-right text-[10px] font-bold text-fg-muted mt-0.5">
+                {Number(item.pack_size) > 1 && Number(item.qty) >= Number(item.pack_size) && (
+                  <span className="mr-2 font-medium">= {Math.floor(Number(item.qty) / Number(item.pack_size))} {item.pack_name || 'Pack'}{Number(item.qty) % Number(item.pack_size) ? ` + ${Math.round((Number(item.qty) % Number(item.pack_size)) * 1000) / 1000}` : ''}</span>
+                )}
+                Total: Rs. {(item.purchase_price * item.qty).toLocaleString()}
+              </p>
             </div>
           ))}
         </div>

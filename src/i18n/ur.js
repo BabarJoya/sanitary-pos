@@ -1,0 +1,58 @@
+// Urdu labels for the shop screens. Key = the English text shown today, so a
+// missing entry simply stays in English. Add entries here as screens are translated.
+const ur = {
+  // Navigation
+  'Dashboard': 'ڈیش بورڈ',
+  'POS Billing': 'بلنگ (POS)',
+  'Products': 'اشیاء',
+  'Master Data': 'بنیادی ڈیٹا',
+  'Stock Inventory': 'اسٹاک',
+  'Customers': 'گاہک',
+  'Customer Ledger': 'گاہک کھاتہ',
+  'WhatsApp Reminders': 'واٹس ایپ یاد دہانی',
+  'Sales History': 'سیلز ریکارڈ',
+  'Suppliers': 'سپلائرز',
+  'Purchases': 'خریداری',
+  'Purchase History': 'خریداری ریکارڈ',
+  'Expenses': 'اخراجات',
+  'Reports': 'رپورٹس',
+  'Manage Users': 'یوزرز',
+  'Settings': 'سیٹنگز',
+  'Trash Bin': 'ردی کی ٹوکری',
+  'Help & Support': 'مدد',
+
+  // POS
+  'Cart is empty': 'ٹوکری خالی ہے',
+  'No products found': 'کوئی چیز نہیں ملی',
+  'All Categories': 'تمام اقسام',
+  'All Brands': 'تمام برانڈ',
+  'Net Total': 'کل رقم',
+  'Net Payable': 'قابلِ ادائیگی',
+  'Total': 'کل',
+  'Cash': 'نقد',
+  'Credit': 'ادھار',
+  'Split': 'تقسیم',
+  'Online': 'آن لائن',
+  'Payment Method': 'ادائیگی کا طریقہ',
+  'Quotation': 'کوٹیشن',
+  'Search Quotation': 'کوٹیشن تلاش',
+  'Resume Bill': 'بل دوبارہ کھولیں',
+  'No held bills found': 'کوئی رُکا ہوا بل نہیں',
+  'Quantity': 'تعداد',
+  'Product': 'چیز',
+  'Profit': 'منافع',
+  'Done': 'ٹھیک ہے',
+  'Close': 'بند کریں',
+  'Cancel': 'منسوخ',
+  'Add': 'شامل کریں',
+  'Complete Sale': 'سیل مکمل کریں',
+  'Complete Wholesale Sale': 'ہول سیل مکمل کریں',
+  'Mobile Number': 'موبائل نمبر',
+
+  // Dashboard / common
+  "Today's Summary": 'آج کا خلاصہ',
+  'Close Day': 'دن بند کریں',
+  'Language': 'زبان',
+}
+
+export default ur

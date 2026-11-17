@@ -12,6 +12,7 @@ import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
 import { getPricingConfig, getShopSettings, isWholesaleEnabled, getUnitPrice, normalizeTier } from '../utils/businessPresets'
 import { isLowStock as isLowStockRule } from '../utils/stockRules'
+import { useLang } from '../context/LanguageContext'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
   { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
@@ -38,6 +39,7 @@ const getCategoryColor = (catName = '') => {
 
 function POS() {
   const { user } = useAuth()
+  const { t } = useLang()
   const shopSettings = getShopSettings(user?.shop_id)
   const pricingConfig = getPricingConfig(shopSettings)
   const wholesaleEnabled = isWholesaleEnabled(shopSettings)
@@ -1345,7 +1347,7 @@ function POS() {
               className="flex-1 bg-transparent outline-none text-sm font-mono text-success-strong placeholder-success-fg"
               autoComplete="off"
             />
-            <button type="submit" className="text-xs bg-success hover:bg-success-hover text-white px-3 py-1 rounded-lg font-bold">Add</button>
+            <button type="submit" className="text-xs bg-success hover:bg-success-hover text-white px-3 py-1 rounded-lg font-bold">{t('Add')}</button>
             <button type="button" onClick={() => { setBarcodeMode(false); setBarcodeInput('') }} className="text-xs text-success-fg hover:text-danger-fg font-bold px-2">✕ Exit</button>
           </form>
         )}
@@ -1362,12 +1364,12 @@ function POS() {
           />
           <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
             className="px-3 py-2 border rounded-lg text-sm bg-surface focus:outline-none shadow-sm">
-            <option value="">All Categories</option>
+            <option value="">{t('All Categories')}</option>
             {posCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)}
             className="px-3 py-2 border rounded-lg text-sm bg-surface focus:outline-none shadow-sm">
-            <option value="">All Brands</option>
+            <option value="">{t('All Brands')}</option>
             {displayBrands.map(bName => <option key={bName} value={bName}>{bName}</option>)}
           </select>
           {selectedBrand && (
@@ -1380,7 +1382,7 @@ function POS() {
 
         {/* Product Grid - High-Visibility Responsive Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto flex-1 min-h-0 content-start pb-24 md:pb-0 custom-scrollbar">
-          {filtered.length === 0 && <p className="text-fg-subtle col-span-full text-center py-10">No products found</p>}
+          {filtered.length === 0 && <p className="text-fg-subtle col-span-full text-center py-10">{t('No products found')}</p>}
           {filtered.map(p => {
             const isOutOfStock = Number(p.stock_quantity) <= 0
             const isLowStock = !isOutOfStock && isLowStockRule(p, categories)
@@ -1516,7 +1518,7 @@ function POS() {
               <span>🛒 Cart</span>
               <span className="bg-primary text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">{cart.length}</span>
             </h2>
-            {saleType === 'quotation' && <span className="text-info-fg font-bold text-[10px] uppercase bg-info-soft px-1.5 py-0.5 rounded border border-info-line">Quotation</span>}
+            {saleType === 'quotation' && <span className="text-info-fg font-bold text-[10px] uppercase bg-info-soft px-1.5 py-0.5 rounded border border-info-line">{t('Quotation')}</span>}
           </div>
           <div className="flex items-center gap-1.5">
             {/* Quick POS Layout Switcher */}
@@ -1659,7 +1661,7 @@ function POS() {
           {cart.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center text-fg-subtle">
               <span className="text-3xl mb-1 opacity-50">🛍️</span>
-              <p className="text-xs font-semibold">Cart is empty</p>
+              <p className="text-xs font-semibold">{t('Cart is empty')}</p>
               <p className="text-[10px] text-fg-subtle mt-0.5">Click products on left panel to add</p>
             </div>
           )}
@@ -1723,6 +1725,16 @@ function POS() {
                         +
                       </button>
                     </div>
+                    {Number(item.pack_size) > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => updateQty(item.id, Math.round(((parseFloat(item.qty) || 0) + Number(item.pack_size)) * 1000) / 1000)}
+                        className="px-1.5 py-0.5 text-[10px] font-bold rounded border border-line text-primary-fg hover:bg-primary-soft whitespace-nowrap"
+                        title={`Add one ${item.pack_name || 'pack'} (${item.pack_size} pcs)`}
+                      >
+                        +1 {item.pack_name || 'Pack'}
+                      </button>
+                    )}
 
                     <span className="font-black text-xs text-fg min-w-[58px] text-right" title="Item Total">
                       {Number(item.qty) > 1 ? `= Rs.${(item.custom_price * item.qty).toFixed(0)}` : `Rs.${(item.custom_price).toFixed(0)}`}
@@ -1863,7 +1875,7 @@ function POS() {
               {/* Net Total & Profit */}
               <div className="flex justify-between items-center pt-1 border-t border-line/70">
                 <div>
-                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">Net Total</span>
+                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">{t('Net Total')}</span>
                   {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
                     <div className={`text-[10px] font-bold ${totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
                       Profit: Rs. {totalProfit.toFixed(0)}
@@ -2036,7 +2048,7 @@ function POS() {
               {/* Net Total */}
               <div className="flex justify-between items-center pt-1 border-t border-line/70">
                 <div>
-                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">Net Total</span>
+                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">{t('Net Total')}</span>
                   {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
                     <div className={`text-[10px] font-bold ${totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
                       Net Profit: Rs. {totalProfit.toFixed(0)}
@@ -2399,7 +2411,7 @@ function POS() {
               {/* Totals & Discount Card */}
               <div className="bg-surface border border-primary-line/90 rounded-xl px-3 py-2 shadow-2xs flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase font-black text-fg-subtle tracking-wider leading-none">Net Payable</span>
+                  <span className="text-[10px] uppercase font-black text-fg-subtle tracking-wider leading-none">{t('Net Payable')}</span>
                   {hasFeature('discount') && (
                     <div className="flex items-center gap-1.5 text-xs">
                       <span className="font-bold text-fg-muted text-[11px]">Disc:</span>
@@ -2590,7 +2602,7 @@ function POS() {
 
               {/* Payment Methods */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-fg-2 uppercase tracking-wide">Payment Method</label>
+                <label className="text-xs font-bold text-fg-2 uppercase tracking-wide">{t('Payment Method')}</label>
                 <div className="grid grid-cols-4 gap-2">
                   <button
                     type="button"
@@ -2600,7 +2612,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">💵</span>
-                    <span>Cash</span>
+                    <span>{t('Cash')}</span>
                   </button>
                   <button
                     type="button"
@@ -2610,7 +2622,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">📱</span>
-                    <span>Online</span>
+                    <span>{t('Online')}</span>
                   </button>
                   <button
                     type="button"
@@ -2620,7 +2632,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">📒</span>
-                    <span>Credit</span>
+                    <span>{t('Credit')}</span>
                   </button>
                   <button
                     type="button"
@@ -2634,7 +2646,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">🔀</span>
-                    <span>Split</span>
+                    <span>{t('Split')}</span>
                   </button>
                 </div>
               </div>
@@ -2698,7 +2710,7 @@ function POS() {
                 disabled={saving || cart.length === 0}
                 className="flex-1 py-3 bg-gradient-to-r from-success to-success hover:from-success-hover hover:to-success-hover text-white font-black text-sm rounded-xl transition shadow-lg shadow-success-line active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {saving ? 'Processing...' : `✅ Complete ${isWholesale ? 'Wholesale ' : ''}Sale (Rs. ${total.toFixed(0)})`}
+                {saving ? 'Processing...' : `✅ ${t(isWholesale ? 'Complete Wholesale Sale' : 'Complete Sale')} (Rs. ${total.toFixed(0)})`}
               </button>
             </div>
           </div>
@@ -2724,7 +2736,7 @@ function POS() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-fg-2 mb-1">Mobile Number</label>
+                <label className="block text-sm font-medium text-fg-2 mb-1">{t('Mobile Number')}</label>
                 <input
                   type="tel"
                   value={saveCustomerForm.mobile}
@@ -2833,7 +2845,7 @@ function POS() {
               <button onClick={applyBrandDiscount} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition">
                 {brandDiscountMode === 'cart_only' ? '✅ Apply to Cart' : 'Apply & Add All'}
               </button>
-              <button onClick={() => setShowBrandDiscount(false)} className="flex-1 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition">Cancel</button>
+              <button onClick={() => setShowBrandDiscount(false)} className="flex-1 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition">{t('Cancel')}</button>
             </div>
           </div>
         </div>
@@ -2872,11 +2884,11 @@ function POS() {
                 </div>
               ))}
               <div className="border-t pt-1 flex justify-between font-bold">
-                <span>Total</span><span>Rs. {lastReceipt.total.toFixed(0)}</span>
+                <span>{t('Total')}</span><span>Rs. {lastReceipt.total.toFixed(0)}</span>
               </div>
               {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && (
                 <div className={`flex justify-between text-xs ${lastReceipt.totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
-                  <span>Profit</span><span>Rs. {lastReceipt.totalProfit.toFixed(0)}</span>
+                  <span>{t('Profit')}</span><span>Rs. {lastReceipt.totalProfit.toFixed(0)}</span>
                 </div>
               )}
             </div>
@@ -2926,7 +2938,7 @@ function POS() {
                   </button>
                 )}
               </div>
-              <button onClick={() => setLastReceipt(null)} className="w-full py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition font-medium">Close</button>
+              <button onClick={() => setLastReceipt(null)} className="w-full py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition font-medium">{t('Close')}</button>
             </div>
           </div>
         </div>
@@ -2935,7 +2947,7 @@ function POS() {
       {showQuotationSearch && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold text-fg mb-4">Search Quotation</h2>
+            <h2 className="text-xl font-bold text-fg mb-4">{t('Search Quotation')}</h2>
             <p className="text-sm text-fg-muted mb-4">Quotation number (e.g. QT-abcd1234) enter karein jo bill par likha hai.</p>
             <div className="space-y-4">
               <input
@@ -2992,11 +3004,11 @@ function POS() {
                     ))}
                     {held.items.length > 3 && <span className="text-[10px] text-fg-subtle ml-1">+{held.items.length - 3} more</span>}
                   </div>
-                  <button className="w-full mt-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition">Resume Bill</button>
+                  <button className="w-full mt-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition">{t('Resume Bill')}</button>
                 </div>
               ))}
               {heldCarts.length === 0 && (
-                <div className="text-center py-10 text-fg-subtle italic">No held bills found</div>
+                <div className="text-center py-10 text-fg-subtle italic">{t('No held bills found')}</div>
               )}
             </div>
           </div>
@@ -3086,7 +3098,7 @@ function POS() {
               >
                 + Add Payment
               </button>
-              <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-1.5 bg-primary text-white rounded-lg text-xs font-bold">Done</button>
+              <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-1.5 bg-primary text-white rounded-lg text-xs font-bold">{t('Done')}</button>
             </div>
           </div>
         </div>
@@ -3107,9 +3119,9 @@ function POS() {
               <table className="w-full text-left border-collapse">
                 <thead className="bg-surface-2 sticky top-0 border-b">
                   <tr>
-                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase">Product</th>
+                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase">{t('Product')}</th>
                     <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">Price (Rs.)</th>
-                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">Quantity</th>
+                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">{t('Quantity')}</th>
                     <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-right">Total (Rs.)</th>
                     <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">Actions</th>
                   </tr>
@@ -3142,7 +3154,7 @@ function POS() {
                     </tr>
                   ))}
                   {cart.length === 0 && (
-                    <tr><td colSpan="5" className="px-4 py-10 text-center text-fg-subtle italic">Cart is empty</td></tr>
+                    <tr><td colSpan="5" className="px-4 py-10 text-center text-fg-subtle italic">{t('Cart is empty')}</td></tr>
                   )}
                 </tbody>
               </table>
