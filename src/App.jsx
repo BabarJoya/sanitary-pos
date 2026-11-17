@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { LanguageProvider } from './context/LanguageContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import Layout from './components/Layout'
@@ -57,6 +58,7 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
+      <LanguageProvider>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PWAInstallPrompt />
         <Suspense fallback={<PageFallback />}>
@@ -117,6 +119,7 @@ function App() {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </LanguageProvider>
       </ThemeProvider>
     </AuthProvider>
   )

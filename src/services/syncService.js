@@ -1,6 +1,6 @@
 import { db } from './db';
 import { supabase } from './supabase';
-import { isTempId, runDeltaRpc, isMissingColumn } from './integrity';
+import { isTempId, runDeltaRpc, isMissingColumn, runTx } from './integrity';
 
 // Tables that only exist locally and should NOT be synced to Supabase
 const LOCAL_ONLY_TABLES = ['held_carts', 'held_purchases']
@@ -10,8 +10,16 @@ const MAX_RETRIES = 5
 // Optional columns an un-migrated database may not have yet
 const OPTIONAL_COLUMNS = {
     sales: ['online_provider', 'transaction_ref', 'price_tier', 'client_ref'],
-    purchases: ['client_ref'],
+    purchases: ['client_ref', 'discount'],
+    customer_payments: ['client_ref'],
+    supplier_payments: ['client_ref'],
+    expenses: ['client_ref'],
 }
+// Tables whose queued inserts carry a client_ref (sql/transactions_migration.sql):
+// a replay after a lost response finds the existing row instead of adding a second one.
+const CLIENT_REF_TABLES = ['customer_payments', 'supplier_payments', 'expenses']
+// Keys that hold a UUID but are not references to an unsynced record
+const NOT_REFS = new Set(['id', 'client_ref', 'p_op_id', 'op_id'])
 
 // A payload that still references an unsynced record (temp UUID in a *_id field
 // or RPC param) must wait until that parent record has synced. Retrying it now
@@ -20,7 +28,7 @@ function hasUnresolvedRef(obj) {
     if (!obj || typeof obj !== 'object') return false
     if (Array.isArray(obj)) return obj.some(hasUnresolvedRef)
     return Object.entries(obj).some(([k, v]) =>
-        (k !== 'id' && k !== 'client_ref' && (k.endsWith('_id') || k.startsWith('p_')) && isTempId(String(v ?? ''))) ||
+        (!NOT_REFS.has(k) && (k.endsWith('_id') || k.startsWith('p_')) && isTempId(String(v ?? ''))) ||
         (v && typeof v === 'object' && hasUnresolvedRef(v))
     )
 }
@@ -96,6 +104,35 @@ async function cascadeIdChange(currentItemId, oldId, newId) {
     }
 }
 
+// After a queued transaction reaches the server, swap this device's temporary
+// rows for the saved ones and point later queue entries at the real ids.
+async function replaceLocalAfterTx(item, data, result, idMapping) {
+    const local = data.local || {}
+    try {
+        if (item.table === 'complete_sale' && result?.sale) {
+            if (local.saleTemp) {
+                await db.sales.delete(local.saleTemp).catch(() => {})
+                idMapping[local.saleTemp] = result.sale.id
+                await cascadeIdChange(item.id, local.saleTemp, result.sale.id)
+            }
+            if (Array.isArray(local.itemTemps)) await db.sale_items.bulkDelete(local.itemTemps).catch(() => {})
+            await db.sales.put(result.sale)
+            if (Array.isArray(result.items)) await db.sale_items.bulkPut(result.items)
+        } else if (item.table === 'complete_purchase' && result?.purchase) {
+            if (local.purchaseTemp) {
+                await db.purchases.delete(local.purchaseTemp).catch(() => {})
+                idMapping[local.purchaseTemp] = result.purchase.id
+                await cascadeIdChange(item.id, local.purchaseTemp, result.purchase.id)
+            }
+            if (Array.isArray(local.itemTemps)) await db.purchase_items.bulkDelete(local.itemTemps).catch(() => {})
+            await db.purchases.put(result.purchase)
+            if (Array.isArray(result.items)) await db.purchase_items.bulkPut(result.items)
+        }
+    } catch (e) {
+        console.warn('Sync: local copy refresh after transaction failed', e)
+    }
+}
+
 async function processQueue() {
     if (!navigator.onLine) return;
 
@@ -165,6 +202,22 @@ async function processQueue() {
             let error;
             let returnedData = null;
 
+            if (item.action === 'TX') {
+                // One-transaction operation queued offline (complete_sale, complete_purchase,
+                // process_sale_return, process_purchase_return). Idempotent by client_ref.
+                const res = await runTx(item.table, processedData.params)
+                if (res.ok) {
+                    await replaceLocalAfterTx(item, processedData, res.data, idMapping)
+                    await db.sync_queue.delete(item.id)
+                } else if (res.network) {
+                    break
+                } else {
+                    // Missing function (database rolled back) or a refused rule: keep it for review
+                    await markFailure(item, res.error, { permanent: !!res.missing })
+                }
+                continue
+            }
+
             if (item.action === 'RPC') {
                 // Atomic stock / balance change (see services/integrity.js)
                 const res = await runDeltaRpc(item.table, processedData)
@@ -186,6 +239,11 @@ async function processQueue() {
                     return obj;
                 };
                 let payload = isArray ? processedData.map(stripTempId) : stripTempId(processedData);
+                if (CLIENT_REF_TABLES.includes(item.table)) {
+                    // Stable key per row (the local temp id), so every retry sends the same one
+                    const withRef = (d, orig) => ({ ...d, client_ref: d.client_ref || (isTempId(String(orig?.id ?? '')) ? orig.id : crypto.randomUUID()) })
+                    payload = isArray ? payload.map((d, k) => withRef(d, processedData[k])) : withRef(payload, processedData)
+                }
 
                 let { data: resData, error: err } = await supabase.from(item.table).insert(payload).select();
 
@@ -195,6 +253,23 @@ async function processQueue() {
                     console.warn(`SyncService: retrying ${item.table} insert without optional columns (${optional.join(', ')})`);
                     payload = stripColumns(payload, optional)
                     ;({ data: resData, error: err } = await supabase.from(item.table).insert(payload).select());
+                }
+
+                // Several rows, one already saved earlier: insert them one by one, reusing the saved ones
+                if (err && err.code === '23505' && isArray && payload.every(r => r.client_ref)) {
+                    const saved = []
+                    let rowErr = null
+                    for (const row of payload) {
+                        const { data: one, error: e1 } = await supabase.from(item.table).insert(row).select()
+                        if (!e1) { saved.push(...(one || [])); continue }
+                        if (e1.code === '23505') {
+                            const { data: existing } = await supabase.from(item.table).select('*').eq('client_ref', row.client_ref).maybeSingle()
+                            if (existing) { saved.push(existing); continue }
+                        }
+                        rowErr = e1; break
+                    }
+                    err = rowErr
+                    resData = rowErr ? null : saved
                 }
 
                 // Duplicate client_ref → the row already reached the server earlier (lost response). Reuse it.

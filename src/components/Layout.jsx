@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useShopNotifications, NotificationBanners, NotificationPopup, NotificationList } from './ShopNotifications'
+import { useLang } from '../context/LanguageContext'
 
 let lastLayoutFetchTime = 0
 
@@ -348,6 +349,9 @@ function Layout({ children }) {
               </span>
             </div>
 
+            {/* Screen language (English / Urdu), saved on this device */}
+            <LanguageToggle />
+
             {/* Notification Bell */}
             <div className="relative" ref={dropdownRef}>
               <button
@@ -598,7 +602,9 @@ function NavHeader({ label, collapsed }) {
   )
 }
 
-function NavItem({ to, icon, label, active, onClick, locked, collapsed }) {
+function NavItem({ to, icon, label: labelEn, active, onClick, locked, collapsed }) {
+  const { t, lang } = useLang()
+  const label = t(labelEn)
   return (
     <li>
       <Link
@@ -616,10 +622,26 @@ function NavItem({ to, icon, label, active, onClick, locked, collapsed }) {
         }`}
       >
         <span className="flex-shrink-0 flex items-center justify-center">{icon}</span>
-        {!collapsed && <span className="flex-1 truncate">{label}</span>}
+        {!collapsed && <span className="flex-1 truncate" lang={lang} dir="auto">{label}</span>}
         {!collapsed && locked && <Lock size={13} className="ml-auto text-sidebar-muted" />}
       </Link>
     </li>
+  )
+}
+
+function LanguageToggle() {
+  const { lang, setLang } = useLang()
+  const next = lang === 'ur' ? 'en' : 'ur'
+  return (
+    <button
+      type="button"
+      onClick={() => setLang(next)}
+      className="min-w-11 min-h-11 px-2 rounded-full text-xs font-bold text-fg-muted hover:bg-surface-3 transition"
+      aria-label={lang === 'ur' ? 'Switch to English' : 'اردو میں دیکھیں'}
+      title={lang === 'ur' ? 'English' : 'اردو'}
+    >
+      {lang === 'ur' ? 'EN' : <span lang="ur">اردو</span>}
+    </button>
   )
 }
 

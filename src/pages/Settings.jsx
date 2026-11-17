@@ -77,6 +77,7 @@ function Settings() {
       pricing_mode: 'hidden',
       custom_price_label: '',
       wholesale_enabled: false,
+      cost_method: 'last',
       tax_number: '',
       pos_layout: 'two_stage'
     }
@@ -266,6 +267,8 @@ function Settings() {
         custom_price_label:   data.custom_price_label   || saved.custom_price_label   || prev.custom_price_label   || '',
         tax_number:           data.tax_number           || saved.tax_number           || prev.tax_number           || '',
         wholesale_enabled:    typeof data.wholesale_enabled === 'boolean' ? data.wholesale_enabled : (saved.wholesale_enabled ?? prev.wholesale_enabled ?? false),
+        // Cost method is kept in this device's shop settings (not in the shops table yet)
+        cost_method:          saved.cost_method  || prev.cost_method  || 'last',
         // Appearance is a local, per-shop preference (not stored in the shops table) — keep it.
         theme_mode:           saved.theme_mode   || prev.theme_mode,
         theme_accent:         saved.theme_accent || prev.theme_accent,
@@ -517,15 +520,19 @@ function Settings() {
 
       let sales = [], saleItems = []
       if (navigator.onLine) {
-        const { data: s } = await supabase.from('sales').select('*').eq('shop_id', user.shop_id).gte('created_at', fromDate).order('created_at', { ascending: false })
+        // Completed sales only (quotations are not revenue), every page of them
+        const { data: s, error: sErr } = await fetchAllRows(() => supabase.from('sales').select('*, customers(name)').eq('shop_id', user.shop_id).or('sale_type.is.null,sale_type.neq.quotation').gte('created_at', fromDate).order('created_at', { ascending: false }))
+        if (sErr) throw sErr
         sales = s || []
-        if (sales.length > 0) {
-          const ids = sales.map(s => s.id)
-          const { data: si } = await supabase.from('sale_items').select('*').in('sale_id', ids)
-          saleItems = si || []
+        // Items in chunks: one huge `in (...)` list can exceed the URL limit and return nothing
+        const ids = sales.map(s => s.id)
+        for (let k = 0; k < ids.length; k += 150) {
+          const { data: si, error: siErr } = await supabase.from('sale_items').select('*').in('sale_id', ids.slice(k, k + 150))
+          if (siErr) throw siErr
+          saleItems.push(...(si || []))
         }
       } else {
-        sales = await db.sales.where('shop_id').equals(user.shop_id).filter(s => s.created_at >= fromDate).toArray()
+        sales = await db.sales.where('shop_id').equals(user.shop_id).filter(s => s.created_at >= fromDate && s.sale_type !== 'quotation').toArray()
         const ids = sales.map(s => s.id)
         saleItems = await db.sale_items.where('sale_id').anyOf(ids).toArray()
       }
@@ -772,6 +779,20 @@ function Settings() {
               />
               <p className="text-[11px] text-fg-subtle mt-1">Printed at the top of customer receipts & invoices</p>
             </div>
+          </div>
+
+          {/* How a purchase sets the product's cost price */}
+          <div className="pt-5 border-t">
+            <label htmlFor="cost-method" className="block text-sm font-black text-fg uppercase tracking-wider">Cost price on purchase</label>
+            <select id="cost-method" value={form.cost_method || 'last'} onChange={e => setForm(prev => ({ ...prev, cost_method: e.target.value }))}
+              className="input mt-2 w-full sm:w-auto">
+              <option value="last">Last purchase price (after bill discount)</option>
+              <option value="average">Weighted average of stock on hand</option>
+            </select>
+            <p className="text-xs text-fg-muted mt-1">
+              Average: 10 in stock at Rs 100 + 10 bought at Rs 120 → cost Rs 110. Last price: cost becomes Rs 120.
+              Profit on past sales does not change (each sale keeps the cost it was sold at). Saved on this device.
+            </p>
           </div>
 
           {/* Wholesale Mode (opt-in per shop, plan must allow it) */}

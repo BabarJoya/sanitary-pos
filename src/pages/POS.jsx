@@ -4,13 +4,15 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
-import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance } from '../services/integrity'
+import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance, applyLocalDelta, runTx, txKnownAvailable, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import { buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
 import { getPricingConfig, getShopSettings, isWholesaleEnabled, getUnitPrice, normalizeTier } from '../utils/businessPresets'
+import { isLowStock as isLowStockRule } from '../utils/stockRules'
+import { useLang } from '../context/LanguageContext'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
   { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
@@ -37,6 +39,7 @@ const getCategoryColor = (catName = '') => {
 
 function POS() {
   const { user } = useAuth()
+  const { t } = useLang()
   const shopSettings = getShopSettings(user?.shop_id)
   const pricingConfig = getPricingConfig(shopSettings)
   const wholesaleEnabled = isWholesaleEnabled(shopSettings)
@@ -830,8 +833,9 @@ function POS() {
         if (isInCart) {
           updated = updated.map(i => i.id === product.id ? { ...i, custom_price: discountedPrice, price_overridden: true } : i)
         } else {
-          // Only reached in 'add_all' mode
-          updated = [...updated, { ...product, qty: 1, custom_price: discountedPrice, price_overridden: true }]
+          // Only reached in 'add_all' mode. Out-of-stock items are skipped for a sale.
+          if (saleType !== 'quotation' && !(Number(product.stock_quantity) > 0)) return
+          updated = [...updated, { ...product, qty: Math.min(1, Number(product.stock_quantity) || 1), custom_price: discountedPrice, price_overridden: true }]
         }
       })
       return updated
@@ -842,6 +846,23 @@ function POS() {
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) { alert('Cart khali hai!'); return }
+
+    // Stock is checked again here: a converted quotation, a resumed held bill or a
+    // brand "add all" fills the cart without going through addToCart.
+    if (saleType === 'sale') {
+      const short = cart.filter(i => {
+        const p = products.find(x => String(x.id) === String(i.id))
+        const stock = Number((p ?? i).stock_quantity) || 0
+        return Number(i.qty) > stock
+      }).map(i => {
+        const p = products.find(x => String(x.id) === String(i.id))
+        return `• ${i.name}: ${i.qty} in bill, ${Number((p ?? i).stock_quantity) || 0} in stock`
+      })
+      if (short.length > 0) {
+        alert(`Stock kam hai — in items ki quantity kam karein:\n${short.join('\n')}`)
+        return
+      }
+    }
 
     // If split payment not used, default to single payment
     const singleMethod = paymentType === 'online' ? onlineProvider : paymentType
@@ -872,6 +893,23 @@ function POS() {
     if ((paymentType === 'credit' || totalPaid < total) && !customerId) {
       alert('Balance amount (Credit) ke liye customer select karna zaroori hai!');
       return
+    }
+
+    // Credit limit (customers.credit_limit; empty / 0 = no limit). Admin / manager may go over it.
+    if (saleType === 'sale' && customerId) {
+      const cust = customers.find(c => String(c.id) === String(customerId))
+      const limit = Number(cust?.credit_limit) || 0
+      const unpaidNow = total - Math.min(total, totalPaid)
+      const newBalance = (Number(cust?.outstanding_balance) || 0) + unpaidNow
+      if (limit > 0 && unpaidNow > 0 && newBalance > limit) {
+        const msg = `${cust.name} ki credit limit Rs. ${limit.toLocaleString()} hai.\nIs bill ke baad baqaya Rs. ${Math.round(newBalance).toLocaleString()} ho jayega (Rs. ${Math.round(newBalance - limit).toLocaleString()} zyada).`
+        if (user.role === 'admin' || user.role === 'manager') {
+          if (!confirm(msg + '\n\nPhir bhi udhaar dena hai?')) return
+        } else {
+          alert(msg + '\n\nAdmin ya manager se approve karwayein, ya zyada payment lein.')
+          return
+        }
+      }
     }
 
     setSaving(true)
@@ -918,95 +956,164 @@ function POS() {
     const balanceIncrease = customerId ? total - Math.min(total, totalPaid) : 0
     let savedOnline = false
 
-    // ── 1. Sale header ────────────────────────────────────────────
-    try {
-      if (!navigator.onLine || hasUnsyncedRef) throw new TypeError('Failed to fetch')
-
-      let { data: sale, error: saleError } = await supabase.from('sales').insert([saleData]).select().single()
-
-      // Resilient fallback if optional columns are not migrated in Supabase yet
-      if (saleError && (isMissingColumn(saleError) || saleError.message?.includes('online_provider') || saleError.message?.includes('transaction_ref'))) {
-        console.warn('POS: optional sales columns not found in database yet. Retrying without them (payment details kept in payment_details JSONB).')
-        const fallbackSaleData = { ...saleData }
-        delete fallbackSaleData.online_provider
-        delete fallbackSaleData.transaction_ref
-        delete fallbackSaleData.price_tier
-        delete fallbackSaleData.client_ref
-        ;({ data: sale, error: saleError } = await supabase.from('sales').insert([fallbackSaleData]).select().single())
-      }
-
-      if (saleError) throw saleError
-      finalSale = sale
-      savedOnline = true
-      // Mirror to local DB so Sales history / ledger shows up immediately without reload
-      await db.sales.put(sale)
-    } catch (error) {
-      if (!hasUnsyncedRef && !isNetworkError(error)) {
-        alert('Error completing sale: ' + (error?.message || String(error)))
-        setSaving(false)
-        return
-      }
-      // OFFLINE: nothing reached the database (or the response was lost — client_ref
-      // makes the replay safe). Queue the whole sale.
-      console.log('POS: routing sale to local queue...')
-      const offlineId = crypto.randomUUID()
-      const offlineSaleData = {
-        ...saleData,
-        id: offlineId,
-        // keep an unsynced customer's temp id so the sync queue can map it to the real one
-        customer_id: isTempId(String(customerId || '')) ? customerId : saleData.customer_id
-      }
-      finalSale = offlineSaleData
-      await db.sales.add(offlineSaleData)
-      await addToSyncQueue('sales', 'INSERT', offlineSaleData)
-    }
-
-    // ── 2. Line items (never create a second sale if this step fails) ──
-    const items = cart.map(i => ({
-      sale_id: finalSale.id,
-      product_id: savedOnline ? toIntOrNull(i.id) : i.id,
+    // ── 0. Whole sale in one database transaction (sql/transactions_migration.sql) ──
+    // Header, lines, stock and customer balance succeed or fail together, and the
+    // client_ref makes a retry return the first result instead of a second sale.
+    const lineRows = cart.map(i => ({
+      product_id: i.id,
       product_name: i.name,
-      quantity: i.qty,
-      unit_price: i.custom_price,
-      cost_price: i.cost_price || 0,
-      line_total: i.custom_price * i.qty,
+      quantity: Number(i.qty),
+      unit_price: Number(i.custom_price),
+      cost_price: Number(i.cost_price) || 0,
+      line_total: Math.round(Number(i.custom_price) * Number(i.qty) * 100) / 100,
       returned_qty: 0,
     }))
+    const mirrorLocalEffects = async () => {
+      if (saleType !== 'sale') return
+      for (const item of cart) await applyLocalDelta('products', 'stock_quantity', item.id, -Number(item.qty))
+      if (customerId && balanceIncrease !== 0) await applyLocalDelta('customers', 'outstanding_balance', customerId, balanceIncrease)
+    }
+    let txHandled = false
+    let txNetworkFail = false
     let itemsSaved = false
-    if (savedOnline) {
-      const { data: resItems, error: itemsError } = await supabase.from('sale_items').insert(items).select()
-      if (!itemsError) {
-        await db.sale_items.bulkPut(resItems)
+    if (navigator.onLine && !hasUnsyncedRef) {
+      const tx = await runTx('complete_sale', {
+        p_sale: saleData,
+        p_items: lineRows.map(it => ({ ...it, product_id: toIntOrNull(it.product_id) })),
+        p_options: { allow_negative: false },
+      })
+      if (tx.ok) {
+        finalSale = tx.data.sale
+        savedOnline = true
         itemsSaved = true
-      } else if (!isNetworkError(itemsError)) {
-        // Hard failure: remove the header so we never keep a sale without its items
-        await supabase.from('sales').delete().eq('id', finalSale.id)
-        await db.sales.delete(finalSale.id).catch(() => {})
-        alert('Error completing sale (items): ' + itemsError.message + '\nSale was NOT saved — please try again.')
+        txHandled = true
+        await db.sales.put(finalSale)
+        if (Array.isArray(tx.data.items) && tx.data.items.length) await db.sale_items.bulkPut(tx.data.items)
+        if (!tx.data.duplicate) await mirrorLocalEffects()
+      } else if (tx.business) {
+        alert(txErrorMessage(tx.error))
+        setSaving(false)
+        fetchAll()
+        return
+      } else if (tx.network) {
+        txNetworkFail = true
+      } else if (!tx.missing) {
+        alert('Error completing sale: ' + (tx.error?.message || String(tx.error)))
         setSaving(false)
         return
       }
+      // tx.missing → database not migrated yet: step-by-step path below
     }
-    if (!itemsSaved) {
-      const localItems = items.map(it => ({ ...it, id: crypto.randomUUID() }))
+    if (!txHandled && (!navigator.onLine || hasUnsyncedRef || txNetworkFail) && txKnownAvailable()) {
+      // OFFLINE, database known to support transactions: queue the whole sale as one
+      // operation. Stock may go below zero on replay — the goods already left the shop.
+      const offlineId = crypto.randomUUID()
+      const offlineSaleData = { ...saleData, id: offlineId, customer_id: isTempId(String(customerId || '')) ? customerId : saleData.customer_id }
+      const localItems = lineRows.map(it => ({ ...it, id: crypto.randomUUID(), sale_id: offlineId }))
+      finalSale = offlineSaleData
+      await db.sales.add(offlineSaleData)
       await db.sale_items.bulkPut(localItems)
-      await addToSyncQueue('sale_items', 'INSERT', localItems)
+      const { id: _omit, ...saleForTx } = offlineSaleData
+      await addToSyncQueue('complete_sale', 'TX', {
+        params: { p_sale: saleForTx, p_items: lineRows, p_options: { allow_negative: true } },
+        local: { saleTemp: offlineId, itemTemps: localItems.map(it => it.id) },
+      })
+      await mirrorLocalEffects()
+      txHandled = true
     }
 
-    // ── 3. Stock & customer balance as atomic changes (online, or queued) ──
-    if (saleType === 'sale') {
-      const failed = []
-      for (const item of cart) {
-        const r = await adjustStock(item.id, -Number(item.qty))
-        if (!r.ok) failed.push(item.name)
+    if (!txHandled) {
+      // ── 1. Sale header ────────────────────────────────────────────
+      try {
+        if (!navigator.onLine || hasUnsyncedRef) throw new TypeError('Failed to fetch')
+
+        let { data: sale, error: saleError } = await supabase.from('sales').insert([saleData]).select().single()
+
+        // Resilient fallback if optional columns are not migrated in Supabase yet
+        if (saleError && (isMissingColumn(saleError) || saleError.message?.includes('online_provider') || saleError.message?.includes('transaction_ref'))) {
+          console.warn('POS: optional sales columns not found in database yet. Retrying without them (payment details kept in payment_details JSONB).')
+          const fallbackSaleData = { ...saleData }
+          delete fallbackSaleData.online_provider
+          delete fallbackSaleData.transaction_ref
+          delete fallbackSaleData.price_tier
+          delete fallbackSaleData.client_ref
+          ;({ data: sale, error: saleError } = await supabase.from('sales').insert([fallbackSaleData]).select().single())
+        }
+
+        if (saleError) throw saleError
+        finalSale = sale
+        savedOnline = true
+        // Mirror to local DB so Sales history / ledger shows up immediately without reload
+        await db.sales.put(sale)
+      } catch (error) {
+        if (!hasUnsyncedRef && !isNetworkError(error)) {
+          alert('Error completing sale: ' + (error?.message || String(error)))
+          setSaving(false)
+          return
+        }
+        // OFFLINE: nothing reached the database (or the response was lost — client_ref
+        // makes the replay safe). Queue the whole sale.
+        console.log('POS: routing sale to local queue...')
+        const offlineId = crypto.randomUUID()
+        const offlineSaleData = {
+          ...saleData,
+          id: offlineId,
+          // keep an unsynced customer's temp id so the sync queue can map it to the real one
+          customer_id: isTempId(String(customerId || '')) ? customerId : saleData.customer_id
+        }
+        finalSale = offlineSaleData
+        await db.sales.add(offlineSaleData)
+        await addToSyncQueue('sales', 'INSERT', offlineSaleData)
       }
-      if (customerId && balanceIncrease !== 0) {
-        const r = await adjustCustomerBalance(customerId, balanceIncrease)
-        if (!r.ok) failed.push('customer balance')
+
+      // ── 2. Line items (never create a second sale if this step fails) ──
+      const items = cart.map(i => ({
+        sale_id: finalSale.id,
+        product_id: savedOnline ? toIntOrNull(i.id) : i.id,
+        product_name: i.name,
+        quantity: i.qty,
+        unit_price: i.custom_price,
+        cost_price: i.cost_price || 0,
+        line_total: i.custom_price * i.qty,
+        returned_qty: 0,
+      }))
+      itemsSaved = false
+      if (savedOnline) {
+        const { data: resItems, error: itemsError } = await supabase.from('sale_items').insert(items).select()
+        if (!itemsError) {
+          await db.sale_items.bulkPut(resItems)
+          itemsSaved = true
+        } else if (!isNetworkError(itemsError)) {
+          // Hard failure: remove the header so we never keep a sale without its items
+          await supabase.from('sales').delete().eq('id', finalSale.id)
+          await db.sales.delete(finalSale.id).catch(() => {})
+          alert('Error completing sale (items): ' + itemsError.message + '\nSale was NOT saved — please try again.')
+          setSaving(false)
+          return
+        }
       }
-      if (failed.length > 0) {
-        alert(`Sale saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / customer balance.`)
+      if (!itemsSaved) {
+        const localItems = items.map(it => ({ ...it, id: crypto.randomUUID() }))
+        await db.sale_items.bulkPut(localItems)
+        await addToSyncQueue('sale_items', 'INSERT', localItems)
       }
+
+      // ── 3. Stock & customer balance as atomic changes (online, or queued) ──
+      if (saleType === 'sale') {
+        const failed = []
+        for (const item of cart) {
+          const r = await adjustStock(item.id, -Number(item.qty), { reason: 'sale', refTable: 'sales', refId: finalSale.id, createdBy: user.username, unitCost: item.cost_price })
+          if (!r.ok) failed.push(item.name)
+        }
+        if (customerId && balanceIncrease !== 0) {
+          const r = await adjustCustomerBalance(customerId, balanceIncrease)
+          if (!r.ok) failed.push('customer balance')
+        }
+        if (failed.length > 0) {
+          alert(`Sale saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / customer balance.`)
+        }
+      }
+
     }
 
     if (!savedOnline || !itemsSaved) {
@@ -1028,6 +1135,12 @@ function POS() {
       paymentType,
       receivedAmount: tendered,
       changeDue: changeDueVal,
+      change: changeDueVal, // bill templates read `change`
+      // Customer account on the bill (Sabiqa / Kul baqaya); balance as it was before this sale
+      ...(customer && saleType === 'sale' ? {
+        previousBalance: Number(customer.outstanding_balance) || 0,
+        balanceAfter: (Number(customer.outstanding_balance) || 0) + balanceIncrease,
+      } : {}),
       totalProfit,
       isQuotation: saleType === 'quotation'
     })
@@ -1156,9 +1269,10 @@ function POS() {
 
   const printQuotation = () => {
     const customer = customers.find(c => String(c.id) === String(customerId))
-    const sub = cart.reduce((s, i) => s + i.custom_price * i.qty, 0)
-    const disc = parseFloat(discount) || 0
-    const tot = Math.max(0, sub - disc)
+    // Same figures as the cart (percent mode included), never a stale typed amount
+    const sub = subtotal
+    const disc = totalDiscount
+    const tot = total
     const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
     printHTML(buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true))
   }
@@ -1168,9 +1282,10 @@ function POS() {
     if (btn) { btn.disabled = true; btn.textContent = '⏳...' }
     try {
       const customer = customers.find(c => String(c.id) === String(customerId))
-      const sub = cart.reduce((s, i) => s + i.custom_price * i.qty, 0)
-      const disc = parseFloat(discount) || 0
-      const tot = Math.max(0, sub - disc)
+      // Same figures as the cart (percent mode included), never a stale typed amount
+      const sub = subtotal
+      const disc = totalDiscount
+      const tot = total
       const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
       const html = buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true)
       const pdfBlob = await generateBillPDF(html)
@@ -1232,7 +1347,7 @@ function POS() {
               className="flex-1 bg-transparent outline-none text-sm font-mono text-success-strong placeholder-success-fg"
               autoComplete="off"
             />
-            <button type="submit" className="text-xs bg-success hover:bg-success-hover text-white px-3 py-1 rounded-lg font-bold">Add</button>
+            <button type="submit" className="text-xs bg-success hover:bg-success-hover text-white px-3 py-1 rounded-lg font-bold">{t('Add')}</button>
             <button type="button" onClick={() => { setBarcodeMode(false); setBarcodeInput('') }} className="text-xs text-success-fg hover:text-danger-fg font-bold px-2">✕ Exit</button>
           </form>
         )}
@@ -1249,12 +1364,12 @@ function POS() {
           />
           <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
             className="px-3 py-2 border rounded-lg text-sm bg-surface focus:outline-none shadow-sm">
-            <option value="">All Categories</option>
+            <option value="">{t('All Categories')}</option>
             {posCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)}
             className="px-3 py-2 border rounded-lg text-sm bg-surface focus:outline-none shadow-sm">
-            <option value="">All Brands</option>
+            <option value="">{t('All Brands')}</option>
             {displayBrands.map(bName => <option key={bName} value={bName}>{bName}</option>)}
           </select>
           {selectedBrand && (
@@ -1267,10 +1382,10 @@ function POS() {
 
         {/* Product Grid - High-Visibility Responsive Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 overflow-y-auto flex-1 min-h-0 content-start pb-24 md:pb-0 custom-scrollbar">
-          {filtered.length === 0 && <p className="text-fg-subtle col-span-full text-center py-10">No products found</p>}
+          {filtered.length === 0 && <p className="text-fg-subtle col-span-full text-center py-10">{t('No products found')}</p>}
           {filtered.map(p => {
             const isOutOfStock = Number(p.stock_quantity) <= 0
-            const isLowStock = !isOutOfStock && Number(p.stock_quantity) <= (p.low_stock_threshold || 5)
+            const isLowStock = !isOutOfStock && isLowStockRule(p, categories)
             const catName = categoryNameMap[String(p.category_id)] || p.categories?.name || ''
             const catStyle = getCategoryColor(catName)
 
@@ -1403,7 +1518,7 @@ function POS() {
               <span>🛒 Cart</span>
               <span className="bg-primary text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">{cart.length}</span>
             </h2>
-            {saleType === 'quotation' && <span className="text-info-fg font-bold text-[10px] uppercase bg-info-soft px-1.5 py-0.5 rounded border border-info-line">Quotation</span>}
+            {saleType === 'quotation' && <span className="text-info-fg font-bold text-[10px] uppercase bg-info-soft px-1.5 py-0.5 rounded border border-info-line">{t('Quotation')}</span>}
           </div>
           <div className="flex items-center gap-1.5">
             {/* Quick POS Layout Switcher */}
@@ -1546,7 +1661,7 @@ function POS() {
           {cart.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center text-fg-subtle">
               <span className="text-3xl mb-1 opacity-50">🛍️</span>
-              <p className="text-xs font-semibold">Cart is empty</p>
+              <p className="text-xs font-semibold">{t('Cart is empty')}</p>
               <p className="text-[10px] text-fg-subtle mt-0.5">Click products on left panel to add</p>
             </div>
           )}
@@ -1610,6 +1725,16 @@ function POS() {
                         +
                       </button>
                     </div>
+                    {Number(item.pack_size) > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => updateQty(item.id, Math.round(((parseFloat(item.qty) || 0) + Number(item.pack_size)) * 1000) / 1000)}
+                        className="px-1.5 py-0.5 text-[10px] font-bold rounded border border-line text-primary-fg hover:bg-primary-soft whitespace-nowrap"
+                        title={`Add one ${item.pack_name || 'pack'} (${item.pack_size} pcs)`}
+                      >
+                        +1 {item.pack_name || 'Pack'}
+                      </button>
+                    )}
 
                     <span className="font-black text-xs text-fg min-w-[58px] text-right" title="Item Total">
                       {Number(item.qty) > 1 ? `= Rs.${(item.custom_price * item.qty).toFixed(0)}` : `Rs.${(item.custom_price).toFixed(0)}`}
@@ -1750,7 +1875,7 @@ function POS() {
               {/* Net Total & Profit */}
               <div className="flex justify-between items-center pt-1 border-t border-line/70">
                 <div>
-                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">Net Total</span>
+                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">{t('Net Total')}</span>
                   {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
                     <div className={`text-[10px] font-bold ${totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
                       Profit: Rs. {totalProfit.toFixed(0)}
@@ -1923,7 +2048,7 @@ function POS() {
               {/* Net Total */}
               <div className="flex justify-between items-center pt-1 border-t border-line/70">
                 <div>
-                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">Net Total</span>
+                  <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">{t('Net Total')}</span>
                   {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
                     <div className={`text-[10px] font-bold ${totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
                       Net Profit: Rs. {totalProfit.toFixed(0)}
@@ -2286,7 +2411,7 @@ function POS() {
               {/* Totals & Discount Card */}
               <div className="bg-surface border border-primary-line/90 rounded-xl px-3 py-2 shadow-2xs flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase font-black text-fg-subtle tracking-wider leading-none">Net Payable</span>
+                  <span className="text-[10px] uppercase font-black text-fg-subtle tracking-wider leading-none">{t('Net Payable')}</span>
                   {hasFeature('discount') && (
                     <div className="flex items-center gap-1.5 text-xs">
                       <span className="font-bold text-fg-muted text-[11px]">Disc:</span>
@@ -2477,7 +2602,7 @@ function POS() {
 
               {/* Payment Methods */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-fg-2 uppercase tracking-wide">Payment Method</label>
+                <label className="text-xs font-bold text-fg-2 uppercase tracking-wide">{t('Payment Method')}</label>
                 <div className="grid grid-cols-4 gap-2">
                   <button
                     type="button"
@@ -2487,7 +2612,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">💵</span>
-                    <span>Cash</span>
+                    <span>{t('Cash')}</span>
                   </button>
                   <button
                     type="button"
@@ -2497,7 +2622,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">📱</span>
-                    <span>Online</span>
+                    <span>{t('Online')}</span>
                   </button>
                   <button
                     type="button"
@@ -2507,7 +2632,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">📒</span>
-                    <span>Credit</span>
+                    <span>{t('Credit')}</span>
                   </button>
                   <button
                     type="button"
@@ -2521,7 +2646,7 @@ function POS() {
                     }`}
                   >
                     <span className="text-base">🔀</span>
-                    <span>Split</span>
+                    <span>{t('Split')}</span>
                   </button>
                 </div>
               </div>
@@ -2585,7 +2710,7 @@ function POS() {
                 disabled={saving || cart.length === 0}
                 className="flex-1 py-3 bg-gradient-to-r from-success to-success hover:from-success-hover hover:to-success-hover text-white font-black text-sm rounded-xl transition shadow-lg shadow-success-line active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {saving ? 'Processing...' : `✅ Complete ${isWholesale ? 'Wholesale ' : ''}Sale (Rs. ${total.toFixed(0)})`}
+                {saving ? 'Processing...' : `✅ ${t(isWholesale ? 'Complete Wholesale Sale' : 'Complete Sale')} (Rs. ${total.toFixed(0)})`}
               </button>
             </div>
           </div>
@@ -2611,7 +2736,7 @@ function POS() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-fg-2 mb-1">Mobile Number</label>
+                <label className="block text-sm font-medium text-fg-2 mb-1">{t('Mobile Number')}</label>
                 <input
                   type="tel"
                   value={saveCustomerForm.mobile}
@@ -2720,7 +2845,7 @@ function POS() {
               <button onClick={applyBrandDiscount} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition">
                 {brandDiscountMode === 'cart_only' ? '✅ Apply to Cart' : 'Apply & Add All'}
               </button>
-              <button onClick={() => setShowBrandDiscount(false)} className="flex-1 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition">Cancel</button>
+              <button onClick={() => setShowBrandDiscount(false)} className="flex-1 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition">{t('Cancel')}</button>
             </div>
           </div>
         </div>
@@ -2759,11 +2884,11 @@ function POS() {
                 </div>
               ))}
               <div className="border-t pt-1 flex justify-between font-bold">
-                <span>Total</span><span>Rs. {lastReceipt.total.toFixed(0)}</span>
+                <span>{t('Total')}</span><span>Rs. {lastReceipt.total.toFixed(0)}</span>
               </div>
               {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && (
                 <div className={`flex justify-between text-xs ${lastReceipt.totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
-                  <span>Profit</span><span>Rs. {lastReceipt.totalProfit.toFixed(0)}</span>
+                  <span>{t('Profit')}</span><span>Rs. {lastReceipt.totalProfit.toFixed(0)}</span>
                 </div>
               )}
             </div>
@@ -2813,7 +2938,7 @@ function POS() {
                   </button>
                 )}
               </div>
-              <button onClick={() => setLastReceipt(null)} className="w-full py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition font-medium">Close</button>
+              <button onClick={() => setLastReceipt(null)} className="w-full py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition font-medium">{t('Close')}</button>
             </div>
           </div>
         </div>
@@ -2822,7 +2947,7 @@ function POS() {
       {showQuotationSearch && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold text-fg mb-4">Search Quotation</h2>
+            <h2 className="text-xl font-bold text-fg mb-4">{t('Search Quotation')}</h2>
             <p className="text-sm text-fg-muted mb-4">Quotation number (e.g. QT-abcd1234) enter karein jo bill par likha hai.</p>
             <div className="space-y-4">
               <input
@@ -2879,11 +3004,11 @@ function POS() {
                     ))}
                     {held.items.length > 3 && <span className="text-[10px] text-fg-subtle ml-1">+{held.items.length - 3} more</span>}
                   </div>
-                  <button className="w-full mt-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition">Resume Bill</button>
+                  <button className="w-full mt-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition">{t('Resume Bill')}</button>
                 </div>
               ))}
               {heldCarts.length === 0 && (
-                <div className="text-center py-10 text-fg-subtle italic">No held bills found</div>
+                <div className="text-center py-10 text-fg-subtle italic">{t('No held bills found')}</div>
               )}
             </div>
           </div>
@@ -2973,7 +3098,7 @@ function POS() {
               >
                 + Add Payment
               </button>
-              <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-1.5 bg-primary text-white rounded-lg text-xs font-bold">Done</button>
+              <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-1.5 bg-primary text-white rounded-lg text-xs font-bold">{t('Done')}</button>
             </div>
           </div>
         </div>
@@ -2994,9 +3119,9 @@ function POS() {
               <table className="w-full text-left border-collapse">
                 <thead className="bg-surface-2 sticky top-0 border-b">
                   <tr>
-                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase">Product</th>
+                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase">{t('Product')}</th>
                     <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">Price (Rs.)</th>
-                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">Quantity</th>
+                    <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">{t('Quantity')}</th>
                     <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-right">Total (Rs.)</th>
                     <th className="px-4 py-3 text-xs font-bold text-fg-muted uppercase text-center">Actions</th>
                   </tr>
@@ -3029,7 +3154,7 @@ function POS() {
                     </tr>
                   ))}
                   {cart.length === 0 && (
-                    <tr><td colSpan="5" className="px-4 py-10 text-center text-fg-subtle italic">Cart is empty</td></tr>
+                    <tr><td colSpan="5" className="px-4 py-10 text-center text-fg-subtle italic">{t('Cart is empty')}</td></tr>
                   )}
                 </tbody>
               </table>

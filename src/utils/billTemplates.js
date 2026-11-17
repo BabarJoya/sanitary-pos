@@ -1,3 +1,4 @@
+import { summarizeSales, netOf } from './salesSummary'
 // ============================================================
 // Bill Templates Utility — 3 templates × 2 sizes (80mm / A4)
 // Usage: buildBillHTML(r, isQuotation, shopSettings)
@@ -70,6 +71,15 @@ function customerLine(r) {
 }
 
 // ── TEMPLATE 1 — SIMPLE / MINIMAL ────────────────────────────
+// Customer account on the bill: what they owed before this bill and in total after it
+// ("Sabiqa baqaya / Kul baqaya"). Only when the receipt carries the balances (POS).
+function accountRows(r, isQuotation, render) {
+  if (isQuotation || r?.previousBalance == null || r?.balanceAfter == null) return ''
+  const prev = safeNum(r.previousBalance), after = safeNum(r.balanceAfter)
+  if (prev === 0 && after === 0) return ''
+  return render('Previous Balance', prev) + render('Total Balance', after)
+}
+
 function template1(r, isQuotation, s, isPurchase = false) {
   const isThermal = s.print_size !== 'a4'
   const footer = isPurchase ? '' : (isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں'))
@@ -104,6 +114,7 @@ function template1(r, isQuotation, s, isPurchase = false) {
     ${r.totalDiscount > 0 ? `<p class="r">Discount: -Rs. ${safeNum(r.totalDiscount).toFixed(0)}</p>` : ''}
     <p class="r tot">TOTAL: Rs. ${safeNum(r.total).toFixed(0)}</p>
     ${!isQuotation && remaining > 0 ? `<p class="r" style="color:red">Balance: Rs. ${remaining.toFixed(0)}</p>` : ''}
+    ${accountRows(r, isQuotation, (l, v) => `<p class="r" style="color:red">${l}: Rs. ${v.toFixed(0)}</p>`)}
     ${!isQuotation && remaining <= 0 ? `<p class="r" style="color:green;font-weight:bold">✓ PAID</p>` : ''}
     <div class="dot"></div>
     <p class="c" style="font-size:1.1em;margin-top:6px">${footer}</p>
@@ -152,6 +163,7 @@ function template1(r, isQuotation, s, isPurchase = false) {
     ${r.totalDiscount > 0 ? `<div class="tot-row"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
     <div class="tot-row grand"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
     ${!isQuotation && remaining > 0 ? `<div class="tot-row" style="color:red"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+    ${accountRows(r, isQuotation, (l, v) => `<div class="tot-row" style="color:red"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
     ${!isQuotation && remaining <= 0 ? `<div class="tot-row" style="color:green"><span>Status</span><span>✓ PAID IN FULL</span></div>` : ''}
   </div>
   <div class="footer-line">${footer}</div>
@@ -203,6 +215,7 @@ function template2(r, isQuotation, s, isPurchase = false) {
       <tr><td class="b">TOTAL</td><td class="r b" style="font-size:1.1em">Rs. ${safeNum(r.total).toFixed(0)}</td></tr>
       ${!isQuotation && r.sale?.paid_amount ? `<tr><td>Paid</td><td class="r">Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</td></tr>` : ''}
       ${!isQuotation && remaining > 0 ? `<tr style="color:red"><td class="b">Balance</td><td class="r b">Rs. ${remaining.toFixed(0)}</td></tr>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<tr style="color:red"><td class="b">${l}</td><td class="r b">Rs. ${v.toFixed(0)}</td></tr>`)}
       ${!isQuotation && r.change > 0 ? `<tr style="color:green"><td>Change</td><td class="r">Rs. ${safeNum(r.change).toFixed(0)}</td></tr>` : ''}
     </table>
     <hr/>
@@ -261,6 +274,7 @@ function template2(r, isQuotation, s, isPurchase = false) {
       ${r.totalDiscount > 0 ? `<div class="tot-row"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && r.sale?.paid_amount ? `<div class="tot-row"><span>Paid</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && remaining > 0 ? `<div class="tot-row" style="color:#dc2626"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<div class="tot-row" style="color:#dc2626"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
       <div class="tot-row"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
     </div>
   </div>
@@ -319,6 +333,7 @@ function template3(r, isQuotation, s, isPurchase = false) {
       <tr style="font-size:1.15em"><td class="b">NET TOTAL</td><td class="r b">Rs. ${safeNum(r.total).toFixed(0)}</td></tr>
       ${!isQuotation && r.sale?.paid_amount ? `<tr><td>Amount Paid</td><td class="r" style="color:green">Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</td></tr>` : ''}
       ${!isQuotation && remaining > 0 ? `<tr style="color:red"><td class="b">BALANCE DUE</td><td class="r b">Rs. ${remaining.toFixed(0)}</td></tr>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<tr style="color:red"><td class="b">${l}</td><td class="r b">Rs. ${v.toFixed(0)}</td></tr>`)}
       ${!isQuotation && r.change > 0 ? `<tr style="color:blue"><td>Change</td><td class="r">Rs. ${safeNum(r.change).toFixed(0)}</td></tr>` : ''}
     </table>
     ${paymentLine(r)}
@@ -419,6 +434,7 @@ function template3(r, isQuotation, s, isPurchase = false) {
         ${r.totalDiscount > 0 ? `<div class="tot-r" style="color:#16a34a"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
         ${!isQuotation && r.sale?.paid_amount ? `<div class="tot-r"><span>Amount Paid</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
         ${!isQuotation && remaining > 0 ? `<div class="tot-r" style="color:#dc2626;font-weight:700"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+        ${accountRows(r, isQuotation, (l, v) => `<div class="tot-r" style="color:#dc2626;font-weight:700"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
         <div class="grand-r"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
       </div>
     </div>
@@ -502,6 +518,7 @@ function template4(r, isQuotation, s, isPurchase = false) {
       ${r.totalDiscount > 0 ? `<div class="total-row" style="color:#16a34a"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && r.sale?.paid_amount ? `<div class="total-row"><span>Amount Paid</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
       ${!isQuotation && remaining > 0 ? `<div class="total-row" style="color:#dc2626;font-weight:600"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+      ${accountRows(r, isQuotation, (l, v) => `<div class="total-row" style="color:#dc2626;font-weight:600"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
       ${!isQuotation && r.change > 0 ? `<div class="total-row" style="color:#2563eb"><span>Change</span><span>Rs. ${safeNum(r.change).toFixed(0)}</span></div>` : ''}
       <div class="grand-row"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
     </div>
@@ -609,6 +626,7 @@ function template4(r, isQuotation, s, isPurchase = false) {
           ${r.totalDiscount > 0 ? `<div class="summary-row" style="color:#16a34a;font-weight:500"><span>Discount</span><span>-Rs. ${safeNum(r.totalDiscount).toFixed(0)}</span></div>` : ''}
           ${!isQuotation && r.sale?.paid_amount ? `<div class="summary-row"><span>Paid Amount</span><span>Rs. ${safeNum(r.sale.paid_amount).toFixed(0)}</span></div>` : ''}
           ${!isQuotation && remaining > 0 ? `<div class="summary-row" style="color:#dc2626;font-weight:600"><span>Balance Due</span><span>Rs. ${remaining.toFixed(0)}</span></div>` : ''}
+          ${accountRows(r, isQuotation, (l, v) => `<div class="summary-row" style="color:#dc2626;font-weight:600"><span>${l}</span><span>Rs. ${v.toFixed(0)}</span></div>`)}
           <div class="summary-grand"><span>TOTAL</span><span>Rs. ${safeNum(r.total).toFixed(0)}</span></div>
         </div>
       </div>
@@ -637,13 +655,10 @@ export function buildBillHTML(r, isQuotation = false, shopSettings = {}, isPurch
 // ── SALES REPORT (daily / weekly / monthly) ──────────────────
 export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
   const s = shopSettings
-  const total   = sales.reduce((acc, s) => acc + safeNum(s.total_amount || s.net_amount), 0)
-  const paid    = sales.reduce((acc, s) => acc + safeNum(s.amount_paid), 0)
-  const balance = total - paid
-  const disc    = sales.reduce((acc, s) => acc + safeNum(s.discount), 0)
-  const cash    = sales.filter(s => s.payment_method === 'cash').reduce((acc, s) => acc + safeNum(s.net_amount || s.total_amount), 0)
-  const card    = sales.filter(s => s.payment_method === 'card').reduce((acc, s) => acc + safeNum(s.net_amount || s.total_amount), 0)
-  const credit  = sales.filter(s => s.payment_method === 'credit').reduce((acc, s) => acc + safeNum(s.net_amount || s.total_amount), 0)
+  // Same rules as Dashboard / End of Day / Reports (utils/salesSummary.js)
+  const sum = summarizeSales(sales)
+  const total = sum.net, paid = sum.paid, balance = sum.credit, disc = sum.discount
+  const cash = sum.cash, card = sum.online, credit = sum.credit
 
   const periodLabel = {
     today: "Today's Sales Report",
@@ -657,10 +672,10 @@ export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#64748b">${new Date(sale.created_at).toLocaleString('en-PK')}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-weight:600">INV-${String(sale.id).slice(-8)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${sale.customer_name || 'Walk-in'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0">${sale.customers?.name || sale.customer_name || 'Walk-in'}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:center">${itemCount}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px;color:#64748b">${sale.payment_method || 'cash'}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700">Rs. ${safeNum(sale.net_amount || sale.total_amount).toFixed(0)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:12px;color:#64748b">${sale.payment_type || sale.payment_method || 'cash'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700">Rs. ${netOf(sale).toFixed(0)}</td>
     </tr>`
   }).join('')
 
@@ -707,8 +722,8 @@ export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
   </div>
   <div class="payment-grid">
     <div class="pay-card" style="background:#dcfce7;color:#166534">💵 Cash: Rs. ${cash.toFixed(0)}</div>
-    <div class="pay-card" style="background:#dbeafe;color:#1e40af">💳 Card: Rs. ${card.toFixed(0)}</div>
-    <div class="pay-card" style="background:#fef3c7;color:#92400e">📒 Credit: Rs. ${credit.toFixed(0)}</div>
+    <div class="pay-card" style="background:#dbeafe;color:#1e40af">💳 Online / Card: Rs. ${card.toFixed(0)}</div>
+    <div class="pay-card" style="background:#fef3c7;color:#92400e">📒 Credit (unpaid): Rs. ${credit.toFixed(0)}</div>
   </div>
   <table>
     <thead><tr><th>Date & Time</th><th>Invoice #</th><th>Customer</th><th style="text-align:center">Items</th><th>Payment</th><th style="text-align:right">Amount</th></tr></thead>

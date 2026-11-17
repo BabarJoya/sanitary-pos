@@ -7,6 +7,8 @@ import { db } from '../services/db'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
+import { summarizeSales, netOf, periodStart, applyReturns } from '../utils/salesSummary'
+import { localDateKey } from '../utils/dates'
 
 // Net sales and gross profit split by price tier (sales.price_tier; missing = retail)
 function computeTierSplit(sales, items) {
@@ -15,7 +17,7 @@ function computeTierSplit(sales, items) {
   sales.forEach(s => {
     const tier = s.price_tier === 'wholesale' ? 'wholesale' : 'retail'
     tierBySale[s.id] = tier
-    const net = Number(s.total_amount || 0) - Number(s.discount || 0)
+    const net = netOf(s)
     split[tier].count += 1
     split[tier].sales += net
     split[tier].profit += net
@@ -46,13 +48,21 @@ function Reports() {
     expenses: 0,
     netProfit: 0,
     totalDiscount: 0,
-    purchases: 0
+    purchases: 0,
+    netSales: 0,
+    cash: 0,
+    online: 0,
+    credit: 0,
+    linesWithoutCost: 0,
+    returns: 0,
+    returnCount: 0
   })
 
   const [topProducts, setTopProducts] = useState([])
   const [expenseBreakdown, setExpenseBreakdown] = useState([])
   const [salesTrend, setSalesTrend] = useState([])
   const [categoryData, setCategoryData] = useState([])
+  const [categoryLosses, setCategoryLosses] = useState([])
 
   useEffect(() => {
     if (user?.shop_id) fetchReportData()
@@ -62,109 +72,129 @@ function Reports() {
     setLoading(true)
     setFromCache(null)
 
-    let startDate = new Date()
-    startDate.setHours(0, 0, 0, 0)
-
-    if (range === 'week') startDate.setDate(startDate.getDate() - 7)
-    else if (range === 'month') startDate.setDate(1) // First of current month
-    else if (range === 'year') startDate = new Date(new Date().getFullYear(), 0, 1) // First of current year
-    else if (range === 'all') startDate = new Date(2000, 0, 1)
-
+    const startDate = periodStart(range)
     const startISO = startDate.toISOString()
 
-    try {
-      if (!navigator.onLine) throw new Error('Offline')
-
-      // Parallel fetching
-      const fetchPromise = Promise.all([
-        fetchAllRows(() => supabase.from('sales').select('*').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', startISO)),
-        fetchAllRows(() => supabase.from('sale_items').select('*, sales!inner(created_at, sale_type, shop_id)').eq('sales.shop_id', user.shop_id).eq('sales.sale_type', 'sale').gte('sales.created_at', startISO)),
-        supabase.from('expenses').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO),
-        supabase.from('purchases').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO)
-      ])
-
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
-      const [salesRes, itemsRes, expensesRes, purchasesRes] = await Promise.race([fetchPromise, timeoutPromise])
-
-      const sales = salesRes.data || []
-      const items = itemsRes.data || []
-      const expenses = expensesRes.data || []
-      const purchases = purchasesRes.data || []
-
-      // Cache for offline use
-      if (salesRes.data) await db.sales.bulkPut(JSON.parse(JSON.stringify(salesRes.data)))
-      if (itemsRes.data) await db.sale_items.bulkPut(JSON.parse(JSON.stringify(itemsRes.data)))
-      if (expensesRes.data) await db.expenses.bulkPut(JSON.parse(JSON.stringify(expensesRes.data)))
-      if (purchasesRes.data) await db.purchases.bulkPut(JSON.parse(JSON.stringify(purchasesRes.data)))
-
-      // Calculations
-      const grossSales = sales.reduce((sum, s) => sum + Number(s.total_amount), 0)
-      const totalDiscount = sales.reduce((sum, s) => sum + Number(s.discount || 0), 0)
-
-      // Net Sales (sales after individual items, but here total_amount usually includes items - discounts)
-      // Actually in our POS, total_amount is sum(item_totals) and then we subtract a global discount.
-      const netSalesValue = grossSales - totalDiscount
-
-      const costOfSales = items.reduce((sum, i) => {
-        const qty = Number(i.quantity) - Number(i.returned_qty || 0)
-        return sum + (Number(i.cost_price || 0) * qty)
-      }, 0)
-
-      const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
-      const totalPurchases = purchases.reduce((sum, p) => sum + Number(p.total_amount), 0)
-
-      const grossProfit = netSalesValue - costOfSales
-      const netProfit = grossProfit - totalExpenses
+    // Same calculation for server data and this device's saved data
+    const applyReport = ({ sales, items, expenses, purchases, categoryOfItem, returnsOfSales = [], returnsInPeriod = [] }) => {
+      const sum = applyReturns(summarizeSales(sales, items), returnsOfSales, returnsInPeriod)
+      const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
+      const totalPurchases = purchases.reduce((s, p) => s + Number(p.total_amount || 0), 0)
 
       setTierSplit(computeTierSplit(sales, items))
       setStats({
-        grossSales,
-        costOfSales,
-        grossProfit,
+        grossSales: sum.gross,
+        netSales: sum.net,
+        costOfSales: sum.cogs,
+        grossProfit: sum.profit,
         expenses: totalExpenses,
-        netProfit,
-        totalDiscount,
-        purchases: totalPurchases
+        netProfit: sum.profit - totalExpenses,
+        totalDiscount: sum.discount,
+        purchases: totalPurchases,
+        cash: sum.cash,
+        online: sum.online,
+        credit: sum.credit,
+        linesWithoutCost: sum.linesWithoutCost,
+        returns: sum.returns,
+        returnCount: sum.returnCount,
       })
 
-      // Top Products
+      // Share of each bill that was given away as bill discount (so line figures add up to the bill)
+      const discRatio = {}
+      sales.forEach(s => {
+        const gross = Number(s.total_amount || 0)
+        discRatio[s.id] = gross > 0 ? Math.min(1, Number(s.discount || 0) / gross) : 0
+      })
+
+      // Top products (revenue after the bill discount share)
       const prodMap = {}
       items.forEach(i => {
         const qty = Number(i.quantity) - Number(i.returned_qty || 0)
         if (qty <= 0) return
-        if (!prodMap[i.product_name]) prodMap[i.product_name] = { name: i.product_name, qty: 0, revenue: 0 }
-        prodMap[i.product_name].qty += qty
-        prodMap[i.product_name].revenue += (qty * Number(i.unit_price))
+        const key = i.product_id ?? i.product_name
+        if (!prodMap[key]) prodMap[key] = { name: i.product_name, qty: 0, revenue: 0 }
+        prodMap[key].qty += qty
+        prodMap[key].revenue += qty * Number(i.unit_price || 0) * (1 - (discRatio[i.sale_id] || 0))
       })
-      const sortedProds = Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
-      setTopProducts(sortedProds)
+      setTopProducts(Object.values(prodMap).map(p => ({ ...p, revenue: Math.round(p.revenue) })).sort((a, b) => b.revenue - a.revenue).slice(0, 5))
 
-      // Expense Breakdown
+      // Expense breakdown
       const expMap = {}
-      expenses.forEach(e => {
-        if (!expMap[e.category]) expMap[e.category] = 0
-        expMap[e.category] += Number(e.amount)
-      })
+      expenses.forEach(e => { expMap[e.category || 'Misc'] = (expMap[e.category || 'Misc'] || 0) + Number(e.amount || 0) })
       setExpenseBreakdown(Object.entries(expMap).map(([cat, val]) => ({ cat, val })).sort((a, b) => b.val - a.val))
 
-      // Sales Trend (Line Chart)
+      // Sales trend: net sales per local day (or per month for long ranges), oldest first
+      const byMonth = range === 'year' || range === 'all'
       const trendMap = {}
+      const dayKey = (d) => byMonth ? localDateKey(d).slice(0, 7) : localDateKey(d)
       sales.forEach(s => {
-        const date = new Date(s.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })
-        trendMap[date] = (trendMap[date] || 0) + Number(s.total_amount)
+        const key = dayKey(s.created_at)
+        trendMap[key] = (trendMap[key] || 0) + netOf(s)
       })
-      setSalesTrend(Object.entries(trendMap).map(([date, amount]) => ({ date, amount })))
+      // Returns: back on the sale's day at full value, then off on the day they came back
+      returnsOfSales.forEach(r => { if (r.sales?.created_at) { const k = dayKey(r.sales.created_at); trendMap[k] = (trendMap[k] || 0) + Number(r.refund_total || 0) } })
+      returnsInPeriod.forEach(r => { const k = dayKey(r.created_at); trendMap[k] = (trendMap[k] || 0) - Number(r.refund_total || 0) })
+      setSalesTrend(Object.keys(trendMap).sort().map(key => {
+        const [y, m, d] = key.split('-').map(Number)
+        const label = byMonth
+          ? new Date(y, m - 1, 1).toLocaleDateString('en-PK', { month: 'short', year: '2-digit' })
+          : new Date(y, m - 1, d).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })
+        return { date: label, amount: Math.round(trendMap[key]) }
+      }))
 
-      // Category Distribution (Pie Chart)
+      // Profit by category, after the bill discount share
       const catMap = {}
       items.forEach(i => {
-        const catName = i.products?.categories?.name || 'Uncategorized'
-        const profit = (Number(i.unit_price) - Number(i.cost_price || 0)) * (Number(i.quantity) - Number(i.returned_qty || 0))
-        catMap[catName] = (catMap[catName] || 0) + profit
+        const qty = Number(i.quantity) - Number(i.returned_qty || 0)
+        if (qty <= 0) return
+        const catName = categoryOfItem(i) || 'Uncategorized'
+        const revenue = Number(i.unit_price || 0) * qty * (1 - (discRatio[i.sale_id] || 0))
+        catMap[catName] = (catMap[catName] || 0) + revenue - Number(i.cost_price || 0) * qty
       })
-      setCategoryData(Object.entries(catMap).map(([name, value]) => ({ name, value })).filter(c => c.value > 0))
+      setCategoryData(Object.entries(catMap).map(([name, value]) => ({ name, value: Math.round(value) })).filter(c => c.value > 0))
+      setCategoryLosses(Object.entries(catMap).filter(([, v]) => v < 0).map(([name, value]) => ({ name, value: Math.round(value) })))
+    }
+
+    try {
+      if (!navigator.onLine) throw new Error('Offline')
+
+      const fetchPromise = Promise.all([
+        fetchAllRows(() => supabase.from('sales').select('*').eq('shop_id', user.shop_id).eq('sale_type', 'sale').gte('created_at', startISO)),
+        fetchAllRows(() => supabase.from('sale_items').select('*, sales!inner(created_at, sale_type, shop_id), products(category_id)').eq('sales.shop_id', user.shop_id).eq('sales.sale_type', 'sale').gte('sales.created_at', startISO)),
+        fetchAllRows(() => supabase.from('expenses').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO)),
+        fetchAllRows(() => supabase.from('purchases').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO)),
+        supabase.from('categories').select('id, name').eq('shop_id', user.shop_id),
+        // Dated return documents (empty until sql/transactions_migration.sql has run)
+        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', startISO)),
+        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', startISO)),
+      ])
+
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000))
+      const [salesRes, itemsRes, expensesRes, purchasesRes, catsRes, retInRes, retOfRes] = await Promise.race([fetchPromise, timeoutPromise])
+      const failed = [salesRes, itemsRes, expensesRes, purchasesRes].find(r => r.error)
+      if (failed) throw failed.error
+
+      const sales = salesRes.data || []
+      // Drop the joined objects before caching / calculating
+      const items = (itemsRes.data || []).map(({ sales: _s, products: p, ...rest }) => ({ ...rest, __category_id: p?.category_id ?? null }))
+      const expenses = expensesRes.data || []
+      const purchases = purchasesRes.data || []
+      const catName = Object.fromEntries((catsRes.data || []).map(c => [String(c.id), c.name]))
+
+      // Cache for offline use
+      await db.sales.bulkPut(JSON.parse(JSON.stringify(sales))).catch(() => {})
+      await db.sale_items.bulkPut(JSON.parse(JSON.stringify(items.map(({ __category_id: _c, ...r }) => r)))).catch(() => {})
+      await db.expenses.bulkPut(JSON.parse(JSON.stringify(expenses))).catch(() => {})
+      await db.purchases.bulkPut(JSON.parse(JSON.stringify(purchases))).catch(() => {})
+
+      applyReport({
+        sales, items, expenses, purchases,
+        categoryOfItem: (i) => catName[String(i.__category_id)],
+        returnsInPeriod: retInRes.error ? [] : (retInRes.data || []),
+        returnsOfSales: retOfRes.error ? [] : (retOfRes.data || []),
+      })
     } catch (e) {
-      console.log('Reports: Offline mode, calculating from local DB...')
+      console.log('Reports: calculating from local DB', e?.message)
       setFromCache(!navigator.onLine ? 'offline' : (e?.message === 'Timeout' ? 'timeout' : 'error'))
       try {
         const sid = String(user.shop_id)
@@ -178,68 +208,16 @@ function Reports() {
         ])
 
         const sales = lSales.filter(x => String(x.shop_id) === sid && x.sale_type === 'sale' && new Date(x.created_at) >= startDate)
-        const saleIds = new Set(sales.map(s => s.id))
-        const items = lItems.filter(i => saleIds.has(i.sale_id))
+        const saleIds = new Set(sales.map(s => String(s.id)))
+        const items = lItems.filter(i => saleIds.has(String(i.sale_id)))
         const expenses = lExpenses.filter(x => String(x.shop_id) === sid && new Date(x.created_at) >= startDate)
         const purchases = lPurchases.filter(x => String(x.shop_id) === sid && new Date(x.created_at) >= startDate)
+        const catOfProduct = Object.fromEntries(lProducts.map(p => [String(p.id), p.category_id]))
+        const catName = Object.fromEntries(lCats.map(c => [String(c.id), c.name]))
 
-        // Totals
-        const grossSales = sales.reduce((sum, s) => sum + Number(s.total_amount), 0)
-        const totalDiscount = sales.reduce((sum, s) => sum + Number(s.discount || 0), 0)
-        const netSalesValue = grossSales - totalDiscount
-        const costOfSales = items.reduce((sum, i) => sum + (Number(i.cost_price || 0) * (Number(i.quantity) - Number(i.returned_qty || 0))), 0)
-        const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
-        const totalPurchases = purchases.reduce((sum, p) => sum + Number(p.total_amount), 0)
-
-        setTierSplit(computeTierSplit(sales, items))
-        setStats({
-          grossSales, costOfSales, grossProfit: netSalesValue - costOfSales,
-          expenses: totalExpenses, netProfit: (netSalesValue - costOfSales) - totalExpenses,
-          totalDiscount, purchases: totalPurchases
-        })
-
-        // Top Products
-        const prodMap = {}
-        items.forEach(i => {
-          const qty = Number(i.quantity) - Number(i.returned_qty || 0)
-          if (qty <= 0) return
-          if (!prodMap[i.product_name]) prodMap[i.product_name] = { name: i.product_name, qty: 0, revenue: 0 }
-          prodMap[i.product_name].qty += qty
-          prodMap[i.product_name].revenue += (qty * Number(i.unit_price))
-        })
-        setTopProducts(Object.values(prodMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5))
-
-        // Expenses
-        const expMap = {}
-        expenses.forEach(e => {
-          if (!expMap[e.category]) expMap[e.category] = 0
-          expMap[e.category] += Number(e.amount)
-        })
-        setExpenseBreakdown(Object.entries(expMap).map(([cat, val]) => ({ cat, val })).sort((a, b) => b.val - a.val))
-
-        // Category Pie
-        const catMap = {}
-        items.forEach(i => {
-          const prod = lProducts.find(p => p.id === i.product_id)
-          const cat = lCats.find(c => c.id === prod?.category_id)
-          const catName = cat?.name || 'Uncategorized'
-          const profit = (Number(i.unit_price) - Number(i.cost_price || 0)) * (Number(i.quantity) - Number(i.returned_qty || 0))
-          catMap[catName] = (catMap[catName] || 0) + profit
-        })
-        setCategoryData(Object.entries(catMap).map(([name, value]) => ({ name, value })).filter(c => c.value > 0))
-
-        // Trend
-        const trendMap = {}
-        sales.forEach(s => {
-          const date = new Date(s.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })
-          trendMap[date] = (trendMap[date] || 0) + Number(s.total_amount)
-        })
-        setSalesTrend(Object.entries(trendMap).map(([date, amount]) => ({ date, amount })))
-
+        applyReport({ sales, items, expenses, purchases, categoryOfItem: (i) => catName[String(catOfProduct[String(i.product_id)])] })
       } catch (err) {
         console.error('Final Reports Fallback Error:', err)
-      } finally {
-        setLoading(false)
       }
     } finally {
       setLoading(false)
@@ -348,11 +326,26 @@ function Reports() {
 
           {/* Main Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard title="Gross Sales" value={stats.grossSales} sub={`Disc: Rs. ${stats.totalDiscount}`} color="blue" />
+            <StatCard title="Net Sales" value={stats.netSales} sub={`Before discount Rs. ${Math.round(stats.grossSales).toLocaleString()} · Disc Rs. ${Math.round(stats.totalDiscount).toLocaleString()}`} color="blue" />
             <StatCard title="Cost of Goods" value={stats.costOfSales} sub="Purchase value of sold items" color="orange" />
             <StatCard title="Gross Profit" value={stats.grossProfit} sub="Sales - Cost of Goods" color="emerald" />
             <StatCard title="Net Profit" value={stats.netProfit} sub="Gross Profit - Expenses" color="indigo" highlight />
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div className="rounded-xl border border-success-muted bg-success-soft px-4 py-2 flex justify-between"><span className="text-success-strong">💵 Cash received</span><span className="font-bold text-success-strong">Rs. {Math.round(stats.cash).toLocaleString()}</span></div>
+            <div className="rounded-xl border border-info-muted bg-info-soft px-4 py-2 flex justify-between"><span className="text-info-strong">📱 Online / wallet</span><span className="font-bold text-info-strong">Rs. {Math.round(stats.online).toLocaleString()}</span></div>
+            <div className="rounded-xl border border-warning-muted bg-warning-soft px-4 py-2 flex justify-between"><span className="text-warning-strong">📒 Credit (unpaid)</span><span className="font-bold text-warning-strong">Rs. {Math.round(stats.credit).toLocaleString()}</span></div>
+          </div>
+          {stats.returnCount > 0 && (
+            <p className="text-sm text-fg-3">↩️ Returns this period: {stats.returnCount} · Rs. {Math.round(stats.returns).toLocaleString()} (already taken off Net Sales on the day they came back)</p>
+          )}
+          {stats.linesWithoutCost > 0 && (
+            <p role="status" className="text-sm text-warning-strong">⚠️ {stats.linesWithoutCost} sold item line(s) have no cost price, so profit is overstated for this period. Add cost prices in Products.</p>
+          )}
+          {categoryLosses.length > 0 && (
+            <p className="text-sm text-danger-fg">📉 Loss-making categories: {categoryLosses.map(c => `${c.name} (Rs. ${c.value.toLocaleString()})`).join(', ')}</p>
+          )}
 
           {/* Retail vs Wholesale split */}
           {wholesaleEnabled && tierSplit && (
@@ -519,7 +512,7 @@ function Reports() {
                       <td className="py-4 text-right font-black text-fg">Rs. {p.revenue.toLocaleString()}</td>
                       <td className="py-4 text-right">
                         <span className="px-2 py-1 bg-primary-soft text-primary-fg text-[10px] font-bold rounded">
-                          {((p.revenue / (stats.grossSales || 1)) * 100).toFixed(1)}%
+                          {((p.revenue / (stats.netSales || 1)) * 100).toFixed(1)}%
                         </span>
                       </td>
                     </tr>

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../services/supabase'
-import { must } from '../services/integrity'
+import { must, isMissingColumn } from '../services/integrity'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
@@ -9,6 +9,7 @@ import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 import { getShopSettings, isWholesaleEnabled, normalizeTier } from '../utils/businessPresets'
+import { openingRow } from '../utils/ledgerMath'
 
 function Customers() {
   const { user } = useAuth()
@@ -138,7 +139,16 @@ function Customers() {
         return
       }
 
-      const { error } = await supabase.from('customers').insert(unique)
+      const { data: inserted, error } = await supabase.from('customers').insert(unique).select('id, outstanding_balance')
+      if (!error) {
+        // Imported balances are old dues: record each as an opening ledger entry
+        const obRows = (inserted || []).filter(c => Number(c.outstanding_balance) !== 0)
+          .map(c => openingRow({ table: 'customer_payments', shopId: user.shop_id, partyId: c.id, amount: Number(c.outstanding_balance) }))
+        for (let k = 0; k < obRows.length; k += 500) {
+          const { error: obErr } = await supabase.from('customer_payments').insert(obRows.slice(k, k + 500))
+          if (obErr) { alert('Customers imported, but opening balance ledger entries failed: ' + obErr.message); break }
+        }
+      }
       if (error) alert(error.message)
       else {
         alert(`Customers import ho gaye! ✅ ${unique.length} add${skipped ? `, ${skipped} skip (duplicate phone)` : ''}`)
@@ -150,7 +160,7 @@ function Customers() {
   }
 
   const handleEdit = (c) => {
-    setForm({ name: c.name, phone: c.phone || '', address: c.address || '', price_tier: normalizeTier(c.price_tier) })
+    setForm({ name: c.name, phone: c.phone || '', address: c.address || '', price_tier: normalizeTier(c.price_tier), credit_limit: c.credit_limit ?? '' })
     setEditingId(c.id)
     setShowForm(true)
   }
@@ -158,19 +168,39 @@ function Customers() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
-    const { price_tier, ...formFields } = form
+    const { price_tier, outstanding_balance: openingInput, credit_limit: limitInput, ...formFields } = form
     // price_tier is only sent when the shop uses Wholesale Mode (keeps un-migrated DBs working)
     const payload = { ...formFields, shop_id: user.shop_id, ...(wholesaleEnabled ? { price_tier: normalizeTier(price_tier) } : {}) }
+    // Opening balance (old dues) only when adding: stored on the customer AND written
+    // to the ledger as an 'opening' entry so the ledger and the balance agree.
+    const opening = editingId ? 0 : (Number(openingInput) || 0)
+    if (!editingId) payload.outstanding_balance = opening
+    // Credit limit only when filled in (column added by sql/transactions_migration.sql)
+    if (limitInput !== undefined && limitInput !== '') payload.credit_limit = Math.max(0, Number(limitInput) || 0)
+    else if (editingId && limitInput === '') payload.credit_limit = null
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
 
       if (editingId) {
-        const { error } = await supabase.from('customers').update(payload).eq('id', editingId)
+        let { error } = await supabase.from('customers').update(payload).eq('id', editingId)
+        if (error && isMissingColumn(error) && 'credit_limit' in payload) {
+          const { credit_limit: _cl, ...rest } = payload
+          ;({ error } = await supabase.from('customers').update(rest).eq('id', editingId))
+          if (!error && _cl != null) alert('Credit limit needs a database update first (sql/transactions_migration.sql). Other details were saved.')
+        }
         if (error) throw error
       } else {
-        const { error } = await supabase.from('customers').insert([payload])
+        let { data: created, error } = await supabase.from('customers').insert([payload]).select('id').single()
+        if (error && isMissingColumn(error) && 'credit_limit' in payload) {
+          const { credit_limit: _cl, ...rest } = payload
+          ;({ data: created, error } = await supabase.from('customers').insert([rest]).select('id').single())
+        }
         if (error) throw error
+        if (opening !== 0 && created?.id != null) {
+          const { error: obErr } = await supabase.from('customer_payments').insert([openingRow({ table: 'customer_payments', shopId: user.shop_id, partyId: created.id, amount: opening })])
+          if (obErr) alert('Customer saved, but the opening balance ledger entry failed: ' + obErr.message)
+        }
       }
       setEditingId(null)
       setForm({ name: '', phone: '', address: '' })
@@ -186,6 +216,12 @@ function Customers() {
           await db.customers.update(editingId, offlineData)
         } else {
           await db.customers.add(offlineData)
+          if (opening !== 0) {
+            // Queued after the customer, so sync swaps in the real customer id
+            const obRow = { ...openingRow({ table: 'customer_payments', shopId: user.shop_id, partyId: offlineData.id, amount: opening }), id: crypto.randomUUID(), created_at: offlineData.created_at }
+            await db.customer_payments.add(obRow).catch(() => {})
+            await addToSyncQueue('customer_payments', 'INSERT', obRow)
+          }
         }
         setEditingId(null)
         setForm({ name: '', phone: '', address: '' })
@@ -417,6 +453,22 @@ function Customers() {
                 className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="City, Pakistan" />
             </div>
+            <div>
+              <label htmlFor="customer-credit-limit" className="block text-fg-2 font-medium mb-1">Credit limit (udhaar ki hadd)</label>
+              <input id="customer-credit-limit" type="number" inputMode="decimal" min="0" step="any" value={form.credit_limit ?? ''}
+                onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Blank = no limit" />
+            </div>
+            {!editingId && (
+              <div>
+                <label htmlFor="customer-opening" className="block text-fg-2 font-medium mb-1">Opening balance (purani dues)</label>
+                <input id="customer-opening" type="number" inputMode="decimal" step="any" value={form.outstanding_balance ?? ''}
+                  onChange={(e) => setForm({ ...form, outstanding_balance: e.target.value })}
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0 — use a minus amount for an advance" />
+              </div>
+            )}
             {wholesaleEnabled && (
               <div>
                 <label htmlFor="customer-price-tier" className="block text-fg-2 font-medium mb-1">Customer Type</label>

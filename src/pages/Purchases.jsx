@@ -6,7 +6,7 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
-import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance } from '../services/integrity'
+import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance, applyLocalDelta, runTx, txKnownAvailable, txErrorMessage } from '../services/integrity'
 
 function Purchases() {
   const { user } = useAuth()
@@ -20,6 +20,7 @@ function Purchases() {
   const [cart, setCart] = useState([])
   const [supplierId, setSupplierId] = useState('')
   const [paymentType, setPaymentType] = useState('cash')
+  const [paidNow, setPaidNow] = useState('') // credit purchase: amount paid at the time of buying
   const [saving, setSaving] = useState(false)
   const [discount, setDiscount] = useState(0)
 
@@ -165,8 +166,9 @@ function Purchases() {
   }
 
   const updateQty = (id, qty) => {
-    const num = parseInt(qty)
-    if (isNaN(num) || num < 1) return
+    // Decimals allowed (2.5 m of pipe, 1.5 kg)
+    const num = parseFloat(qty)
+    if (isNaN(num) || num <= 0) return
     setCart(prev => prev.map(i => i.id === id ? { ...i, qty: num } : i))
   }
 
@@ -187,12 +189,16 @@ function Purchases() {
   const removeFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id))
 
   const clearCart = () => {
-    setCart([]); setSupplierId(''); setPaymentType('cash'); setDiscount(0)
+    setCart([]); setSupplierId(''); setPaymentType('cash'); setDiscount(0); setPaidNow('')
   }
 
   const subtotal = cart.reduce((sum, i) => sum + i.purchase_price * i.qty, 0)
-  const totalDiscount = parseFloat(discount) || 0
+  // Bill discount: never negative, never more than the bill
+  const totalDiscount = Math.min(subtotal, Math.max(0, parseFloat(discount) || 0))
   const total = Math.max(0, subtotal - totalDiscount)
+  // Share of each rupee taken off by the bill discount → net unit cost per line
+  const discountRatio = subtotal > 0 ? totalDiscount / subtotal : 0
+  const costMethod = getShopSettings(user?.shop_id).cost_method === 'average' ? 'average' : 'last'
 
   // Hold Purchase
   const handleHoldPurchase = async () => {
@@ -238,120 +244,198 @@ function Purchases() {
       const clientRef = crypto.randomUUID() // idempotency key — a replay can never duplicate the purchase
       const supplierIsTemp = isTempId(String(supplierId))
       const hasUnsyncedRef = supplierIsTemp || cart.some(i => isTempId(String(i.id)))
+      // Paid now: everything for cash; for credit, whatever was paid at the counter (rest is owed)
+      const paidAmount = paymentType === 'cash' ? total : Math.min(total, Math.max(0, Number(paidNow) || 0))
+      const owedAmount = Math.round((total - paidAmount) * 100) / 100
       const purchaseData = {
         shop_id: user.shop_id,
         supplier_id: toIntId(supplierId),
         total_amount: total,
-        paid_amount: paymentType === 'cash' ? total : 0,
+        discount: Math.round(totalDiscount * 100) / 100, // kept so returns refund the discounted cost
+        paid_amount: paidAmount,
         payment_type: paymentType,
         status: 'completed',
-        client_ref: clientRef
+        client_ref: clientRef,
+        created_by: user.username,
       }
-
-      // ── 1. Purchase header ──
-      let purchase = null
-      let savedOnline = false
-      try {
-        if (!navigator.onLine || hasUnsyncedRef) throw new TypeError('Failed to fetch')
-        let { data, error: pError } = await supabase.from('purchases').insert([purchaseData]).select().single()
-        if (pError && isMissingColumn(pError)) {
-          const { client_ref: _omit, ...withoutRef } = purchaseData
-          ;({ data, error: pError } = await supabase.from('purchases').insert([withoutRef]).select().single())
-        }
-        if (pError) throw pError
-        purchase = data
-        savedOnline = true
-        await db.purchases.put(purchase)
-      } catch (err) {
-        if (!hasUnsyncedRef && !isNetworkError(err)) throw err
-        const offlineId = crypto.randomUUID()
-        purchase = { ...purchaseData, id: offlineId, supplier_id: supplierIsTemp ? supplierId : purchaseData.supplier_id }
-        await db.purchases.add(purchase)
-        await addToSyncQueue('purchases', 'INSERT', purchase)
-      }
-
-      // ── 2. Purchase items (a failure here never creates a second purchase) ──
-      const items = cart.map(i => ({
-        purchase_id: purchase.id,
-        product_id: savedOnline ? toIntId(i.id) : i.id,
+      const lineRows = cart.map(i => ({
+        product_id: i.id,
         product_name: i.name,
-        quantity: i.qty,
-        unit_price: i.purchase_price,
-        total_price: i.purchase_price * i.qty
+        quantity: Number(i.qty),
+        unit_price: Number(i.purchase_price),
+        total_price: Math.round(Number(i.purchase_price) * Number(i.qty) * 100) / 100,
+        returned_qty: 0,
       }))
-      let itemsSaved = false
-      if (savedOnline) {
-        const { data: resItems, error: itemsError } = await supabase.from('purchase_items').insert(items).select()
-        if (!itemsError) {
-          await db.purchase_items.bulkPut(resItems)
-          itemsSaved = true
-        } else if (!isNetworkError(itemsError)) {
-          await supabase.from('purchases').delete().eq('id', purchase.id)
-          await db.purchases.delete(purchase.id).catch(() => {})
-          throw new Error(`${itemsError.message} — purchase was NOT saved, please try again.`)
+      // Cost per the shop's cost method (same rule as complete_purchase in the database)
+      //  last    → cost = net unit cost of this purchase (after the bill discount share)
+      //  average → cost = (stock on hand × old cost + qty × net cost) / (stock on hand + qty)
+      const costFor = (item, onHand, oldCost) => {
+        const qty = Number(item.qty)
+        const netUnitCost = Math.round(Number(item.purchase_price) * (1 - discountRatio) * 100) / 100
+        const stock = Math.max(0, Number(onHand) || 0)
+        if (costMethod === 'average' && Number(oldCost) > 0 && stock + qty > 0) {
+          return Math.round(((stock * Number(oldCost) + qty * netUnitCost) / (stock + qty)) * 100) / 100
+        }
+        return netUnitCost
+      }
+      const mirrorLocal = async () => {
+        for (const item of cart) {
+          await applyLocalDelta('products', 'stock_quantity', item.id, Number(item.qty))
+          await db.products.update(item.id, { cost_price: costFor(item, item.stock_quantity, item.cost_price) }).catch(() => {})
+        }
+        if (owedAmount > 0) await applyLocalDelta('suppliers', 'outstanding_balance', supplierId, owedAmount)
+      }
+      const txOptions = { cost_method: costMethod, payment_mode: 'cash' }
+
+      // ── 0. Whole purchase in one database transaction (sql/transactions_migration.sql) ──
+      let handled = false
+      let networkFail = false
+      let offline = false
+      if (navigator.onLine && !hasUnsyncedRef) {
+        const tx = await runTx('complete_purchase', {
+          p_purchase: purchaseData,
+          p_items: lineRows.map(it => ({ ...it, product_id: toIntId(it.product_id) })),
+          p_options: txOptions,
+        })
+        if (tx.ok) {
+          handled = true
+          await db.purchases.put(tx.data.purchase)
+          if (Array.isArray(tx.data.items) && tx.data.items.length) await db.purchase_items.bulkPut(tx.data.items)
+          if (!tx.data.duplicate) await mirrorLocal()
+        } else if (tx.network) {
+          networkFail = true
+        } else if (!tx.missing) {
+          throw tx.error
         }
       }
-      if (!itemsSaved) {
-        // local rows need their own id (IndexedDB key)
-        const localItems = items.map(it => ({ ...it, id: crypto.randomUUID() }))
+      if (!handled && (!navigator.onLine || hasUnsyncedRef || networkFail) && txKnownAvailable()) {
+        // Offline and the database supports it: queue the purchase as one operation
+        const offlineId = crypto.randomUUID()
+        const localHeader = { ...purchaseData, id: offlineId, supplier_id: supplierIsTemp ? supplierId : purchaseData.supplier_id }
+        const localItems = lineRows.map(it => ({ ...it, id: crypto.randomUUID(), purchase_id: offlineId }))
+        await db.purchases.add(localHeader)
         await db.purchase_items.bulkPut(localItems)
-        await addToSyncQueue('purchase_items', 'INSERT', localItems)
+        const { id: _omit, ...headerForTx } = localHeader
+        await addToSyncQueue('complete_purchase', 'TX', {
+          params: { p_purchase: headerForTx, p_items: lineRows, p_options: txOptions },
+          local: { purchaseTemp: offlineId, itemTemps: localItems.map(it => it.id) },
+        })
+        await mirrorLocal()
+        handled = true
+        offline = true
       }
 
-      // ── 3. Stock (+qty) as atomic changes, cost price as latest purchase price ──
       const failed = []
-      for (const item of cart) {
-        const r = await adjustStock(item.id, Number(item.qty))
-        if (!r.ok) failed.push(item.name)
-        const costUpdate = { cost_price: item.purchase_price }
-        if (navigator.onLine && !isTempId(String(item.id))) {
-          const { error: cErr } = await supabase.from('products').update(costUpdate).eq('id', item.id)
-          if (cErr) {
-            if (isNetworkError(cErr)) await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
-            else failed.push(`${item.name} (cost)`)
+      if (!handled) {
+        // ── Step-by-step path (database not migrated yet) ──
+        // 1. Purchase header
+        let purchase = null
+        let savedOnline = false
+        try {
+          if (!navigator.onLine || hasUnsyncedRef) throw new TypeError('Failed to fetch')
+          let { data, error: pError } = await supabase.from('purchases').insert([purchaseData]).select().single()
+          if (pError && isMissingColumn(pError)) {
+            // Database not migrated yet (client_ref / discount / created_by): save without the optional columns
+            const { client_ref: _omit, discount: _d, created_by: _c, ...withoutRef } = purchaseData
+            ;({ data, error: pError } = await supabase.from('purchases').insert([withoutRef]).select().single())
           }
-        } else {
-          await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
+          if (pError) throw pError
+          purchase = data
+          savedOnline = true
+          await db.purchases.put(purchase)
+        } catch (err) {
+          if (!hasUnsyncedRef && !isNetworkError(err)) throw err
+          const offlineId = crypto.randomUUID()
+          purchase = { ...purchaseData, id: offlineId, supplier_id: supplierIsTemp ? supplierId : purchaseData.supplier_id }
+          await db.purchases.add(purchase)
+          await addToSyncQueue('purchases', 'INSERT', purchase)
         }
-        await db.products.update(item.id, costUpdate).catch(() => {})
-      }
 
-      // ── 4. Supplier balance (credit) or recorded cash payment ──
-      if (paymentType === 'credit') {
-        const r = await adjustSupplierBalance(supplierId, total)
-        if (!r.ok) failed.push('supplier balance')
-      } else if (paymentType === 'cash' && total > 0) {
-        const paymentData = {
-          shop_id: user.shop_id,
-          supplier_id: savedOnline ? toIntId(supplierId) : supplierId,
-          amount: total,
-          payment_type: 'payment',
-          note: `Cash Paid for Purchase PR-${String(purchase.id).slice(-6)}`
-        }
-        let paid = false
+        // 2. Purchase items (a failure here never creates a second purchase)
+        const items = lineRows.map(it => ({ ...it, purchase_id: purchase.id, product_id: savedOnline ? toIntId(it.product_id) : it.product_id }))
+        let itemsSaved = false
         if (savedOnline) {
-          const { error: payErr } = await supabase.from('supplier_payments').insert([paymentData])
-          if (!payErr) paid = true
-          else if (!isNetworkError(payErr)) failed.push('supplier payment record')
+          const { data: resItems, error: itemsError } = await supabase.from('purchase_items').insert(items).select()
+          if (!itemsError) {
+            await db.purchase_items.bulkPut(resItems)
+            itemsSaved = true
+          } else if (!isNetworkError(itemsError)) {
+            await supabase.from('purchases').delete().eq('id', purchase.id)
+            await db.purchases.delete(purchase.id).catch(() => {})
+            throw new Error(`${itemsError.message} — purchase was NOT saved, please try again.`)
+          }
         }
-        if (!paid && !failed.includes('supplier payment record')) {
-          const localPayment = { ...paymentData, id: crypto.randomUUID() }
-          await db.supplier_payments.add(localPayment)
-          await addToSyncQueue('supplier_payments', 'INSERT', localPayment)
+        if (!itemsSaved) {
+          const localItems = items.map(it => ({ ...it, id: crypto.randomUUID() }))
+          await db.purchase_items.bulkPut(localItems)
+          await addToSyncQueue('purchase_items', 'INSERT', localItems)
+        }
+        offline = !savedOnline || !itemsSaved
+
+        // 3. Stock (+qty) as atomic changes; cost price per the cost method
+        for (const item of cart) {
+          let onHand = Number(item.stock_quantity) || 0
+          let oldCost = Number(item.cost_price) || 0
+          if (costMethod === 'average' && navigator.onLine && !isTempId(String(item.id))) {
+            // Fresh figures just before the stock change (another device may have sold/bought)
+            const { data: live } = await supabase.from('products').select('stock_quantity, cost_price').eq('id', item.id).maybeSingle()
+            if (live) { onHand = Number(live.stock_quantity) || 0; oldCost = Number(live.cost_price) || 0 }
+          }
+          const newCost = costFor(item, onHand, oldCost)
+          const r = await adjustStock(item.id, Number(item.qty), { reason: 'purchase', refTable: 'purchases', refId: purchase.id, createdBy: user.username, unitCost: newCost })
+          if (!r.ok) failed.push(item.name)
+          const costUpdate = { cost_price: newCost }
+          if (navigator.onLine && !isTempId(String(item.id))) {
+            const { error: cErr } = await supabase.from('products').update(costUpdate).eq('id', item.id)
+            if (cErr) {
+              if (isNetworkError(cErr)) await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
+              else failed.push(`${item.name} (cost)`)
+            }
+          } else {
+            await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
+          }
+          await db.products.update(item.id, costUpdate).catch(() => {})
+        }
+
+        // 4. What is still owed raises the supplier balance; what was paid is a payment row
+        if (owedAmount > 0) {
+          const r = await adjustSupplierBalance(supplierId, owedAmount)
+          if (!r.ok) failed.push('supplier balance')
+        }
+        if (paidAmount > 0) {
+          const paymentData = {
+            shop_id: user.shop_id,
+            supplier_id: savedOnline ? toIntId(supplierId) : supplierId,
+            amount: paidAmount,
+            payment_type: 'payment',
+            payment_mode: 'cash',
+            note: `Paid for Purchase PR-${String(purchase.id).slice(-6)}`
+          }
+          let paid = false
+          if (savedOnline) {
+            const { error: payErr } = await supabase.from('supplier_payments').insert([paymentData])
+            if (!payErr) paid = true
+            else if (!isNetworkError(payErr)) failed.push('supplier payment record')
+          }
+          if (!paid && !failed.includes('supplier payment record')) {
+            const localPayment = { ...paymentData, id: crypto.randomUUID() }
+            await db.supplier_payments.add(localPayment)
+            await addToSyncQueue('supplier_payments', 'INSERT', localPayment)
+          }
         }
       }
 
       if (failed.length > 0) {
         alert(`Purchase saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / supplier balance.`)
-      } else if (!savedOnline || !itemsSaved) {
+      } else if (offline) {
         alert('Offline mode: Purchase saved locally. Will sync automatically when online. 🔄')
       } else {
-        alert('Purchase complete! Stock and supplier balance updated.')
+        alert(`Purchase complete! Stock updated.${owedAmount > 0 ? `\nSupplier balance +Rs. ${owedAmount.toLocaleString()}` : ''}`)
       }
       clearCart()
       fetchData()
     } catch (err) {
-      alert('Error: ' + (err?.message || String(err)))
+      alert('Error: ' + txErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -510,6 +594,16 @@ function Purchases() {
             📒 Credit
           </button>
         </div>
+        {paymentType === 'credit' && (
+          <label className="flex items-center justify-between gap-2 text-xs mb-2">
+            <span className="text-fg-3 font-semibold">Paid now (abhi diya)</span>
+            <input type="number" inputMode="decimal" min="0" step="any" value={paidNow} onChange={e => setPaidNow(e.target.value)}
+              className="input w-28 text-right py-1" placeholder="0" aria-label="Amount paid now" />
+          </label>
+        )}
+        {paymentType === 'credit' && Number(paidNow) > 0 && (
+          <p className="text-[11px] text-warning-strong mb-2">Supplier balance +Rs. {Math.max(0, total - Math.min(total, Number(paidNow))).toLocaleString()} (baqi udhaar)</p>
+        )}
 
         {/* Cart Items — scrollable */}
         <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pr-1 custom-scrollbar">
@@ -532,16 +626,26 @@ function Purchases() {
                   >−</button>
                   <input
                     type="number"
+                    step="any"
                     value={item.qty}
                     onChange={e => updateQty(item.id, e.target.value)}
-                    className="w-10 text-center text-xs font-bold outline-none border-x border-line"
-                    min="1"
+                    className="w-12 text-center text-xs font-bold outline-none border-x border-line"
+                    min="0"
+                    aria-label={`Quantity of ${item.name}`}
                   />
                   <button
                     onClick={() => incrementQty(item.id)}
                     className="px-2 py-0.5 text-fg-muted hover:bg-surface-3 text-xs font-bold transition"
                   >+</button>
                 </div>
+                {Number(item.pack_size) > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => updateQty(item.id, Math.round((Number(item.qty) + Number(item.pack_size)) * 1000) / 1000)}
+                    className="px-1.5 py-0.5 text-[10px] font-bold rounded border border-line text-primary-fg hover:bg-primary-soft whitespace-nowrap"
+                    title={`Add one ${item.pack_name || 'pack'} (${item.pack_size} pcs)`}
+                  >+1 {item.pack_name || 'Pack'}</button>
+                )}
                 {/* Price */}
                 <div className="flex-1 flex flex-col gap-0.5">
                   <div className="flex items-center gap-1 bg-surface border border-line rounded px-1">
@@ -556,7 +660,12 @@ function Purchases() {
                   <p className="text-[8px] text-fg-subtle">Prev Cost: Rs.{item.cost_price || 0}</p>
                 </div>
               </div>
-              <p className="text-right text-[10px] font-bold text-fg-muted mt-0.5">Total: Rs. {(item.purchase_price * item.qty).toLocaleString()}</p>
+              <p className="text-right text-[10px] font-bold text-fg-muted mt-0.5">
+                {Number(item.pack_size) > 1 && Number(item.qty) >= Number(item.pack_size) && (
+                  <span className="mr-2 font-medium">= {Math.floor(Number(item.qty) / Number(item.pack_size))} {item.pack_name || 'Pack'}{Number(item.qty) % Number(item.pack_size) ? ` + ${Math.round((Number(item.qty) % Number(item.pack_size)) * 1000) / 1000}` : ''}</span>
+                )}
+                Total: Rs. {(item.purchase_price * item.qty).toLocaleString()}
+              </p>
             </div>
           ))}
         </div>

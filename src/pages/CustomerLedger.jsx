@@ -5,9 +5,12 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { printHTML, getShopBranding } from '../utils/printUtils'
-import { db } from '../services/db'
-import { adjustCustomerBalance, applySaleEffects, must } from '../services/integrity'
+import { db, addToSyncQueue } from '../services/db'
+import { adjustCustomerBalance, applySaleEffects, must, isNetworkError } from '../services/integrity'
+import { customerLedgerDelta, withRunningBalance, isLedgerSale, paymentRowType, openingRow } from '../utils/ledgerMath'
 import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
+import { todayLocal, entryTimestamp } from '../utils/dates'
+import CustomerStatement, { AgeingStrip } from '../components/CustomerStatement'
 
 function CustomerLedger() {
     const { id } = useParams()
@@ -20,7 +23,7 @@ function CustomerLedger() {
     const [ledger, setLedger] = useState([])
     const [showTxModal, setShowTxModal] = useState(false)
     const [txForm, setTxForm] = useState({
-        date: new Date().toISOString().slice(0, 10),
+        date: todayLocal(),
         bill_number: '',
         sale_amount: '',
         payment_amount: '',
@@ -32,6 +35,7 @@ function CustomerLedger() {
     const [saving, setSaving] = useState(false)
     const [expandedSale, setExpandedSale] = useState(null)
     const [lastPayment, setLastPayment] = useState(null) // for print voucher after recording
+    const [showStatement, setShowStatement] = useState(false)
     const [selectedIds, setSelectedIds] = useState(new Set())
 
     useEffect(() => {
@@ -45,7 +49,7 @@ function CustomerLedger() {
 
             const fetchPromise = Promise.all([
                 supabase.from('customers').select('*').eq('id', id).eq('shop_id', user.shop_id).maybeSingle(),
-                fetchAllRows(() => supabase.from('sales').select('*, sale_items(*)').eq('customer_id', id).eq('shop_id', user.shop_id).order('created_at', { ascending: true })),
+                fetchAllRows(() => supabase.from('sales').select('*, sale_items(*)').eq('customer_id', id).eq('shop_id', user.shop_id).or('sale_type.is.null,sale_type.neq.quotation').order('created_at', { ascending: true })),
                 supabase.from('customer_payments').select('*').eq('customer_id', id).eq('shop_id', user.shop_id)
             ])
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
@@ -73,7 +77,7 @@ function CustomerLedger() {
                 ...(payments || []).map(p => ({
                     id: p.id,
                     date: p.created_at,
-                    type: p.payment_type === 'return' ? 'return' : p.payment_type === 'debit' ? 'debit' : 'payment',
+                    type: paymentRowType(p),
                     payment_type: p.payment_type,
                     amount: p.amount,
                     note: p.note || 'Cash Payment',
@@ -88,34 +92,7 @@ function CustomerLedger() {
             combined.sort((a, b) => new Date(a.date) - new Date(b.date))
 
             // Calculate running balance
-            let running = 0
-            const withBalance = combined.map(item => {
-                if (item.type === 'sale') {
-                    const owed = Math.max(0, item.amount - (item.paid_amount || 0))
-                    if (owed > 0) running += owed
-                } else if (item.type === 'debit') {
-                    running += Number(item.amount)
-                } else if (item.payment_type === 'refund') {
-                    // cash refund — no balance change
-                } else {
-                    running -= Math.abs(item.amount)
-                }
-                return { ...item, balance: running }
-            })
-
-            const ob = custRes.data.outstanding_balance || 0
-            if (withBalance.length === 0 && ob !== 0) {
-                withBalance.push({
-                    id: 'opening',
-                    date: custRes.data.created_at || new Date().toISOString(),
-                    type: 'sale',
-                    payment_type: 'credit',
-                    amount: Math.abs(ob),
-                    note: 'Opening Balance (previous dues)',
-                    items: [],
-                    balance: ob
-                })
-            }
+            const withBalance = withRunningBalance(combined, customerLedgerDelta)
 
             setLedger(withBalance.reverse()) // newest first for display
         } catch (e) {
@@ -132,7 +109,7 @@ function CustomerLedger() {
                 const cust = lCusts.find(c => String(c.id) === String(id))
                 if (cust) setCustomer(cust)
 
-                const mySales = lSales.filter(s => String(s.customer_id) === String(id))
+                const mySales = lSales.filter(s => String(s.customer_id) === String(id) && isLedgerSale(s))
                 const myPayments = lPayments.filter(p => String(p.customer_id) === String(id))
 
                 const combined = [
@@ -149,7 +126,7 @@ function CustomerLedger() {
                     ...myPayments.map(p => ({
                         id: p.id,
                         date: p.created_at,
-                        type: p.payment_type === 'return' ? 'return' : p.payment_type === 'debit' ? 'debit' : 'payment',
+                        type: paymentRowType(p),
                         payment_type: p.payment_type,
                         amount: p.amount,
                         note: p.note || 'Cash Payment',
@@ -161,29 +138,7 @@ function CustomerLedger() {
                 ]
 
                 combined.sort((a, b) => new Date(a.date) - new Date(b.date))
-                let running = 0
-                const withBalance = combined.map(item => {
-                    if (item.type === 'sale') {
-                        const owed = Math.max(0, item.amount - (item.paid_amount || 0))
-                        if (owed > 0) running += owed
-                    } else if (item.type === 'debit') {
-                        running += Number(item.amount)
-                    } else if (item.payment_type === 'refund') {
-                        // no balance change
-                    } else {
-                        running -= Math.abs(item.amount)
-                    }
-                    return { ...item, balance: running }
-                })
-                // Opening balance if no transactions but customer has dues
-                const cOb = cust?.outstanding_balance || 0
-                if (withBalance.length === 0 && cOb !== 0) {
-                    withBalance.push({
-                        id: 'opening', date: cust?.created_at || new Date().toISOString(),
-                        type: 'sale', payment_type: 'credit', amount: Math.abs(cOb),
-                        note: 'Opening Balance (previous dues)', items: [], balance: cOb
-                    })
-                }
+                const withBalance = withRunningBalance(combined, customerLedgerDelta)
                 setLedger(withBalance.reverse())
             } catch (err) { console.error('Final CustomerLedger Fallback Error:', err) }
         } finally {
@@ -191,7 +146,8 @@ function CustomerLedger() {
         }
     }
 
-    const printPaymentVoucher = (amount, note, date) => {
+    // balanceAfter = what the customer still owed right after this payment
+    const printPaymentVoucher = (amount, note, date, balanceAfter) => {
         const branding = getShopBranding(user?.shop_id)
         printHTML(`<html><head><title>Payment Receipt</title>
         <style>
@@ -215,9 +171,9 @@ function CustomerLedger() {
         <div class="row bold" style="font-size:16px;"><span>Amount Received</span><span>Rs. ${Number(amount).toLocaleString()}</span></div>
         ${note ? `<div class="row"><span>Note:</span><span>${note}</span></div>` : ''}
         <hr/>
-        <div class="row"><span>Remaining Balance:</span><span class="bold">Rs. ${Math.max(0, (customer.outstanding_balance || 0) - Number(amount)).toLocaleString()}</span></div>
+        <div class="row"><span>Remaining Balance:</span><span class="bold">Rs. ${Number(balanceAfter ?? customer.outstanding_balance ?? 0).toLocaleString()}</span></div>
         <hr/>
-        <p class="c" style="font-size:11px;color:#888;">Thank you! Payment received in full.</p>
+        <p class="c" style="font-size:11px;color:#888;">Thank you!</p>
         </body></html>`)
     }
 
@@ -324,7 +280,7 @@ function CustomerLedger() {
     }
 
     const resetTxForm = () => {
-        setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', sale_amount: '', payment_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })
+        setTxForm({ date: todayLocal(), bill_number: '', sale_amount: '', payment_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })
         setShowTxModal(false)
     }
 
@@ -334,7 +290,7 @@ function CustomerLedger() {
         const payAmt = parseFloat(txForm.payment_amount) || 0
         if (saleAmt === 0 && payAmt === 0) return alert('Sale amount ya payment amount mein se koi ek lazmi hai.')
         setSaving(true)
-        const now = txForm.date ? new Date(txForm.date + 'T12:00:00').toISOString() : new Date().toISOString()
+        const now = entryTimestamp(txForm.date)
         const commonFields = {
             shop_id: user.shop_id,
             customer_id: id,
@@ -356,7 +312,7 @@ function CustomerLedger() {
             const r = await adjustCustomerBalance(id, delta)
             if (r.ok) setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + delta } : c)
             else alert('Entry saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
-            if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: now })
+            if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: now, balanceAfter: (Number(customer?.outstanding_balance) || 0) + delta })
             resetTxForm()
             fetchCustomerData()
         } catch (error) {
@@ -371,7 +327,7 @@ function CustomerLedger() {
                 const delta = saleAmt - payAmt
                 await adjustCustomerBalance(id, delta) // queued as an atomic change
                 setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + delta } : c)
-                if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: ts })
+                if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: ts, balanceAfter: (Number(customer?.outstanding_balance) || 0) + delta })
                 resetTxForm()
                 fetchCustomerData()
                 alert('Offline mode: Transaction locally save ho gaya. Online hone par sync hoga! 🔄')
@@ -423,10 +379,9 @@ function CustomerLedger() {
             await db.customer_payments.delete(item.id)
             await db.sync_queue.add({ table: 'customer_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
         }
-        let delta = 0
-        if (item.payment_type === 'refund') delta = 0                   // cash handed back: no balance effect
-        else if (item.payment_type === 'debit') delta = -Number(item.amount)
-        else delta = Math.abs(Number(item.amount))                      // payment / return had lowered the balance
+        // Undo exactly what this line did to the balance. A return/refund row is a
+        // record only (the invoice itself was reduced), so deleting it changes nothing.
+        const delta = -customerLedgerDelta(item)
         if (!delta) return []
         const r = await adjustCustomerBalance(id, delta)
         return r.ok ? [] : ['customer balance']
@@ -435,7 +390,7 @@ function CustomerLedger() {
     const handleDeleteTransaction = async (item) => {
         if (item.id === 'opening') { alert('Opening balance entry directly delete nahi ho sakti.'); return }
         const label = item.type === 'sale' ? 'Sale/Invoice' : item.type === 'payment' ? 'Payment' : 'Return'
-        if (!confirm(`Yeh transaction delete karein?\n\nType: ${label}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nCustomer ka outstanding balance bhi adjust ho ga.`)) return
+        if (!confirm(`Yeh transaction delete karein?\n\nType: ${label}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\n${item.type !== 'sale' && customerLedgerDelta(item) === 0 ? 'Yeh sirf record hai — balance change nahi hoga (invoice pehle hi kam ho chuki hai).' : 'Customer ka outstanding balance bhi adjust ho ga.'}`)) return
 
         try {
             const failed = await deleteLedgerEntry(item)
@@ -484,10 +439,54 @@ function CustomerLedger() {
         }
     }
 
+    // Stored balance that the ledger lines do not explain — usually old dues from
+    // before the shop started using the app (Excel import / add form)
+    const ledgerSum = ledger.length > 0 ? ledger[0].balance : 0
+    const balanceGap = customer ? Math.round((Number(customer.outstanding_balance || 0) - ledgerSum) * 100) / 100 : 0
+    const canFixGap = user?.role === 'admin' || user?.role === 'manager'
+
+    const recordOpeningGap = async () => {
+        if (!customer || Math.abs(balanceGap) < 1) return
+        if (!confirm(`Rs. ${balanceGap.toLocaleString()} ko "Opening Balance (purani dues)" ke taur par ledger mein darj karein?
+
+Customer ka balance change NAHI hoga — sirf ledger mein entry aayegi taake ledger aur balance barabar hon.`)) return
+        const first = ledger.length ? ledger[ledger.length - 1].date : (customer.created_at || new Date().toISOString())
+        const date = new Date(new Date(first).getTime() - 1000).toISOString() // just before the first entry
+        const row = openingRow({ table: 'customer_payments', shopId: user.shop_id, partyId: customer.id, amount: balanceGap, date })
+        try {
+            let saved = false
+            if (navigator.onLine) {
+                const { error } = await supabase.from('customer_payments').insert([row])
+                if (error && !isNetworkError(error)) throw error
+                saved = !error
+            }
+            if (!saved) {
+                const localRow = { ...row, id: crypto.randomUUID() }
+                await db.customer_payments.add(localRow)
+                await addToSyncQueue('customer_payments', 'INSERT', localRow)
+            }
+            fetchCustomerData()
+        } catch (err) {
+            alert('Opening balance save nahi hua: ' + (err?.message || String(err)))
+        }
+    }
+
     const handleReconcileBalance = async () => {
         if (!ledger.length && customer?.outstanding_balance === 0) return
         const computedBalance = ledger.length > 0 ? ledger[0].balance : 0
-        const confirmed = confirm(`Balance Reconcile Karein?\n\nPresent Stored Balance: Rs. ${customer?.outstanding_balance || 0}\nCalculated Ledger Sum: Rs. ${computedBalance}\n\nCustomer balance transaction ledger ke mutabiq sync ho jayega.`)
+        // Admin only. The ledger does not list opening balances that came from an Excel
+        // import or the add form, so overwriting the stored balance can erase real dues.
+        if (user?.role !== 'admin') return
+        const storedBal = Number(customer?.outstanding_balance || 0)
+        const confirmed = confirm(`Balance Reconcile Karein?
+
+Present Stored Balance: Rs. ${storedBal}
+Calculated Ledger Sum: Rs. ${computedBalance}
+Difference: Rs. ${storedBal - computedBalance}
+
+⚠️ Opening balance (purani dues) jo import ya form se aya ho, ledger mein shamil nahi hota. Agar difference opening balance ki wajah se hai to Reconcile NA karein — warna woh dues mit jayengi.
+
+Customer balance transaction ledger ke mutabiq sync ho jayega.`)
         if (!confirmed) return
 
         try {
@@ -509,6 +508,22 @@ function CustomerLedger() {
 
     return (
         <div>
+            {Math.abs(balanceGap) >= 1 && (
+                <div role="status" className="mb-4 rounded-xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-strong flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span>
+                        Stored balance Rs. {Number(customer.outstanding_balance || 0).toLocaleString()} hai, ledger entries ka total Rs. {ledgerSum.toLocaleString()}.
+                        Farq Rs. {balanceGap.toLocaleString()} {ledger.length === 0 ? 'purani dues (opening balance) hai.' : 'aksar purani dues (opening balance) hota hai.'}
+                    </span>
+                    {canFixGap && (
+                        <button type="button" onClick={recordOpeningGap} className="shrink-0 rounded-lg bg-warning px-3 py-1.5 font-bold text-white hover:bg-warning-hover">
+                            Record as opening balance
+                        </button>
+                    )}
+                </div>
+            )}
+            {showStatement && customer && (
+                <CustomerStatement ledger={ledger} customer={customer} user={user} onClose={() => setShowStatement(false)} />
+            )}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <button onClick={() => navigate('/customers')} className="text-primary-fg mb-2 hover:underline text-sm font-semibold">← Back to Customers</button>
@@ -564,12 +579,20 @@ function CustomerLedger() {
                             </button>
                         )}
                         <button
+                            onClick={() => setShowStatement(true)}
+                            className="w-full sm:w-auto px-4 py-2.5 bg-surface border border-line hover:bg-surface-2 text-fg-2 rounded-lg transition font-semibold flex items-center justify-center gap-1.5"
+                        >
+                            📄 Statement
+                        </button>
+                        {user?.role === 'admin' && (
+                        <button
                             onClick={handleReconcileBalance}
                             className="w-full sm:w-auto px-4 py-2.5 bg-warning hover:bg-warning-hover text-white rounded-lg transition font-semibold shadow-lg flex items-center justify-center gap-1.5"
                             title="Recalculate customer balance from transaction ledger sum"
                         >
                             ⚡ Reconcile
                         </button>
+                        )}
                         <button
                             onClick={() => setShowTxModal(true)}
                             className="w-full sm:w-auto px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg transition font-semibold shadow-lg">
@@ -579,6 +602,7 @@ function CustomerLedger() {
                 </div>
             </div>
 
+            <AgeingStrip ledger={ledger} />
             {selectedIds.size > 0 && (
                 <div className="mb-3 flex items-center gap-3 bg-danger-soft border border-danger-line rounded-xl px-4 py-3">
                     <span className="text-sm font-bold text-danger-strong">{selectedIds.size} selected</span>
@@ -620,7 +644,7 @@ function CustomerLedger() {
                                             )}
                                             {item.type === 'payment' && (
                                                 <button
-                                                    onClick={() => printPaymentVoucher(item.amount, item.note, item.date)}
+                                                    onClick={() => printPaymentVoucher(Math.abs(item.amount), item.note, item.date, item.balance)}
                                                     className="text-[10px] text-primary-fg hover:underline font-bold uppercase tracking-tighter"
                                                 >🖨️ Print</button>
                                             )}
@@ -633,7 +657,7 @@ function CustomerLedger() {
                                                 </button>
                                             )}
                                             {item.type === 'return' && <span className="px-2 py-0.5 bg-danger-muted text-danger-strong rounded-full text-[10px] uppercase font-bold">Return</span>}
-                                            {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">Manual Sale</span>}
+                                            {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">{item.payment_type === 'opening' ? 'Opening Balance' : 'Manual Sale'}</span>}
                                         </div>
                                     </div>
                                     
@@ -745,13 +769,13 @@ function CustomerLedger() {
                                                 )}
                                                 {item.type === 'payment' && (
                                                     <button
-                                                        onClick={() => printPaymentVoucher(item.amount, item.note, item.date)}
+                                                        onClick={() => printPaymentVoucher(Math.abs(item.amount), item.note, item.date, item.balance)}
                                                         className="text-[10px] text-fg-subtle hover:text-success-fg font-medium transition"
                                                         title="Print Payment Voucher"
                                                     >🖨️ Print</button>
                                                 )}
                                                 {item.type === 'return' && <span className="px-2 py-0.5 bg-danger-muted text-danger-strong rounded-full text-[10px] uppercase font-bold">Return</span>}
-                                                {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">Manual Sale</span>}
+                                                {item.type === 'debit' && <span className="px-2 py-0.5 bg-warning-muted text-warning-strong rounded-full text-[10px] uppercase font-bold">{item.payment_type === 'opening' ? 'Opening Balance' : 'Manual Sale'}</span>}
                                             </div>
                                         </div>
                                     </td>
@@ -811,7 +835,7 @@ function CustomerLedger() {
                         <p className="text-xs opacity-90">Rs. {Number(lastPayment.amount).toLocaleString()} — {lastPayment.note}</p>
                     </div>
                     <button
-                        onClick={() => printPaymentVoucher(lastPayment.amount, lastPayment.note, lastPayment.date)}
+                        onClick={() => printPaymentVoucher(lastPayment.amount, lastPayment.note, lastPayment.date, lastPayment.balanceAfter)}
                         className="bg-surface text-success-strong font-bold text-xs px-3 py-2 rounded-xl hover:bg-success-soft transition whitespace-nowrap"
                     >
                         🖨️ Print

@@ -7,7 +7,9 @@ import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import { adjustSupplierBalance, must } from '../services/integrity'
+import { supplierLedgerDelta, withRunningBalance, paymentRowType, openingRow } from '../utils/ledgerMath'
 import PasswordModal from '../components/PasswordModal'
+import { todayLocal, entryTimestamp } from '../utils/dates'
 
 function Suppliers() {
   const { user } = useAuth()
@@ -42,7 +44,7 @@ function Suppliers() {
   const [txImporting, setTxImporting] = useState(false)
   const txFileRef = useRef(null)
   const [txForm, setTxForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: todayLocal(),
     bill_number: '',
     type: 'debit',
     amount: '',
@@ -73,7 +75,8 @@ function Suppliers() {
         return {
           id: p.id,
           date: p.created_at,
-          type: isDebit ? 'debit' : (p.payment_type === 'return' ? 'return' : 'payment'),
+          type: paymentRowType(p),
+          payment_type: p.payment_type,
           bill_number: isDebit ? (p.bill_number || '') : '',
           amount: p.amount || 0,
           note: p.note || '',
@@ -81,15 +84,7 @@ function Suppliers() {
       })
     ]
     combined.sort((a, b) => new Date(a.date) - new Date(b.date))
-    let running = 0
-    return combined.map(item => {
-      if (item.type === 'purchase' || item.type === 'debit') {
-        running += Number(item.amount)
-      } else {
-        running -= Math.abs(Number(item.amount))
-      }
-      return { ...item, balance: running }
-    }).reverse()
+    return withRunningBalance(combined, supplierLedgerDelta).reverse()
   }
 
   const openTxModal = async (sup) => {
@@ -123,7 +118,7 @@ function Suppliers() {
     setTxSaving(true)
     const amount = parseFloat(txForm.amount)
     const isDebit = txForm.type === 'debit'
-    const txDate = new Date(txForm.date).toISOString()
+    const txDate = entryTimestamp(txForm.date)
     const noteText = [txForm.bill_number ? `[Bill #${txForm.bill_number}]` : '', txForm.note].filter(Boolean).join(' ')
 
     const payload = {
@@ -148,7 +143,7 @@ function Suppliers() {
       setTxSup({ ...txSup, outstanding_balance: newBal })
       setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
 
-      setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', type: 'debit', amount: '', note: '' })
+      setTxForm({ date: todayLocal(), bill_number: '', type: 'debit', amount: '', note: '' })
       setShowAddTx(false)
       await openTxModal({ ...txSup, outstanding_balance: newBal })
     } catch (err) {
@@ -162,7 +157,7 @@ function Suppliers() {
         await adjustSupplierBalance(txSup.id, delta) // queued (previously never synced)
         setTxSup({ ...txSup, outstanding_balance: newBal })
         setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
-        setTxForm({ date: new Date().toISOString().slice(0, 10), bill_number: '', type: 'debit', amount: '', note: '' })
+        setTxForm({ date: todayLocal(), bill_number: '', type: 'debit', amount: '', note: '' })
         setShowAddTx(false)
         await openTxModal({ ...txSup, outstanding_balance: newBal })
         alert('Offline: Locally saved, will sync when online.')
@@ -402,7 +397,16 @@ function Suppliers() {
         outstanding_balance: parseFloat(row['Outstanding Balance'] || row['balance'] || 0)
       }))
 
-      const { error } = await supabase.from('suppliers').insert(formatted)
+      const { data: inserted, error } = await supabase.from('suppliers').insert(formatted).select('id, outstanding_balance')
+      if (!error) {
+        // Imported balances are old dues: record each as an opening ledger entry
+        const obRows = (inserted || []).filter(x => Number(x.outstanding_balance) !== 0)
+          .map(x => openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: x.id, amount: Number(x.outstanding_balance) }))
+        for (let k = 0; k < obRows.length; k += 500) {
+          const { error: obErr } = await supabase.from('supplier_payments').insert(obRows.slice(k, k + 500))
+          if (obErr) { alert('Suppliers imported, but opening balance ledger entries failed: ' + obErr.message); break }
+        }
+      }
       if (error) alert(error.message)
       else {
         alert('Suppliers imported successfully! ✅')
@@ -429,7 +433,12 @@ function Suppliers() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
-    const payload = { ...form, shop_id: user.shop_id }
+    const { outstanding_balance: openingInput, ...formFields } = form
+    const payload = { ...formFields, shop_id: user.shop_id }
+    // Opening balance (old dues) only when adding: stored on the supplier AND written
+    // to the ledger as an 'opening' entry. Editing never touches the balance.
+    const opening = editingId ? 0 : (Number(openingInput) || 0)
+    if (!editingId) payload.outstanding_balance = opening
 
     try {
       if (!navigator.onLine) throw new TypeError('Failed to fetch')
@@ -438,9 +447,13 @@ function Suppliers() {
         const { error } = await supabase.from('suppliers').update(payload).eq('id', editingId)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('suppliers').insert([payload])
+        const { data: created, error } = await supabase.from('suppliers').insert([payload]).select('id').single()
         if (error) {
           throw new Error(error.message + '\nNote: Verify if brand, product_type, and other_details columns exist in your suppliers table.')
+        }
+        if (opening !== 0 && created?.id != null) {
+          const { error: obErr } = await supabase.from('supplier_payments').insert([openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: created.id, amount: opening })])
+          if (obErr) alert('Supplier saved, but the opening balance ledger entry failed: ' + obErr.message)
         }
       }
       setEditingId(null)
@@ -458,6 +471,11 @@ function Suppliers() {
           await db.suppliers.update(editingId, offlineData)
         } else {
           await db.suppliers.add(offlineData)
+          if (opening !== 0) {
+            const obRow = { ...openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: offlineData.id, amount: opening }), id: crypto.randomUUID(), created_at: offlineData.created_at }
+            await db.supplier_payments.add(obRow).catch(() => {})
+            await addToSyncQueue('supplier_payments', 'INSERT', obRow)
+          }
         }
 
         setEditingId(null)
@@ -689,6 +707,15 @@ function Suppliers() {
                 />
               </div>
             </div>
+            {!editingId && (
+              <div>
+                <label htmlFor="supplier-opening" className="block text-fg-2 font-medium mb-1">Opening balance (purani dues)</label>
+                <input id="supplier-opening" type="number" inputMode="decimal" step="any" value={form.outstanding_balance ?? ''}
+                  onChange={(e) => setForm({ ...form, outstanding_balance: e.target.value })}
+                  className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="0 — amount the shop already owes this supplier" />
+              </div>
+            )}
             <div>
               <label className="block text-fg-2 font-medium mb-1">Other Details</label>
               <input

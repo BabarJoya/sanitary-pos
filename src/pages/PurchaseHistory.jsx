@@ -4,12 +4,13 @@ import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustSupplierBalance, must } from '../services/integrity'
+import { adjustStock, adjustSupplierBalance, applyPurchaseEffects, saleRowOnly, isNetworkError, toIntId, applyLocalDelta, runTx, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
 import { printHTML } from '../utils/printUtils'
 import { buildBillHTML } from '../utils/billTemplates'
+import { localDateKey } from '../utils/dates'
 
 function PurchaseHistory() {
     const { user } = useAuth()
@@ -129,57 +130,134 @@ function PurchaseHistory() {
 
     // Handle purchase return (supplier return / stock out)
     const handleReturn = async () => {
-        const itemsToReturn = purchaseItems.filter(i => returnQtys[i.id] > 0)
+        // Number() (not parseInt) so fractional quantities like 2.5 m or 1.5 kg can be returned
+        const qtyOf = (item) => Number(returnQtys[item.id]) || 0
+        const itemsToReturn = purchaseItems.filter(i => qtyOf(i) > 0)
         if (itemsToReturn.length === 0) { alert('Return karne ke liye qty enter karo!'); return }
 
         for (const item of itemsToReturn) {
-            const returnQty = parseInt(returnQtys[item.id]) || 0
-            const alreadyReturned = item.returned_qty || 0
-            const maxReturn = item.quantity - alreadyReturned
-            if (returnQty > maxReturn) { alert(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
+            const maxReturn = Number(item.quantity) - Number(item.returned_qty || 0)
+            if (qtyOf(item) > maxReturn) { alert(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
         }
 
         setReturning(true)
-        let totalReturnAmount = 0
+        const round2 = (n) => Math.round(n * 100) / 100
+        // The purchase bill discount is shared across all lines, so returned goods are
+        // refunded at what the shop actually paid for them (not the pre-discount price).
+        const billDiscount = Number(selectedPurchase.discount || 0)
+        // Remaining (not yet returned) goods carry the remaining discount
+        const gross = purchaseItems.reduce((s, it) => s + Number(it.unit_price || 0) * (Number(it.quantity || 0) - Number(it.returned_qty || 0)), 0)
+        const ratio = gross > 0 ? Math.min(1, Math.max(0, billDiscount / gross)) : 0
+        const returnGross = itemsToReturn.reduce((s, it) => s + Number(it.unit_price || 0) * qtyOf(it), 0)
+        const totalReturnAmount = round2(returnGross * (1 - ratio))
+        const newPurchaseTotal = round2(Math.max(0, Number(selectedPurchase.total_amount || 0) - totalReturnAmount))
+        const purchaseUpdate = { total_amount: newPurchaseTotal }
+        if (selectedPurchase.discount != null) purchaseUpdate.discount = round2(Math.max(0, billDiscount - returnGross * ratio))
+        // The refund always comes off what the shop owes the supplier (for a bill already
+        // paid it becomes an advance with the supplier). This keeps the stored balance equal
+        // to the ledger, where the purchase total drops and the 'return' row is a record only.
+        const isCredit = !!selectedPurchase.supplier_id
+        const returnRow = isCredit ? {
+            shop_id: user.shop_id,
+            supplier_id: selectedPurchase.supplier_id,
+            amount: -totalReturnAmount,
+            payment_type: 'return',
+            note: `Return from Purchase PR-${String(selectedPurchase.id).slice(-6)}`
+        } : null
+
+        // ── One database transaction with a dated return document (sql/transactions_migration.sql) ──
+        const allSynced = toIntId(selectedPurchase.id) != null && itemsToReturn.every(it => toIntId(it.id) != null)
+        if (navigator.onLine && allSynced) {
+            const tx = await runTx('process_purchase_return', {
+                p_return: {
+                    client_ref: crypto.randomUUID(),
+                    purchase_id: toIntId(selectedPurchase.id),
+                    created_by: user.username,
+                    lines: itemsToReturn.map(it => ({ purchase_item_id: toIntId(it.id), qty: qtyOf(it) })),
+                }
+            })
+            if (tx.ok) {
+                const doc = tx.data.return || {}
+                if (!tx.data.duplicate) {
+                    for (const it of itemsToReturn) {
+                        await db.purchase_items.update(it.id, { returned_qty: Number(it.returned_qty || 0) + qtyOf(it) }).catch(() => {})
+                        if (it.product_id != null) await applyLocalDelta('products', 'stock_quantity', it.product_id, -qtyOf(it))
+                    }
+                    if (Number(doc.balance_change) > 0 && selectedPurchase.supplier_id) {
+                        await applyLocalDelta('suppliers', 'outstanding_balance', selectedPurchase.supplier_id, -Number(doc.balance_change))
+                    }
+                }
+                await recordAuditLog('PURCHASE_RETURN', 'purchases', selectedPurchase.id, {
+                    purchase: selectedPurchase.id,
+                    returned_amount: Number(doc.refund_total) || 0,
+                    items: itemsToReturn.map(it => ({ name: it.product_name, qty: qtyOf(it) }))
+                }, user.id, user.shop_id)
+                setReturnQtys({})
+                alert(`Return successful! Purchase invoice updated.${Number(doc.balance_change) > 0 ? `\nSupplier balance kam hua: Rs. ${Number(doc.balance_change).toFixed(0)}` : ''}`)
+                const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).maybeSingle()
+                if (updatedPurchase) setSelectedPurchase(updatedPurchase)
+                const localItems = await db.purchase_items.where({ purchase_id: selectedPurchase.id }).toArray().catch(() => [])
+                if (localItems.length > 0) setPurchaseItems(localItems)
+                fetchPurchases()
+                setReturning(false)
+                return
+            }
+            if (tx.business || (!tx.missing && !tx.network)) {
+                alert('Error processing return: ' + txErrorMessage(tx.error))
+                setReturning(false)
+                return
+            }
+        }
+
+        // Each step runs once. If the connection drops halfway, the remaining steps are
+        // queued instead of re-applying the ones that already reached the server.
+        const done = { items: 0, total: false, balance: false }
+        let wentOffline = !navigator.onLine
 
         try {
-            if (!navigator.onLine) throw new TypeError('Failed to fetch')
-
             for (const item of itemsToReturn) {
-                const returnQty = parseInt(returnQtys[item.id]) || 0
-                const returnAmount = item.unit_price * returnQty
-                totalReturnAmount += returnAmount
-
-                // Update returned_qty on purchase_item
-                await must(supabase.from('purchase_items')
-                    .update({ returned_qty: (item.returned_qty || 0) + returnQty })
-                    .eq('id', item.id))
-
-                // Reduce stock as an atomic change (local copy updated by the helper)
-                const sr = await adjustStock(item.product_id, -returnQty)
+                const newRetQty = Number(item.returned_qty || 0) + qtyOf(item)
+                if (!wentOffline) {
+                    const { error } = await supabase.from('purchase_items').update({ returned_qty: newRetQty }).eq('id', item.id)
+                    if (error && !isNetworkError(error)) throw error
+                    if (error) wentOffline = true
+                }
+                await db.purchase_items.update(item.id, { returned_qty: newRetQty }).catch(() => {})
+                if (wentOffline) await addToSyncQueue('purchase_items', 'UPDATE', { id: item.id, returned_qty: newRetQty })
+                // Atomic −qty (queued automatically when offline)
+                const sr = await adjustStock(item.product_id, -qtyOf(item), { reason: 'purchase_return', refTable: 'purchases', refId: selectedPurchase.id, createdBy: user.username })
                 if (!sr.ok) throw sr.error || new Error(`Stock update failed for ${item.product_name}`)
+                done.items++
             }
 
-            // Update purchase record total
-            const newPurchaseTotal = Math.max(0, (selectedPurchase.total_amount || 0) - totalReturnAmount)
-            await must(supabase.from('purchases').update({ total_amount: newPurchaseTotal }).eq('id', selectedPurchase.id))
+            if (!wentOffline) {
+                const { error } = await supabase.from('purchases').update(purchaseUpdate).eq('id', selectedPurchase.id)
+                if (error && !isNetworkError(error)) throw error
+                if (error) wentOffline = true
+            }
+            await db.purchases.update(selectedPurchase.id, purchaseUpdate).catch(() => {})
+            if (wentOffline) await addToSyncQueue('purchases', 'UPDATE', { id: selectedPurchase.id, ...purchaseUpdate })
+            done.total = true
 
-            // If credit purchase, reduce supplier balance
-            if (selectedPurchase.payment_type === 'credit' && selectedPurchase.supplier_id) {
+            // Credit purchase: the returned goods come off what the shop owes the supplier
+            if (isCredit && totalReturnAmount > 0) {
                 const br = await adjustSupplierBalance(selectedPurchase.supplier_id, -totalReturnAmount)
                 if (!br.ok) throw br.error || new Error('Supplier balance update failed')
-
-                // Log payment return in supplier_payments
-                await must(supabase.from('supplier_payments').insert([{
-                    shop_id: user.shop_id,
-                    supplier_id: selectedPurchase.supplier_id,
-                    amount: -totalReturnAmount,
-                    payment_type: 'return',
-                    note: `Return from Purchase PR-${String(selectedPurchase.id).slice(-6)}`
-                }]))
+                done.balance = true
+                let logged = false
+                if (!wentOffline) {
+                    const { error } = await supabase.from('supplier_payments').insert([returnRow])
+                    if (error && !isNetworkError(error)) throw error
+                    logged = !error
+                }
+                if (!logged) {
+                    const localRow = { ...returnRow, id: crypto.randomUUID(), created_at: new Date().toISOString() }
+                    await db.supplier_payments.add(localRow).catch(() => {})
+                    await addToSyncQueue('supplier_payments', 'INSERT', localRow)
+                    wentOffline = true
+                }
             }
 
-            // Audit Log
             await recordAuditLog(
                 'PURCHASE_RETURN',
                 'purchases',
@@ -187,53 +265,29 @@ function PurchaseHistory() {
                 {
                     purchase: selectedPurchase.id,
                     returned_amount: totalReturnAmount,
-                    items: itemsToReturn.map(it => ({ name: it.product_name, qty: returnQtys[it.id] }))
+                    items: itemsToReturn.map(it => ({ name: it.product_name, qty: qtyOf(it) }))
                 },
                 user.id,
                 user.shop_id
             )
 
-            alert('Return successful! Purchase invoice updated.')
-            setReturning(false)
             setReturnQtys({})
-
-            // Re-fetch updated purchase
-            const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).maybeSingle()
-            if (updatedPurchase) setSelectedPurchase(updatedPurchase)
+            if (wentOffline) {
+                alert('Offline mode: Return processed locally. Stock, invoice and supplier balance will sync when online. 🔄')
+                setSelectedPurchase({ ...selectedPurchase, ...purchaseUpdate })
+                const localItems = await db.purchase_items.where({ purchase_id: selectedPurchase.id }).toArray().catch(() => [])
+                if (localItems.length > 0) setPurchaseItems(localItems)
+            } else {
+                alert(`Return successful! Purchase invoice updated.${isCredit ? `\nSupplier balance kam hua: Rs. ${totalReturnAmount.toFixed(0)}` : ''}`)
+                const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).maybeSingle()
+                if (updatedPurchase) setSelectedPurchase(updatedPurchase)
+            }
             fetchPurchases()
         } catch (err) {
-            const errMsg = err?.message || String(err)
-            if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-                // OFFLINE RETURN LOGIC
-                totalReturnAmount = 0
-                for (const item of itemsToReturn) {
-                    const returnQty = parseInt(returnQtys[item.id]) || 0
-                    totalReturnAmount += item.unit_price * returnQty
-
-                    // 1. Update local purchase_item
-                    const newRetQty = (item.returned_qty || 0) + returnQty
-                    await db.purchase_items.update(item.id, { returned_qty: newRetQty })
-                    await db.sync_queue.add({ table: 'purchase_items', action: 'UPDATE', data: { id: item.id, returned_qty: newRetQty }, timestamp: new Date().toISOString() })
-
-                    // 2. Update local stock (subtract for purchase return)
-                    // queued as an atomic change (never replays a stale absolute stock value)
-                    await adjustStock(item.product_id, -returnQty)
-                }
-
-                // Update local purchase total
-                const newPurchaseTotal = Math.max(0, (selectedPurchase.total_amount || 0) - totalReturnAmount)
-                await db.purchases.update(selectedPurchase.id, { total_amount: newPurchaseTotal })
-                await db.sync_queue.add({ table: 'purchases', action: 'UPDATE', data: { id: selectedPurchase.id, total_amount: newPurchaseTotal }, timestamp: new Date().toISOString() })
-
-                alert('Offline mode: Return processed locally. Stock and Invoice updated! 🔄')
-                setReturning(false)
-                setReturnQtys({})
-                setSelectedPurchase({ ...selectedPurchase, total_amount: newPurchaseTotal })
-                fetchPurchases()
-            } else {
-                alert('Error processing return: ' + errMsg)
-                setReturning(false)
-            }
+            const finished = `${done.items}/${itemsToReturn.length} items${done.total ? ', invoice total' : ''}${done.balance ? ', supplier balance' : ''}`
+            alert(`Error processing return: ${err?.message || String(err)}\nCompleted so far: ${finished}. Please check before trying again.`)
+        } finally {
+            setReturning(false)
         }
     }
 
@@ -327,11 +381,24 @@ function PurchaseHistory() {
         let successCount = 0
         let failCount = 0
         const successfulIds = []
+        const effectFailures = []
 
         for (const id of ids) {
             const item = purchases.find(p => p.id === id)
             if (!item) continue
             try {
+                // Line items are needed to take the stock back out and to restore from Trash
+                // (purchase_items are deleted with the purchase by ON DELETE CASCADE).
+                let lineItems = []
+                if (navigator.onLine) {
+                    const { data: remoteItems, error: itemsErr } = await supabase.from('purchase_items').select('*').eq('purchase_id', id)
+                    if (itemsErr) throw itemsErr
+                    lineItems = remoteItems || []
+                }
+                if (lineItems.length === 0) {
+                    lineItems = await db.purchase_items.where({ purchase_id: id }).toArray().catch(() => [])
+                }
+
                 if (navigator.onLine) {
                     const { error } = await supabase.from('purchases').delete().eq('id', id)
                     if (error) {
@@ -340,10 +407,19 @@ function PurchaseHistory() {
                         continue
                     }
                 } else {
+                    for (const it of lineItems) {
+                        await addToSyncQueue('purchase_items', 'DELETE', { id: it.id })
+                    }
                     await addToSyncQueue('purchases', 'DELETE', { id })
                 }
+                await db.purchase_items.where({ purchase_id: id }).delete().catch(() => {})
 
-                await moveToTrash('purchases', id, item, user.id, user.shop_id)
+                // Undo what the purchase did: stock out again, credit amount off the supplier
+                const failed = await applyPurchaseEffects(item, lineItems, 'reverse')
+                if (failed.length) effectFailures.push(`PR-${String(id).slice(-6)}: ${failed.join(', ')}`)
+
+                const clean = (o) => JSON.parse(JSON.stringify(o))
+                await moveToTrash('purchases', id, { ...saleRowOnly(item), __items: clean(lineItems.map(saleRowOnly)) }, user.id, user.shop_id)
                 await db.purchases.delete(id)
                 successfulIds.push(id)
                 successCount++
@@ -351,6 +427,10 @@ function PurchaseHistory() {
                 console.error('Delete error:', err)
                 failCount++
             }
+        }
+
+        if (effectFailures.length) {
+            alert(`Purchases deleted, but some stock/balance reversals failed:\n${effectFailures.join('\n')}\nPlease check these products / suppliers.`)
         }
 
         setPurchases(prev => prev.filter(p => !successfulIds.includes(p.id)))
@@ -377,7 +457,7 @@ function PurchaseHistory() {
         const matchSearch = (p.suppliers?.name || '').toLowerCase().includes(search.toLowerCase()) ||
             String(p.id).toLowerCase().includes(search.toLowerCase())
         const matchPayment = paymentFilter !== 'all' ? p.payment_type === paymentFilter : true
-        const matchDate = dateFilter ? p.created_at?.startsWith(dateFilter) : true
+        const matchDate = dateFilter ? localDateKey(p.created_at) === dateFilter : true
         return matchSearch && matchPayment && matchDate
     })
 
@@ -613,6 +693,7 @@ function PurchaseHistory() {
                                                                     <input
                                                                         type="number"
                                                                         min="0"
+                                                                        step="any"
                                                                         max={maxReturn}
                                                                         value={returnQtys[item.id] || ''}
                                                                         onChange={e => setReturnQtys(prev => ({ ...prev, [item.id]: e.target.value }))}
@@ -660,7 +741,7 @@ function PurchaseHistory() {
                 showPasswordModal && (
                     <PasswordModal
                         title="Delete Purchase(s)"
-                        message={`${pendingDeleteIds.length} purchase(s) will be moved to Trash`}
+                        message={`${pendingDeleteIds.length} purchase(s) will be moved to Trash. Their stock will be taken back out and any credit amount removed from the supplier's balance.`}
                         onConfirm={executeDelete}
                         onCancel={() => { setShowPasswordModal(false); setPendingDeleteIds([]) }}
                     />

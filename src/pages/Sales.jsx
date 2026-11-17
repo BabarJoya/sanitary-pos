@@ -4,12 +4,13 @@ import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly, saleUnpaidAmount, splitReturnRefund } from '../services/integrity'
+import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly, saleUnpaidAmount, splitReturnRefund, toIntId, applyLocalDelta, runTx, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
 import { buildBillHTML } from '../utils/billTemplates'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
+import { localDateKey } from '../utils/dates'
 
 function Sales() {
   const { user } = useAuth()
@@ -164,9 +165,24 @@ function Sales() {
     }
 
     setReturning(true)
+    // Customer's balance right now (a credit bill may have been paid off in the ledger since)
+    let currentBalance = null
+    if (selectedSale.customer_id) {
+      try {
+        if (navigator.onLine) {
+          const { data: c } = await supabase.from('customers').select('outstanding_balance').eq('id', selectedSale.customer_id).maybeSingle()
+          if (c) currentBalance = Number(c.outstanding_balance) || 0
+        }
+        if (currentBalance == null) {
+          const lc = await db.customers.get(selectedSale.customer_id)
+          if (lc) currentBalance = Number(lc.outstanding_balance) || 0
+        }
+      } catch { /* unknown balance: fall back to the bill's own unpaid amount */ }
+    }
     // Refund what the customer actually paid for the goods: the bill discount is shared
     // across items, and unpaid (credit) goods are taken off the balance, not refunded in cash.
     const plan = splitReturnRefund({
+      currentBalance,
       sale: selectedSale,
       saleItems,
       returnLines: itemsToReturn.map(it => ({ unit_price: it.unit_price, qty: qtyOf(it) })),
@@ -180,6 +196,59 @@ function Sales() {
     if (plan.creditPart > 0) refundRows.push({ shop_id: user.shop_id, customer_id: selectedSale.customer_id, amount: -plan.creditPart, payment_type: 'return', note: `Return from ${invoiceTag} (Credited to Balance)` })
     if (plan.cashPart > 0) refundRows.push({ shop_id: user.shop_id, customer_id: selectedSale.customer_id || null, amount: -plan.cashPart, payment_type: 'refund', note: `Cash Refund from ${invoiceTag}` })
     const saleUpdate = { total_amount: plan.newTotal, discount: plan.newDiscount, paid_amount: plan.newPaid }
+
+    // ── One database transaction with a dated return document (sql/transactions_migration.sql) ──
+    // The database applies the same refund rules; reports then count the return on the
+    // day it happened instead of changing the original sale's day.
+    const allSynced = toIntId(selectedSale.id) != null && itemsToReturn.every(it => toIntId(it.id) != null)
+    if (navigator.onLine && allSynced) {
+      const tx = await runTx('process_sale_return', {
+        p_return: {
+          client_ref: crypto.randomUUID(),
+          sale_id: toIntId(selectedSale.id),
+          refund_type: refundType,
+          created_by: user.username,
+          lines: itemsToReturn.map(it => ({ sale_item_id: toIntId(it.id), qty: qtyOf(it) })),
+        }
+      })
+      if (tx.ok) {
+        const doc = tx.data.return || {}
+        if (!tx.data.duplicate) {
+          // Same changes on this device's copy so other screens update at once
+          for (const it of itemsToReturn) {
+            await db.sale_items.update(it.id, { returned_qty: Number(it.returned_qty || 0) + qtyOf(it) }).catch(() => {})
+            if (it.product_id != null) await applyLocalDelta('products', 'stock_quantity', it.product_id, qtyOf(it))
+          }
+          if (Number(doc.credit_refund) > 0 && selectedSale.customer_id) {
+            await applyLocalDelta('customers', 'outstanding_balance', selectedSale.customer_id, -Number(doc.credit_refund))
+          }
+        }
+        await recordAuditLog('SALE_RETURN', 'sales', selectedSale.id, {
+          invoice: selectedSale.id,
+          returned_amount: Number(doc.refund_total) || 0,
+          items: itemsToReturn.map(it => ({ name: it.product_name, qty: qtyOf(it) }))
+        }, user.id, user.shop_id)
+        setReturnQtys({})
+        alert(`Return successful! Invoice updated.\nCash to give back: Rs. ${Number(doc.cash_refund || 0).toFixed(0)}${Number(doc.credit_refund) > 0 ? `\nTaken off customer balance: Rs. ${Number(doc.credit_refund).toFixed(0)}` : ''}`)
+        const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
+        if (updatedSale) { setSelectedSale(updatedSale); await db.sales.put(saleRowOnly(updatedSale)).catch(() => {}) }
+        const { data: updatedItems } = await supabase.from('sale_items').select('*, products(name, stock_quantity)').eq('sale_id', selectedSale.id)
+        if (updatedItems) {
+          const cleanItems = JSON.parse(JSON.stringify(updatedItems))
+          await db.sale_items.bulkPut(cleanItems.map(saleRowOnly)).catch(() => {})
+          setSaleItems(cleanItems)
+        }
+        fetchSales()
+        setReturning(false)
+        return
+      }
+      if (tx.business || (!tx.missing && !tx.network)) {
+        alert('Error processing return: ' + txErrorMessage(tx.error))
+        setReturning(false)
+        return
+      }
+      // missing → database not migrated yet; network → offline steps below
+    }
 
     // Each step is recorded once — if the network drops halfway, the remaining
     // steps are queued instead of re-applying the ones that already succeeded.
@@ -205,7 +274,7 @@ function Sales() {
         }
         if (wentOffline) await applyItemLocally(item)
         // Atomic +qty (queued automatically when offline)
-        const r = await adjustStock(item.product_id, qtyOf(item))
+        const r = await adjustStock(item.product_id, qtyOf(item), { reason: 'sale_return', refTable: 'sales', refId: selectedSale.id, createdBy: user.username, unitCost: item.cost_price })
         if (!r.ok) throw r.error || new Error(`Stock update failed for ${item.product_name}`)
         done.items.add(item.id)
       }
@@ -374,7 +443,7 @@ function Sales() {
       paymentFilter === 'online' ? (sPay !== 'cash' && sPay !== 'credit' && sPay !== 'split' && sPay !== 'quotation') :
       sPay === paymentFilter
     ) : true
-    const matchDate = dateFilter ? s.created_at?.startsWith(dateFilter) : true
+    const matchDate = dateFilter ? localDateKey(s.created_at) === dateFilter : true
     const sTier = s.price_tier === 'wholesale' ? 'wholesale' : 'retail'
     const matchTier = wholesaleEnabled && tierFilter !== 'all' ? sTier === tierFilter : true
     return matchSearch && matchType && matchPayment && matchDate && matchTier

@@ -4,12 +4,14 @@ import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { recordAuditLog } from '../services/auditService'
 import { db, addToSyncQueue } from '../services/db'
-import { adjustStock } from '../services/integrity'
+import { adjustStock, isTempId, isNetworkError } from '../services/integrity'
+import { isLowStock, isCriticalStock, getLowStockThreshold } from '../utils/stockRules'
 import * as XLSX from 'xlsx'
 import { generatePurchaseOrderPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
+import StocktakeModal from '../components/StocktakeModal'
 
 function Inventory() {
   const { user } = useAuth()
@@ -28,11 +30,13 @@ function Inventory() {
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false)
   const [bulkBrand, setBulkBrand] = useState('')
   const [bulkPercent, setBulkPercent] = useState('')
+  const [bulkRound, setBulkRound] = useState('1')
   const [bulkAction, setBulkAction] = useState('increase')
   const [showBulkEditor, setShowBulkEditor] = useState(false)
   const [editingProducts, setEditingProducts] = useState([])
   const [historyProduct, setHistoryProduct] = useState(null)
   const [historyLogs, setHistoryLogs] = useState([])
+  const [showStocktake, setShowStocktake] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   const handleExport = () => {
@@ -51,7 +55,7 @@ function Inventory() {
       ...(wholesaleEnabled ? { 'Wholesale Price': p.wholesale_price || 0 } : {}),
       'Cost Price': user.role === 'admin' ? p.cost_price : 'HIDDEN',
       'Stock': p.stock_quantity,
-      'Status': p.stock_quantity <= (p.low_stock_threshold || 10) ? 'LOW' : 'In Stock'
+      'Status': isLowStock(p, categories) ? 'LOW' : 'In Stock'
     }))
 
     const ws = XLSX.utils.json_to_sheet(exportData)
@@ -95,8 +99,8 @@ function Inventory() {
               <td>${p.brand || '-'}</td>
               <td>Rs. ${p.sale_price}</td>
               <td>${p.stock_quantity}</td>
-              <td><span class="${p.stock_quantity <= (p.low_stock_threshold || 10) ? 'low-stock' : ''}">
-                ${p.stock_quantity <= (p.low_stock_threshold || 10) ? 'LOW STOCK' : 'In Stock'}
+              <td><span class="${isLowStock(p, categories) ? 'low-stock' : ''}">
+                ${isLowStock(p, categories) ? 'LOW STOCK' : 'In Stock'}
               </span></td>
             </tr>
           `).join('')}
@@ -109,7 +113,7 @@ function Inventory() {
 
   const handleReorderWhatsApp = async (e) => {
     const btn = e?.currentTarget
-    const lowItems = products.filter(p => p.stock_quantity <= (p.low_stock_threshold || 10))
+    const lowItems = products.filter(p => isLowStock(p, categories))
     if (lowItems.length === 0) { alert('Koi bhi product low stock mein nahi hai!'); return }
 
     // Group by supplier
@@ -141,7 +145,7 @@ function Inventory() {
 
       if (supplierNames.length === 1) {
         const sup = bySupplier[supplierNames[0]]
-        const itemList = sup.items.map(p => `• ${p.name} (Stock: ${p.stock_quantity}, Need: ${Math.max(0, (p.low_stock_threshold || 10) * 2 - p.stock_quantity)})`).join('\n')
+        const itemList = sup.items.map(p => `• ${p.name} (Stock: ${p.stock_quantity}, Need: ${Math.max(0, getLowStockThreshold(p, categories) * 2 - p.stock_quantity)})`).join('\n')
         const msg = applyTemplate(supplierNames[0], itemList)
         let phone = (sup.phone || '').replace(/[^0-9]/g, '')
         if (phone.startsWith('03')) phone = '92' + phone.substring(1)
@@ -313,7 +317,7 @@ function Inventory() {
     }
     const matchCat = selectedCategory ? String(p.category_id) === String(selectedCategory) : true
     const matchBrand = selectedBrand ? String(p.brand) === String(selectedBrand) : true
-    const matchLow = showLowStockOnly ? p.stock_quantity <= (p.low_stock_threshold || 10) : true
+    const matchLow = showLowStockOnly ? isLowStock(p, categories) : true
     return matchSearch && matchCat && matchBrand && matchLow
   })
 
@@ -323,132 +327,80 @@ function Inventory() {
     ...products.map(p => p.brand?.trim())
   ])).filter(Boolean).sort((a, b) => a.localeCompare(b))
 
-  // Valuation
-  const totalCostValue = products.reduce((sum, p) => sum + (p.cost_price || 0) * p.stock_quantity, 0)
-  const totalSaleValue = products.reduce((sum, p) => sum + (p.sale_price || 0) * p.stock_quantity, 0)
+  // Valuation (negative stock is a data problem, not negative value)
+  const totalCostValue = products.reduce((sum, p) => sum + (Number(p.cost_price) || 0) * Math.max(0, Number(p.stock_quantity) || 0), 0)
+  const totalSaleValue = products.reduce((sum, p) => sum + (Number(p.sale_price) || 0) * Math.max(0, Number(p.stock_quantity) || 0), 0)
   const totalProfitValue = totalSaleValue - totalCostValue
-  const lowStockCount = products.filter(p => p.stock_quantity <= (p.low_stock_threshold || 10)).length
-  const criticalStockCount = products.filter(p => p.stock_quantity <= 5).length
+  const lowStockCount = products.filter(p => isLowStock(p, categories)).length
+  const criticalStockCount = products.filter(p => isCriticalStock(p, categories)).length
 
+  // Stock count: the user enters what is on the shelf. The difference from the
+  // server's current stock is applied as an atomic change, so sales made on other
+  // devices since this screen loaded are not overwritten.
   const handleAdjustStock = async (e) => {
     e.preventDefault()
     if (!selectedProduct || newStock === '') return
-
+    const counted = Number(newStock)
+    if (!Number.isFinite(counted)) { alert('Sahi quantity likhein.'); return }
+    setSaving(true)
     try {
-      if (!navigator.onLine) throw new TypeError('Failed to fetch')
-
-      const { error } = await supabase
-        .from('products')
-        .update({ stock_quantity: parseInt(newStock) })
-        .eq('id', selectedProduct.id)
-
-      if (error) throw error
-
-      // Audit Log
-      recordAuditLog(
-        'STOCK_ADJUSTMENT',
-        'products',
-        selectedProduct.id,
-        {
-          product: selectedProduct.name,
-          old_stock: selectedProduct.stock_quantity,
-          new_stock: parseInt(newStock),
-          note: adjustmentNote || 'Manual adjustment'
-        },
-        user.id,
-        user.shop_id
-      )
+      let current = Number(selectedProduct.stock_quantity) || 0
+      if (navigator.onLine && !isTempId(String(selectedProduct.id))) {
+        const { data: live, error } = await supabase.from('products').select('stock_quantity').eq('id', selectedProduct.id).maybeSingle()
+        if (error && !isNetworkError(error)) throw error
+        if (live) current = Number(live.stock_quantity) || 0
+      } else {
+        const local = await db.products.get(selectedProduct.id)
+        if (local) current = Number(local.stock_quantity) || 0
+      }
+      const delta = Math.round((counted - current) * 1000) / 1000
+      if (delta !== 0) {
+        const r = await adjustStock(selectedProduct.id, delta, { reason: 'stocktake', note: adjustmentNote || 'Manual stock count', createdBy: user.username })
+        if (!r.ok) throw r.error || new Error('Stock update failed')
+      }
+      await recordAuditLog('STOCK_ADJUSTMENT', 'products', selectedProduct.id, {
+        product: selectedProduct.name,
+        old_stock: current,
+        new_stock: counted,
+        change: delta,
+        note: adjustmentNote || 'Manual stock count'
+      }, user.id, user.shop_id)
 
       setSelectedProduct(null)
       setNewStock('')
       setAdjustmentNote('')
       fetchInventory()
+      if (!navigator.onLine) alert('Offline mode: Stock adjusted locally. Will sync when online! 🔄')
     } catch (err) {
-      const errMsg = err?.message || String(err)
-      if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-        const updatedProduct = { ...selectedProduct, stock_quantity: parseInt(newStock) }
-        await db.products.update(selectedProduct.id, { stock_quantity: parseInt(newStock) })
-        await addToSyncQueue('products', 'UPDATE', updatedProduct)
-
-        setSelectedProduct(null)
-        setNewStock('')
-        fetchInventory()
-        alert('Offline mode: Stock adjusted locally. Will sync when online! 🔄')
-      } else {
-        alert('Error updating stock: ' + errMsg)
-      }
+      alert('Error updating stock: ' + (err?.message || String(err)))
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
+  // Goods brought back without a bill: stock goes up by an atomic change. No money is
+  // recorded here — for a refund, return the items from Sales → the invoice.
   const handleRecordReturn = async (e) => {
     e.preventDefault()
     if (!returnProduct || !returnProduct.id || returnQty === '') return
+    const qty = Number(returnQty)
+    if (!(qty > 0)) { alert('Quantity 0 se zyada honi chahiye.'); return }
 
     setSaving(true)
-    const qty = parseInt(returnQty)
-    let currentStock = 0
-
     try {
-      if (!navigator.onLine) throw new TypeError('Failed to fetch')
-
-      // 1. Fetch latest stock to ensure accuracy
-      const { data: latest, error: fetchError } = await supabase
-        .from('products')
-        .select('stock_quantity')
-        .eq('id', returnProduct.id)
-        .maybeSingle()
-
-      if (fetchError || !latest) throw new Error('Product not found')
-      currentStock = latest.stock_quantity || 0
-      const newTotal = currentStock + qty
-
-      // 2. Update stock
-      const { error: updateError } = await supabase
-        .from('products')
-        .update({ stock_quantity: newTotal })
-        .eq('id', returnProduct.id)
-
-      if (updateError) throw updateError
-
-      // 3. Audit Log
-      await recordAuditLog(
-        'PRODUCT_RETURN',
-        'products',
-        returnProduct.id,
-        {
-          product: returnProduct.name,
-          old_stock: currentStock,
-          new_stock: newTotal,
-          return_qty: qty,
-          note: 'Recorded product return (Robust Update)'
-        },
-        user.id,
-        user.shop_id
-      )
-
-      alert(`Success! ${qty} units returned. New stock: ${newTotal}`)
+      const r = await adjustStock(returnProduct.id, qty, { reason: 'other', note: 'Returned without a bill', createdBy: user.username })
+      if (!r.ok) throw r.error || new Error('Stock update failed')
+      await recordAuditLog('PRODUCT_RETURN', 'products', returnProduct.id, {
+        product: returnProduct.name,
+        return_qty: qty,
+        note: 'Stock returned without a bill (no refund recorded)'
+      }, user.id, user.shop_id)
+      alert(`${qty} units stock mein wapas aa gaye.${r.queued ? ' Online hone par sync hoga. 🔄' : ''}\nRefund dena ho to Sales → invoice se return karein.`)
       setReturnProduct(null)
       setReturnQty('')
       fetchInventory()
     } catch (err) {
-      const errMsg = err?.message || String(err)
-      if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
-        // Offline Fallback for returns
-        const localProd = await db.products.get(returnProduct.id)
-        currentStock = localProd?.stock_quantity || 0
-        const newTotal = currentStock + qty
-
-        // Queue only the stock change — replaying the whole product row would overwrite newer prices/stock
-        await adjustStock(returnProduct.id, qty)
-
-        alert(`Offline mode: ${qty} units returned locally. New stock: ${newTotal}. Will sync later! 🔄`)
-        setReturnProduct(null)
-        setReturnQty('')
-        fetchInventory()
-      } else {
-        alert('Error recording return: ' + errMsg)
-      }
+      alert('Error recording return: ' + (err?.message || String(err)))
     } finally {
       setSaving(false)
     }
@@ -458,7 +410,25 @@ function Inventory() {
     setHistoryProduct(product)
     setLoadingHistory(true)
     try {
-      // Fetch from local DB for speed and offline support
+      // Stock movement history (sql/transactions_migration.sql): every change with its reason
+      if (navigator.onLine && !isTempId(String(product.id))) {
+        const { data: moves, error: mErr } = await supabase.from('stock_movements')
+          .select('*').eq('product_id', product.id).order('created_at', { ascending: false }).limit(300)
+        if (!mErr && moves && moves.length > 0) {
+          const label = { sale: 'SALE', purchase: 'PURCHASE', sale_return: 'RETURN IN', purchase_return: 'RETURN OUT', stocktake: 'COUNT', adjustment: 'ADJUST', sale_delete: 'SALE DELETED', purchase_delete: 'PURCHASE DELETED', restore: 'RESTORED' }
+          setHistoryLogs(moves.map(m => ({
+            date: m.created_at,
+            type: label[m.reason] || 'OTHER',
+            desc: `${Number(m.qty_change) > 0 ? '+' : ''}${Number(m.qty_change)} → stock ${m.stock_after ?? '?'}`
+              + (m.unit_cost != null ? ` · cost Rs. ${Number(m.unit_cost)}` : '')
+              + (m.ref_table ? ` · ${m.ref_table === 'sales' ? 'Invoice' : 'PR'} #${String(m.ref_id || '').slice(-6)}` : '')
+              + (m.note ? ` · ${m.note}` : '')
+              + (m.created_by ? ` · by ${m.created_by}` : ''),
+          })))
+          return
+        }
+      }
+      // Older data / offline: rebuild from this device's saved records
       const [logs, sales, purchases] = await Promise.all([
         db.audit_logs.where('entity_id').equals(product.id).toArray(),
         db.sale_items.where('product_id').equals(product.id).toArray(),
@@ -542,10 +512,14 @@ function Inventory() {
     setSaving(true)
     const factor = bulkAction === 'increase' ? (1 + parseFloat(bulkPercent) / 100) : (1 - parseFloat(bulkPercent) / 100)
 
-    // Scaled prices for one product (wholesale included only when the shop uses Wholesale Mode)
+    // A company rate change moves the list (C.Rate) and selling prices. The cost of
+    // stock already bought does not change — it updates on the next purchase.
+    const step = Number(bulkRound) || 1
+    const roundTo = (v) => Math.round(v / step) * step
     const scaled = (p) => {
-      const out = { cost_price: Math.round((p.cost_price || 0) * factor), sale_price: Math.round((p.sale_price || 0) * factor) }
-      if (wholesaleEnabled && Number(p.wholesale_price) > 0) out.wholesale_price = Math.round(Number(p.wholesale_price) * factor)
+      const out = { sale_price: roundTo((Number(p.sale_price) || 0) * factor) }
+      if (Number(p.c_rate) > 0) out.c_rate = roundTo(Number(p.c_rate) * factor)
+      if (wholesaleEnabled && Number(p.wholesale_price) > 0) out.wholesale_price = roundTo(Number(p.wholesale_price) * factor)
       return out
     }
 
@@ -561,8 +535,8 @@ function Inventory() {
           if (error) throw error
 
           await recordAuditLog('PRICE_CHANGE_BULK', 'products', p.id, {
-            old: { cost: p.cost_price, sale: p.sale_price, ...(upd.wholesale_price != null ? { wholesale: p.wholesale_price } : {}) },
-            new: { cost: upd.cost_price, sale: upd.sale_price, ...(upd.wholesale_price != null ? { wholesale: upd.wholesale_price } : {}) },
+            old: { c_rate: p.c_rate, sale: p.sale_price, ...(upd.wholesale_price != null ? { wholesale: p.wholesale_price } : {}) },
+            new: { c_rate: upd.c_rate ?? p.c_rate, sale: upd.sale_price, ...(upd.wholesale_price != null ? { wholesale: upd.wholesale_price } : {}) },
             percent: bulkPercent,
             action: bulkAction
           }, user.id, user.shop_id)
@@ -734,6 +708,14 @@ function Inventory() {
             </button>
             {(user.role === 'admin' || user.role === 'manager') && (
               <button
+                onClick={() => setShowStocktake(true)}
+                className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+              >
+                📋 Stock Count
+              </button>
+            )}
+            {(user.role === 'admin' || user.role === 'manager') && (
+              <button
                 onClick={() => setReturnProduct({})}
                 className="px-3 py-1.5 bg-warning hover:bg-warning-hover text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
               >
@@ -792,8 +774,8 @@ function Inventory() {
           ) : filtered.length === 0 ? (
             <p className="px-6 py-10 text-center text-fg-subtle italic text-lg">No products found matching criteria.</p>
           ) : filtered.map(p => {
-            const isLow = p.stock_quantity <= (p.low_stock_threshold || 10)
-            const isCritical = p.stock_quantity <= 5
+            const isLow = isLowStock(p, categories)
+            const isCritical = isCriticalStock(p, categories)
             const isZero = p.stock_quantity <= 0
             return (
               <div key={p.id} className="p-4">
@@ -862,8 +844,8 @@ function Inventory() {
               ) : filtered.length === 0 ? (
                 <tr><td colSpan="8" className="px-6 py-10 text-center text-fg-subtle italic text-lg">No products found matching criteria.</td></tr>
               ) : filtered.map(p => {
-                const isLow = p.stock_quantity <= (p.low_stock_threshold || 10)
-                const isCritical = p.stock_quantity <= 5
+                const isLow = isLowStock(p, categories)
+                const isCritical = isCriticalStock(p, categories)
                 const isZero = p.stock_quantity <= 0
                 return (
                   <tr key={p.id} className="hover:bg-surface-2 transition">
@@ -941,6 +923,7 @@ function Inventory() {
                 <label className="block text-fg-2 font-medium mb-1">New Stock Quantity</label>
                 <input
                   type="number"
+                  step="any"
                   autoFocus
                   required
                   value={newStock}
@@ -1012,8 +995,9 @@ function Inventory() {
                 <label className="block text-fg-2 font-medium mb-1">Return Quantity</label>
                 <input
                   type="number"
+                  step="any"
                   required
-                  min="1"
+                  min="0"
                   value={returnQty}
                   onChange={e => setReturnQty(e.target.value)}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none"
@@ -1094,9 +1078,18 @@ function Inventory() {
                 </div>
               </div>
 
+              <div>
+                <label htmlFor="bulk-round" className="block text-sm font-bold text-fg-2 mb-1">Round new prices to</label>
+                <select id="bulk-round" value={bulkRound} onChange={e => setBulkRound(e.target.value)} className="input w-full">
+                  <option value="1">Nearest Rs 1</option>
+                  <option value="5">Nearest Rs 5</option>
+                  <option value="10">Nearest Rs 10</option>
+                </select>
+              </div>
+
               <div className="bg-info-soft p-4 rounded-xl border border-info-muted mb-2">
                 <p className="text-xs text-info-strong font-medium leading-relaxed">
-                  <b>Note:</b> Both Cost Price and Sale Price will be updated. Values will be rounded to the nearest integer.
+                  <b>Note:</b> C.Rate (list price), Sale Price{wholesaleEnabled ? ' and Wholesale Price' : ''} change. Cost Price stays as it is — stock already bought keeps its cost; the next purchase updates it.
                 </p>
               </div>
 
@@ -1160,6 +1153,15 @@ function Inventory() {
             </div>
           </div>
         </div>
+      )}
+
+      {showStocktake && (
+        <StocktakeModal
+          products={filtered}
+          user={user}
+          onClose={() => setShowStocktake(false)}
+          onDone={() => { setShowStocktake(false); fetchInventory() }}
+        />
       )}
 
       {/* Bulk Price Editor Modal */}

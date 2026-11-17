@@ -54,6 +54,17 @@ export async function applyLocalDelta(table, column, id, delta) {
   }
 }
 
+// v2 functions (sql/transactions_migration.sql) take an op id so a replay after a
+// lost response is applied only once, and log stock movements. Remember per page
+// load whether they exist so an un-migrated database is not asked every time.
+let v2Available = null
+
+const V2_EXTRA = {
+  adjust_product_stock: ['p_op_id', 'p_reason', 'p_ref_table', 'p_ref_id', 'p_note', 'p_created_by', 'p_unit_cost'],
+  adjust_customer_balance: ['p_op_id'],
+  adjust_supplier_balance: ['p_op_id'],
+}
+
 /**
  * Run an atomic delta RPC online. Used by both the app and the sync queue.
  * Returns { ok: true } on success, { ok: false, network: true } when it
@@ -66,6 +77,16 @@ export async function runDeltaRpc(fn, params) {
   const id = toIntId(params[target.idParam])
   if (id == null) return { ok: false, error: new Error(`${fn}: record not synced yet`), pendingRef: true }
   if (delta === 0) return { ok: true }
+
+  if (v2Available !== false && params.p_op_id) {
+    const v2Params = { [target.idParam]: id, p_delta: delta }
+    for (const k of V2_EXTRA[fn]) if (params[k] != null) v2Params[k] = params[k]
+    const { error } = await supabase.rpc(`${fn}_v2`, v2Params)
+    if (!error) { v2Available = true; return { ok: true } }
+    if (isNetworkError(error)) return { ok: false, network: true, error }
+    if (!isMissingFunction(error)) return { ok: false, error }
+    v2Available = false // not migrated yet → v1 below
+  }
 
   const { error } = await supabase.rpc(fn, { [target.idParam]: id, p_delta: delta })
   if (!error) return { ok: true }
@@ -87,17 +108,27 @@ export async function runDeltaRpc(fn, params) {
 }
 
 // Online when possible, otherwise queued. Local copy is always updated once.
-async function adjust(fn, id, delta) {
+// meta (stock only): { reason, refTable, refId, note, createdBy, unitCost } for the movement history
+async function adjust(fn, id, delta, meta = {}) {
   const target = RPC_TARGETS[fn]
   const d = Number(delta) || 0
   if (!d || id == null || id === '') return { ok: true }
-  const params = { [target.idParam]: id, p_delta: d }
+  const params = { [target.idParam]: id, p_delta: d, p_op_id: crypto.randomUUID() }
+  if (fn === 'adjust_product_stock') {
+    if (meta.reason) params.p_reason = meta.reason
+    if (meta.refTable) params.p_ref_table = meta.refTable
+    if (meta.refId != null) params.p_ref_id = String(meta.refId)
+    if (meta.note) params.p_note = meta.note
+    if (meta.createdBy) params.p_created_by = meta.createdBy
+    if (meta.unitCost != null) params.p_unit_cost = Number(meta.unitCost)
+  }
 
   let result = { ok: false, network: true }
   if (navigator.onLine && !isTempId(String(id))) {
     result = await runDeltaRpc(fn, params)
   }
   if (!result.ok && (result.network || isTempId(String(id)))) {
+    // Same op id on replay → the server applies it at most once
     await addToSyncQueue(fn, 'RPC', params)
     result = { ok: true, queued: true }
   }
@@ -105,9 +136,40 @@ async function adjust(fn, id, delta) {
   return result
 }
 
-export const adjustStock = (productId, delta) => adjust('adjust_product_stock', productId, delta)
+export const adjustStock = (productId, delta, meta) => adjust('adjust_product_stock', productId, delta, meta)
 export const adjustCustomerBalance = (customerId, delta) => adjust('adjust_customer_balance', customerId, delta)
 export const adjustSupplierBalance = (supplierId, delta) => adjust('adjust_supplier_balance', supplierId, delta)
+
+// ── One-transaction operations (sql/transactions_migration.sql) ─────────────
+// complete_sale, complete_purchase, process_sale_return, process_purchase_return.
+// Availability is remembered on this device so an offline action can be queued
+// as one transaction when the database is known to support it.
+const TX_FLAG = 'edgex_tx_rpc'
+export const txKnownAvailable = () => { try { return localStorage.getItem(TX_FLAG) === '1' } catch { return false } }
+const setTxFlag = (v) => { try { localStorage.setItem(TX_FLAG, v ? '1' : '0') } catch { /* storage unavailable */ } }
+
+/**
+ * Returns { ok: true, data } | { ok: false, missing: true } (not migrated: use the
+ * step-by-step path) | { ok: false, network: true } | { ok: false, error, business }
+ * (business = a rule the database refused, e.g. not enough stock).
+ */
+export async function runTx(fn, params) {
+  const { data, error } = await supabase.rpc(fn, params)
+  if (!error) { setTxFlag(true); return { ok: true, data } }
+  if (isNetworkError(error)) return { ok: false, network: true, error }
+  if (isMissingFunction(error)) { setTxFlag(false); return { ok: false, missing: true, error } }
+  return { ok: false, error, business: error.code === 'P0001' }
+}
+
+// Turn a database refusal into a short message for the cashier
+export function txErrorMessage(err) {
+  const msg = String(err?.message || err || '')
+  const short = msg.match(/insufficient_stock: (.*)/)
+  if (short) return `Stock kam hai: ${short[1]}. Stock dobara check karein.`
+  const many = msg.match(/return_too_many: (.*)/)
+  if (many) return `Itni quantity wapas nahi ho sakti: ${many[1]}.`
+  return msg
+}
 
 // Unique-violation on client_ref means the row already exists (earlier attempt
 // reached the server). Fetch it instead of creating a duplicate.
@@ -155,13 +217,49 @@ export async function applySaleEffects(sale, items, direction) {
   for (const it of items || []) {
     const remaining = Number(it.quantity || 0) - Number(it.returned_qty || 0)
     if (remaining <= 0 || it.product_id == null) continue
-    const r = await adjustStock(it.product_id, sign * remaining)
+    const r = await adjustStock(it.product_id, sign * remaining, { reason: direction === 'reverse' ? 'sale_delete' : 'restore', refTable: 'sales', refId: sale.id, unitCost: it.cost_price })
     if (!r.ok) failed.push(it.product_name || `product ${it.product_id}`)
   }
   const unpaid = saleUnpaidAmount(sale)
   if (sale.customer_id && unpaid > 0) {
     const r = await adjustCustomerBalance(sale.customer_id, -sign * unpaid)
     if (!r.ok) failed.push('customer balance')
+  }
+  return failed
+}
+
+// ── Purchase delete / restore ────────────────────────────────────────
+// A purchase added its (un-returned) stock and, when bought on credit, raised the
+// supplier balance by what is still unpaid. Deleting it must undo both; restoring
+// it from Trash applies them again.
+
+// Amount the purchase added to the supplier balance (0 for a cash purchase)
+export function purchaseUnpaidAmount(purchase) {
+  if (purchase?.payment_type !== 'credit') return 0
+  const total = Number(purchase?.total_amount || 0)
+  const paid = Math.min(total, Number(purchase?.paid_amount || 0))
+  return Math.max(0, total - paid)
+}
+
+/**
+ * direction = 'reverse' (purchase deleted: stock out, supplier balance down)
+ *           | 'apply'   (purchase restored: stock in, supplier balance up)
+ * Returns the names of updates that failed.
+ */
+export async function applyPurchaseEffects(purchase, items, direction) {
+  if (!purchase) return []
+  const sign = direction === 'reverse' ? -1 : 1
+  const failed = []
+  for (const it of items || []) {
+    const remaining = Number(it.quantity || 0) - Number(it.returned_qty || 0)
+    if (remaining <= 0 || it.product_id == null) continue
+    const r = await adjustStock(it.product_id, sign * remaining, { reason: direction === 'reverse' ? 'purchase_delete' : 'restore', refTable: 'purchases', refId: purchase.id })
+    if (!r.ok) failed.push(it.product_name || `product ${it.product_id}`)
+  }
+  const unpaid = purchaseUnpaidAmount(purchase)
+  if (purchase.supplier_id && unpaid > 0) {
+    const r = await adjustSupplierBalance(purchase.supplier_id, sign * unpaid)
+    if (!r.ok) failed.push('supplier balance')
   }
   return failed
 }
@@ -175,9 +273,11 @@ export async function applySaleEffects(sale, items, direction) {
  *   refund goes to the balance (store credit).
  * Returns the refund split plus the sale's new total / discount / paid_amount.
  */
-export function splitReturnRefund({ sale, saleItems, returnLines, refundType, unpaidOnSale }) {
+export function splitReturnRefund({ sale, saleItems, returnLines, refundType, unpaidOnSale, currentBalance = null }) {
   const round2 = (n) => Math.round(n * 100) / 100
-  const gross = (saleItems || []).reduce((s, it) => s + Number(it.unit_price || 0) * Number(it.quantity || 0), 0)
+  // Goods not returned yet carry the discount that is left (an earlier return already
+  // took its share off sale.discount), so a second return from the same bill is not over-refunded.
+  const gross = (saleItems || []).reduce((s, it) => s + Number(it.unit_price || 0) * (Number(it.quantity || 0) - Number(it.returned_qty || 0)), 0)
   const discount = Number(sale?.discount || 0)
   const ratio = gross > 0 ? Math.min(1, Math.max(0, discount / gross)) : 0
   const returnGross = (returnLines || []).reduce((s, l) => s + Number(l.unit_price || 0) * Number(l.qty || 0), 0)
@@ -187,7 +287,10 @@ export function splitReturnRefund({ sale, saleItems, returnLines, refundType, un
   const hasCustomer = !!sale?.customer_id
   let creditPart = 0
   if (hasCustomer) {
-    creditPart = refundType === 'credit' ? refund : Math.min(refund, Math.max(0, Number(unpaidOnSale || 0)))
+    // Unpaid goods come off the balance — but if the customer has since paid the bill
+    // through the ledger, only what they still owe can be taken off; the rest is cash.
+    const stillOwed = currentBalance == null ? Infinity : Math.max(0, Number(currentBalance) || 0)
+    creditPart = refundType === 'credit' ? refund : Math.min(refund, Math.max(0, Number(unpaidOnSale || 0)), stillOwed)
   }
   creditPart = round2(creditPart)
   const cashPart = round2(refund - creditPart)

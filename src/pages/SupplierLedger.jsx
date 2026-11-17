@@ -3,10 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { db } from '../services/db'
-import { adjustSupplierBalance, adjustStock, must } from '../services/integrity'
+import { db, addToSyncQueue } from '../services/db'
+import { adjustSupplierBalance, adjustStock, must, isNetworkError, purchaseUnpaidAmount } from '../services/integrity'
+import { supplierLedgerDelta, withRunningBalance, paymentRowType, openingRow } from '../utils/ledgerMath'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import { todayLocal, entryTimestamp } from '../utils/dates'
 
 function SupplierLedger() {
     const { id } = useParams()
@@ -31,7 +33,7 @@ function SupplierLedger() {
     // Transaction entry form
     const [txForm, setTxForm] = useState({
         bill_number: '',
-        date: new Date().toISOString().slice(0, 10),
+        date: todayLocal(),
         purchase_amount: '',
         paid_amount: '',
         details: '',
@@ -87,6 +89,7 @@ function SupplierLedger() {
                 date: p.created_at,
                 type: 'purchase',
                 payment_type: p.payment_type,
+                paid_amount: p.paid_amount,
                 bill_number: '',
                 amount: p.total_amount,
                 note: `Bill #${String(p.id).slice(-8)}`,
@@ -95,7 +98,7 @@ function SupplierLedger() {
             ...payments.map(p => ({
                 id: p.id,
                 date: p.created_at,
-                type: p.payment_type === 'debit' ? 'debit' : p.payment_type === 'return' ? 'return' : 'payment',
+                type: paymentRowType(p),
                 payment_type: p.payment_type,
                 bill_number: p.bill_number || '',
                 amount: p.amount,
@@ -108,12 +111,7 @@ function SupplierLedger() {
         ]
         combined.sort((a, b) => new Date(a.date) - new Date(b.date))
 
-        let running = 0
-        const withBalance = combined.map(item => {
-            if (item.type === 'purchase' || item.type === 'debit') running += Number(item.amount)
-            else running -= Math.abs(Number(item.amount))
-            return { ...item, balance: running }
-        })
+        const withBalance = withRunningBalance(combined, supplierLedgerDelta)
         setLedger(withBalance.reverse())
     }
 
@@ -132,7 +130,7 @@ function SupplierLedger() {
         }
 
         setSaving(true)
-        const now = txForm.date ? new Date(txForm.date + 'T12:00:00').toISOString() : new Date().toISOString()
+        const now = entryTimestamp(txForm.date)
 
         try {
             if (!navigator.onLine) throw new TypeError('Failed to fetch')
@@ -196,7 +194,7 @@ function SupplierLedger() {
     }
 
     const resetForm = () => {
-        setTxForm({ bill_number: '', date: new Date().toISOString().slice(0, 10), purchase_amount: '', paid_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })
+        setTxForm({ bill_number: '', date: todayLocal(), purchase_amount: '', paid_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })
         setShowModal(false)
     }
 
@@ -229,12 +227,14 @@ function SupplierLedger() {
             for (const it of lineItems) {
                 const remaining = Number(it.quantity || 0) - Number(it.returned_qty || 0)
                 if (remaining > 0 && it.product_id != null) {
-                    const r = await adjustStock(it.product_id, -remaining)
+                    const r = await adjustStock(it.product_id, -remaining, { reason: 'purchase_delete', refTable: 'purchases', refId: item.id, createdBy: user.username })
                     if (!r.ok) failed.push(it.product_name || `product ${it.product_id}`)
                 }
             }
-            if (item.payment_type === 'credit') {
-                const r = await adjustSupplierBalance(id, -Number(item.amount))
+            // Only the part still owed had raised the supplier balance
+            const unpaid = purchaseUnpaidAmount({ payment_type: item.payment_type, total_amount: item.amount, paid_amount: item.paid_amount })
+            if (unpaid > 0) {
+                const r = await adjustSupplierBalance(id, -unpaid)
                 if (!r.ok) failed.push('supplier balance')
             }
             return failed
@@ -248,7 +248,10 @@ function SupplierLedger() {
             await db.supplier_payments.delete(item.id)
             await db.sync_queue.add({ table: 'supplier_payments', action: 'DELETE', data: { id: item.id }, timestamp: new Date().toISOString() })
         }
-        const delta = (item.type === 'debit') ? -Number(item.amount) : +Math.abs(Number(item.amount))
+        // Undo exactly what this line did. A return row is a record only (the purchase
+        // total itself was reduced), so deleting it leaves the balance alone.
+        const delta = -supplierLedgerDelta(item)
+        if (!delta) return failed
         const r = await adjustSupplierBalance(id, delta)
         if (!r.ok) failed.push('supplier balance')
         return failed
@@ -260,7 +263,7 @@ function SupplierLedger() {
             : item.type === 'payment' ? 'Payment'
             : 'Return'
         const confirmed = window.confirm(
-            `Yeh transaction delete karein?\n\nType: ${typeLabel}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\nSupplier balance bhi adjust ho ga.`
+            `Yeh transaction delete karein?\n\nType: ${typeLabel}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\n${item.type === 'return' ? 'Yeh sirf record hai — balance change nahi hoga (purchase pehle hi kam ho chuki hai).' : 'Supplier balance bhi adjust ho ga.'}`
         )
         if (!confirmed) return
 
@@ -430,10 +433,52 @@ function SupplierLedger() {
         fetchSupplierData()
     }
 
+    // Stored balance that the ledger lines do not explain — usually old dues from
+    // before the shop started using the app (Excel import / add form)
+    const ledgerSum = ledger.length > 0 ? ledger[0].balance : 0
+    const balanceGap = supplier ? Math.round((Number(supplier.outstanding_balance || 0) - ledgerSum) * 100) / 100 : 0
+    const canFixGap = user?.role === 'admin' || user?.role === 'manager'
+
+    const recordOpeningGap = async () => {
+        if (!supplier || Math.abs(balanceGap) < 1) return
+        if (!confirm(`Rs. ${balanceGap.toLocaleString()} ko "Opening Balance (purani dues)" ke taur par ledger mein darj karein? Supplier ka balance change NAHI hoga — sirf ledger mein entry aayegi.`)) return
+        const first = ledger.length ? ledger[ledger.length - 1].date : (supplier.created_at || new Date().toISOString())
+        const date = new Date(new Date(first).getTime() - 1000).toISOString() // just before the first entry
+        const row = openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: supplier.id, amount: balanceGap, date })
+        try {
+            let saved = false
+            if (navigator.onLine) {
+                const { error } = await supabase.from('supplier_payments').insert([row])
+                if (error && !isNetworkError(error)) throw error
+                saved = !error
+            }
+            if (!saved) {
+                const localRow = { ...row, id: crypto.randomUUID() }
+                await db.supplier_payments.add(localRow)
+                await addToSyncQueue('supplier_payments', 'INSERT', localRow)
+            }
+            fetchSupplierData()
+        } catch (err) {
+            alert('Opening balance save nahi hua: ' + (err?.message || String(err)))
+        }
+    }
+
     const handleReconcileBalance = async () => {
         if (!ledger.length && supplier?.outstanding_balance === 0) return
         const computedBalance = ledger.length > 0 ? ledger[0].balance : 0
-        const confirmed = confirm(`Balance Reconcile Karein?\n\nPresent Stored Balance: Rs. ${supplier?.outstanding_balance || 0}\nCalculated Ledger Sum: Rs. ${computedBalance}\n\nSupplier balance transaction ledger ke mutabiq sync ho jayega.`)
+        // Admin only. The ledger does not list opening balances that came from an Excel
+        // import or the add form, so overwriting the stored balance can erase real dues.
+        if (user?.role !== 'admin') return
+        const storedBal = Number(supplier?.outstanding_balance || 0)
+        const confirmed = confirm(`Balance Reconcile Karein?
+
+Present Stored Balance: Rs. ${storedBal}
+Calculated Ledger Sum: Rs. ${computedBalance}
+Difference: Rs. ${storedBal - computedBalance}
+
+⚠️ Opening balance (purani dues) jo import ya form se aya ho, ledger mein shamil nahi hota. Agar difference opening balance ki wajah se hai to Reconcile NA karein — warna woh dues mit jayengi.
+
+Supplier balance transaction ledger ke mutabiq sync ho jayega.`)
         if (!confirmed) return
 
         try {
@@ -458,6 +503,19 @@ function SupplierLedger() {
 
     return (
         <div>
+            {supplier && Math.abs(balanceGap) >= 1 && (
+                <div role="status" className="mb-4 rounded-xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-strong flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span>
+                        Stored balance Rs. {Number(supplier.outstanding_balance || 0).toLocaleString()} hai, ledger entries ka total Rs. {ledgerSum.toLocaleString()}.
+                        Farq Rs. {balanceGap.toLocaleString()} aksar purani dues (opening balance) hota hai.
+                    </span>
+                    {canFixGap && (
+                        <button type="button" onClick={recordOpeningGap} className="shrink-0 rounded-lg bg-warning px-3 py-1.5 font-bold text-white hover:bg-warning-hover">
+                            Record as opening balance
+                        </button>
+                    )}
+                </div>
+            )}
             {/* ── Header ── */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
@@ -482,11 +540,13 @@ function SupplierLedger() {
                             📤 Import Excel
                         </button>
                         <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImport} />
+                        {user?.role === 'admin' && (
                         <button onClick={handleReconcileBalance}
                             className="px-4 py-2 bg-warning hover:bg-warning-hover text-white rounded-lg font-semibold text-sm shadow transition"
                             title="Recalculate supplier balance from transaction ledger sum">
                             ⚡ Reconcile
                         </button>
+                        )}
                         <button onClick={() => setShowModal(true)}
                             className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold text-sm shadow transition">
                             ➕ Add Transaction

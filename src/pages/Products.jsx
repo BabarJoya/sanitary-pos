@@ -11,6 +11,7 @@ import PasswordModal from '../components/PasswordModal'
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { hasFeature } from '../utils/featureGate'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
+import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
 
 function Products() {
   const [products, setProducts] = useState([])
@@ -143,12 +144,7 @@ function Products() {
   }
 
   // Effective threshold: product-level → category-level → system default (10)
-  const getEffectiveThreshold = (product) => {
-    if (product.low_stock_threshold) return product.low_stock_threshold
-    const cat = categories.find(c => c.id === product.category_id)
-    if (cat?.low_stock_threshold) return cat.low_stock_threshold
-    return 10
-  }
+  const getEffectiveThreshold = (product) => getLowStockThreshold(product, categories)
 
   const categoryNameMap = categories.reduce((acc, c) => {
     acc[String(c.id)] = c.name
@@ -185,7 +181,7 @@ function Products() {
     .filter(c => c.low_stock_threshold > 0)
     .map(c => ({
       cat: c,
-      count: products.filter(p => p.category_id === c.id && p.stock_quantity <= c.low_stock_threshold).length
+      count: products.filter(p => p.category_id === c.id && isLowStock(p, categories)).length
     }))
     .filter(a => a.count > 0)
 

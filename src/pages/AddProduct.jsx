@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue } from '../services/db'
-import { toIntId } from '../services/integrity'
+import { toIntId, isMissingColumn } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import { getShopPreset, getPricingConfig, isWholesaleEnabled } from '../utils/businessPresets'
 
@@ -42,7 +42,9 @@ function AddProduct() {
     wholesale_price: '',
     sale_price: '',
     stock_quantity: '',
-    low_stock_threshold: '10',
+    low_stock_threshold: '', // empty = use the category's alert level (or 10)
+    pack_name: '',
+    pack_size: '',
     status: 'active'
   })
 
@@ -218,6 +220,13 @@ function AddProduct() {
     // Ensure numeric fields are parsed correctly, treating empty strings as null/0 based on DB defaults
     if (productData.supplier_id === '') productData.supplier_id = null;
     if (productData.c_rate === '') productData.c_rate = 0;
+    if (productData.low_stock_threshold === '') productData.low_stock_threshold = null;
+    // Pack fields only when filled in (columns added by sql/units_decimals_migration.sql)
+    const packSize = Number(productData.pack_size) || 0
+    const packName = String(productData.pack_name || '').trim()
+    if (packSize > 0) { productData.pack_size = packSize; productData.pack_name = packName || 'Box' }
+    else { delete productData.pack_size; delete productData.pack_name }
+
     // Only send wholesale_price when the shop uses Wholesale Mode (keeps un-migrated DBs working)
     if (wholesaleEnabled) productData.wholesale_price = Number(productData.wholesale_price) || 0
     else delete productData.wholesale_price
@@ -235,7 +244,12 @@ function AddProduct() {
       supabaseProductData.supplier_id = toIntOrNull(supabaseProductData.supplier_id)
       supabaseProductData.unit_id = toIntOrNull(supabaseProductData.unit_id)
 
-      const { error } = await supabase.from('products').insert([supabaseProductData])
+      let { error } = await supabase.from('products').insert([supabaseProductData])
+      if (error && isMissingColumn(error) && 'pack_size' in supabaseProductData) {
+        const { pack_size: _ps, pack_name: _pn, ...rest } = supabaseProductData
+        ;({ error } = await supabase.from('products').insert([rest]))
+        if (!error) alert('Pack size needs a database update first (sql/units_decimals_migration.sql). The product was saved without it.')
+      }
       if (error) throw error
 
       await recordAuditLog(
@@ -476,6 +490,21 @@ function AddProduct() {
             </div>
           )}
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="pack-name" className="block text-fg-2 font-medium mb-1">Pack name (optional)</label>
+              <input id="pack-name" type="text" name="pack_name" value={form.pack_name ?? ''} onChange={handleChange} list="pack-names"
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" placeholder="e.g. Box, Carton, Dozen" />
+              <datalist id="pack-names"><option value="Box" /><option value="Carton" /><option value="Dozen" /><option value="Bundle" /><option value="Packet" /></datalist>
+            </div>
+            <div>
+              <label htmlFor="pack-size" className="block text-fg-2 font-medium mb-1">Pieces per pack</label>
+              <input id="pack-size" type="number" step="any" min="0" name="pack_size" value={form.pack_size ?? ''} onChange={handleChange}
+                className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" placeholder="e.g. 12" />
+              <p className="text-[11px] text-fg-subtle mt-1">Stock stays in pieces; POS and Purchases get a "+1 pack" button.</p>
+            </div>
+          </div>
+
           {/* Stock */}
           <h2 className="font-semibold text-fg-2 border-b pb-2 pt-2">Stock</h2>
 
@@ -484,6 +513,7 @@ function AddProduct() {
               <label className="block text-fg-2 font-medium mb-1">Stock Quantity *</label>
               <input
                 type="number"
+                step="any"
                 name="stock_quantity"
                 value={form.stock_quantity}
                 onChange={handleChange}
@@ -500,7 +530,7 @@ function AddProduct() {
                 value={form.low_stock_threshold}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="10"
+                placeholder="Blank = category level (or 10)"
               />
             </div>
           </div>
