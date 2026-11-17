@@ -8,6 +8,112 @@ import { useAuth } from '../../context/AuthContext'
 import { logAction } from '../../services/auditService'
 import * as XLSX from 'xlsx'
 
+const toDateInput = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function isBillingDatePast(date) {
+  if (!date) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return new Date(`${String(date).slice(0, 10)}T00:00:00`) < today
+}
+
+function addPeriod(months) {
+  const d = new Date()
+  d.setMonth(d.getMonth() + months)
+  return toDateInput(d)
+}
+
+function ReactivateShopDialog({ shop, onClose, onConfirm }) {
+  const [choice, setChoice] = useState('month')
+  const [customDate, setCustomDate] = useState(addPeriod(1))
+  const [saving, setSaving] = useState(false)
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return toDateInput(d) })()
+
+  const nextDate = choice === 'month' ? addPeriod(1)
+    : choice === 'year' ? addPeriod(12)
+      : choice === 'custom' ? customDate
+        : null
+  const invalid = choice === 'custom' && (!customDate || customDate < tomorrow)
+
+  const options = [
+    { id: 'month', label: 'Extend 1 month', hint: `Next billing date ${addPeriod(1)}` },
+    { id: 'year', label: 'Extend 1 year', hint: `Next billing date ${addPeriod(12)}` },
+    { id: 'custom', label: 'Pick a date', hint: 'Any future date' },
+    { id: 'none', label: 'No billing date', hint: 'Lifetime / never auto-suspend' },
+  ]
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (invalid) return
+    setSaving(true)
+    await onConfirm(nextDate)
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4" onClick={onClose}>
+      <form
+        onSubmit={submit}
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reactivate-title"
+        className="w-full max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-2xl shadow-2xl"
+      >
+        <div className="p-5 border-b border-slate-100 flex items-start gap-3">
+          <AlertTriangle className="text-orange-500 shrink-0 mt-0.5" size={22} />
+          <div className="flex-1">
+            <h2 id="reactivate-title" className="font-black text-slate-800">Activate {shop.name}</h2>
+            <p className="text-sm text-slate-600 mt-1">
+              Its billing date (<span className="font-bold">{new Date(`${String(shop.next_billing_date).slice(0, 10)}T00:00:00`).toLocaleDateString()}</span>) has passed.
+              The nightly auto-suspend job will suspend it again unless you set a new date.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="p-1 text-slate-400 hover:text-slate-700 rounded-lg">
+            <XCircle size={20} />
+          </button>
+        </div>
+        <div className="p-5 space-y-2">
+          {options.map(o => (
+            <label key={o.id} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${choice === o.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 hover:border-blue-300'}`}>
+              <input type="radio" name="reactivate-choice" className="mt-1" checked={choice === o.id} onChange={() => setChoice(o.id)} />
+              <span className="flex-1">
+                <span className="block font-bold text-slate-800 text-sm">{o.label}</span>
+                <span className="block text-xs text-slate-500">{o.hint}</span>
+                {o.id === 'custom' && choice === 'custom' && (
+                  <input
+                    type="date"
+                    min={tomorrow}
+                    value={customDate}
+                    onChange={e => setCustomDate(e.target.value)}
+                    className="mt-2 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                  />
+                )}
+              </span>
+            </label>
+          ))}
+          <p className="text-xs text-slate-500 pt-1">
+            If the shop has paid, you can also record the payment in Billing &amp; Subs, which moves the date for you.
+          </p>
+        </div>
+        <div className="p-5 pt-0 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+          <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving || invalid} className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-black text-sm">
+            {saving ? 'Activating…' : 'Activate shop'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export default function ShopsList() {
   const { impersonate, user } = useAuth()
   const [shops, setShops] = useState([])
@@ -19,6 +125,7 @@ export default function ShopsList() {
   const [managingUsersShop, setManagingUsersShop] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [backingUp, setBackingUp] = useState({})
+  const [activatingShop, setActivatingShop] = useState(null)
 
   useEffect(() => {
     fetchShops()
@@ -74,6 +181,16 @@ export default function ShopsList() {
       suspensionReason = reason.trim() || 'No reason specified'
     }
 
+    // Reactivating a shop whose billing date has passed would only last until
+    // the nightly suspend_overdue_shops() job runs, so ask for a new date first.
+    if (newStatus === 'active') {
+      const shop = shops.find(s => s.id === id)
+      if (shop && isBillingDatePast(shop.next_billing_date)) {
+        setActivatingShop(shop)
+        return
+      }
+    }
+
     if (!confirm(`Are you sure you want to ${newStatus} this shop?`)) return
 
     const updates = { status: newStatus }
@@ -82,7 +199,11 @@ export default function ShopsList() {
     } else {
       updates.suspension_reason = null
     }
+    await applyStatus(id, currentStatus, updates, { suspensionReason })
+  }
 
+  const applyStatus = async (id, currentStatus, updates, extraDetails = {}) => {
+    const newStatus = updates.status
     const { error } = await adminDb
       .from('shops')
       .update(updates)
@@ -98,11 +219,12 @@ export default function ShopsList() {
         action_type: newStatus === 'active' ? 'ACTIVATE_SHOP' : 'SUSPEND_SHOP',
         target_type: 'SHOP',
         target_id: id,
-        details: { previousStatus: currentStatus, newStatus, suspensionReason }
+        details: { previousStatus: currentStatus, newStatus, ...extraDetails }
       })
 
       fetchShops()
     }
+    return !error
   }
 
   const handleDeleteShop = async (shop) => {
@@ -488,6 +610,21 @@ export default function ShopsList() {
 
       {isModalOpen && (
         <CreateShopModal onClose={() => setIsModalOpen(false)} onCreated={fetchShops} />
+      )}
+      {activatingShop && (
+        <ReactivateShopDialog
+          shop={activatingShop}
+          onClose={() => setActivatingShop(null)}
+          onConfirm={async (nextBillingDate) => {
+            const ok = await applyStatus(
+              activatingShop.id,
+              activatingShop.status,
+              { status: 'active', suspension_reason: null, next_billing_date: nextBillingDate },
+              { previousBillingDate: activatingShop.next_billing_date, nextBillingDate }
+            )
+            if (ok) setActivatingShop(null)
+          }}
+        />
       )}
       {editingShop && (
         <EditShopModal shop={editingShop} onClose={() => setEditingShop(null)} onUpdated={fetchShops} />
