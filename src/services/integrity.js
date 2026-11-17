@@ -60,6 +60,7 @@ export async function applyLocalDelta(table, column, id, delta) {
  * should be retried later, or { ok: false, error } for a hard failure.
  */
 export async function runDeltaRpc(fn, params) {
+  if (fn === 'receive_stock_weighted') return runReceiveStock(params)
   const target = RPC_TARGETS[fn]
   if (!target) return { ok: false, error: new Error(`Unknown delta function ${fn}`) }
   const delta = Number(params.p_delta) || 0
@@ -209,4 +210,71 @@ export async function must(query) {
   const { data, error } = await query
   if (error) throw error
   return data
+}
+
+// ── Weighted-average cost on stock receipt (sql/weighted_cost_migration.sql) ──
+// Receiving stock blends the cost price instead of overwriting it with the
+// latest purchase price:  (stock × cost + qty × unitCost) / (stock + qty).
+// With no stock on hand (0 or negative) the new cost is the purchase price.
+export function weightedCost(stock, cost, qty, unitCost) {
+  const s = Number(stock) || 0
+  const c = Number(cost) || 0
+  const q = Number(qty) || 0
+  const u = Number(unitCost) || 0
+  if (s > 0 && s + q > 0) return Math.round(((s * c + q * u) / (s + q)) * 100) / 100
+  return u
+}
+
+async function runReceiveStock(params) {
+  const id = toIntId(params.p_product_id)
+  if (id == null) return { ok: false, error: new Error('receive_stock_weighted: product not synced yet'), pendingRef: true }
+  const qty = Number(params.p_qty) || 0
+  const unitCost = Number(params.p_unit_cost) || 0
+  const { error } = await supabase.rpc('receive_stock_weighted', { p_product_id: id, p_qty: qty, p_unit_cost: unitCost })
+  if (!error) return { ok: true }
+  if (isNetworkError(error)) return { ok: false, network: true, error }
+  if (isMissingFunction(error)) {
+    // Database not migrated yet: read live values, then write stock + blended cost
+    console.warn('receive_stock_weighted missing — run sql/weighted_cost_migration.sql. Using fallback update.')
+    const { data, error: readErr } = await supabase.from('products').select('stock_quantity, cost_price').eq('id', id).maybeSingle()
+    if (readErr) return { ok: false, network: isNetworkError(readErr), error: readErr }
+    if (!data) return { ok: false, error: new Error(`product ${id} not found`) }
+    const next = {
+      stock_quantity: (Number(data.stock_quantity) || 0) + qty,
+      cost_price: weightedCost(data.stock_quantity, data.cost_price, qty, unitCost),
+    }
+    const { error: writeErr } = await supabase.from('products').update(next).eq('id', id)
+    if (writeErr) return { ok: false, network: isNetworkError(writeErr), error: writeErr }
+    return { ok: true }
+  }
+  return { ok: false, error }
+}
+
+/** Receive purchased stock: +qty and weighted-average cost, atomically (queued offline). */
+export async function receivePurchaseStock(productId, qty, unitCost) {
+  const q = Number(qty) || 0
+  if (!q || productId == null || productId === '') return { ok: true }
+  const params = { p_product_id: productId, p_qty: q, p_unit_cost: Number(unitCost) || 0 }
+
+  let result = { ok: false, network: true }
+  if (navigator.onLine && !isTempId(String(productId))) result = await runReceiveStock(params)
+  if (!result.ok && (result.network || isTempId(String(productId)))) {
+    await addToSyncQueue('receive_stock_weighted', 'RPC', params)
+    result = { ok: true, queued: true }
+  }
+  if (result.ok) {
+    // Same blend on the local copy so screens update immediately
+    try {
+      const rec = await getLocal('products', productId)
+      if (rec) {
+        await db.products.update(rec.id, {
+          cost_price: weightedCost(rec.stock_quantity, rec.cost_price, q, params.p_unit_cost),
+          stock_quantity: (Number(rec.stock_quantity) || 0) + q,
+        })
+      }
+    } catch (e) {
+      console.warn('integrity: local stock/cost update failed', e)
+    }
+  }
+  return result
 }

@@ -6,7 +6,7 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
-import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance } from '../services/integrity'
+import { toIntId, isTempId, isNetworkError, isMissingColumn, receivePurchaseStock, adjustSupplierBalance } from '../services/integrity'
 
 function Purchases() {
   const { user } = useAuth()
@@ -298,22 +298,11 @@ function Purchases() {
         await addToSyncQueue('purchase_items', 'INSERT', localItems)
       }
 
-      // ── 3. Stock (+qty) as atomic changes, cost price as latest purchase price ──
+      // ── 3. Stock (+qty) and weighted-average cost, applied atomically in the database ──
       const failed = []
       for (const item of cart) {
-        const r = await adjustStock(item.id, Number(item.qty))
+        const r = await receivePurchaseStock(item.id, Number(item.qty), Number(item.purchase_price))
         if (!r.ok) failed.push(item.name)
-        const costUpdate = { cost_price: item.purchase_price }
-        if (navigator.onLine && !isTempId(String(item.id))) {
-          const { error: cErr } = await supabase.from('products').update(costUpdate).eq('id', item.id)
-          if (cErr) {
-            if (isNetworkError(cErr)) await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
-            else failed.push(`${item.name} (cost)`)
-          }
-        } else {
-          await addToSyncQueue('products', 'UPDATE', { id: item.id, ...costUpdate })
-        }
-        await db.products.update(item.id, costUpdate).catch(() => {})
       }
 
       // ── 4. Supplier balance (credit) or recorded cash payment ──
