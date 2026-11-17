@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE } from '../utils/shopNotifications'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
@@ -38,6 +40,12 @@ function Settings() {
     const h = (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '')
     return SECTION_IDS.includes(h) ? h : 'profile'
   })
+  // Follow in-app links such as /settings#plan (e.g. from a "Buy Plan" notification).
+  const { hash } = useLocation()
+  useEffect(() => {
+    const h = hash.replace('#', '')
+    if (SECTION_IDS.includes(h)) setActiveSection(h)
+  }, [hash])
   const currentSection = SETTINGS_SECTIONS.find(x => x.id === activeSection) || SETTINGS_SECTIONS[0]
   const goToSection = (id) => {
     setActiveSection(id)
@@ -1463,8 +1471,17 @@ function Settings() {
                     {planInfo.next_billing_date ? new Date(planInfo.next_billing_date).toLocaleDateString('en-PK', { dateStyle: 'long' }) : 'N/A'}
                   </p>
                 </div>
-                <div className="p-3 bg-primary-soft rounded-xl border border-primary-muted">
-                  <p className="text-[10px] text-primary-strong font-bold leading-tight">Need more capacity? Contact support to upgrade your plan.</p>
+                <div className="p-3 bg-primary-soft rounded-xl border border-primary-muted space-y-2">
+                  <p className="text-[10px] text-primary-strong font-bold leading-tight">Buy, renew or upgrade your plan through support. We activate it right after payment.</p>
+                  <a
+                    href={SUPPORT_WHATSAPP_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary w-full justify-center text-xs"
+                  >
+                    Buy / Renew Plan
+                  </a>
+                  <p className="text-[10px] text-primary-fg font-mono text-center">WhatsApp / Call {SUPPORT_PHONE}</p>
                 </div>
               </div>
             </div>

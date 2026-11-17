@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { adminDb } from '../../services/adminApi'
-import { Store, Users, Activity, TrendingUp, CreditCard, DollarSign, AlertCircle, Megaphone, Trash2, Plus, Clock, RefreshCw, CheckCircle, MessageSquare } from 'lucide-react'
+import { Store, Users, Activity, TrendingUp, CreditCard, DollarSign, AlertCircle, Megaphone, Trash2, Plus, Clock, RefreshCw, CheckCircle, MessageSquare, Bell } from 'lucide-react'
 import { buildWhatsAppUrl, formatRenewalMessage } from '../../utils/whatsappTemplates'
 
 export default function AdminDashboard() {
@@ -285,6 +285,13 @@ export default function AdminDashboard() {
                       >
                         <MessageSquare size={13} />
                       </button>
+                      <Link
+                        to={`/admin/notifications?shopId=${shop.id}&template=${String(shop.subscription_plan).toLowerCase() === 'trial' ? 'trial_ending' : 'payment_due'}`}
+                        title="Send in-app notification"
+                        className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition active:scale-95"
+                      >
+                        <Bell size={13} />
+                      </Link>
                     </div>
                   </div>
                 )
@@ -300,7 +307,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-800">Global Announcements</h2>
-              <p className="text-xs text-slate-500">Broadcast messages to all active client POS screens</p>
+              <p className="text-xs text-slate-500">Broadcast messages to all active client POS screens · <Link to="/admin/notifications" className="text-blue-600 font-bold hover:underline">Targeted notifications →</Link></p>
             </div>
           </div>
 
