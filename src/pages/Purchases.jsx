@@ -6,7 +6,7 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
-import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance, applyLocalDelta, runTx, txKnownAvailable, txErrorMessage } from '../services/integrity'
+import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance, applyLocalDelta, runTx, txMaybeAvailable, txKnownAvailable, txErrorMessage } from '../services/integrity'
 
 function Purchases() {
   const { user } = useAuth()
@@ -291,7 +291,7 @@ function Purchases() {
       let handled = false
       let networkFail = false
       let offline = false
-      if (navigator.onLine && !hasUnsyncedRef) {
+      if (navigator.onLine && !hasUnsyncedRef && txMaybeAvailable()) {
         const tx = await runTx('complete_purchase', {
           p_purchase: purchaseData,
           p_items: lineRows.map(it => ({ ...it, product_id: toIntId(it.product_id) })),

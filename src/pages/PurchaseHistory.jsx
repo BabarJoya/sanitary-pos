@@ -4,7 +4,7 @@ import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustSupplierBalance, applyPurchaseEffects, saleRowOnly, isNetworkError, toIntId, applyLocalDelta, runTx, txErrorMessage } from '../services/integrity'
+import { adjustStock, adjustSupplierBalance, applyPurchaseEffects, saleRowOnly, isNetworkError, toIntId, applyLocalDelta, runTx, txMaybeAvailable, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
@@ -167,7 +167,7 @@ function PurchaseHistory() {
 
         // ── One database transaction with a dated return document (sql/transactions_migration.sql) ──
         const allSynced = toIntId(selectedPurchase.id) != null && itemsToReturn.every(it => toIntId(it.id) != null)
-        if (navigator.onLine && allSynced) {
+        if (navigator.onLine && allSynced && txMaybeAvailable()) {
             const tx = await runTx('process_purchase_return', {
                 p_return: {
                     client_ref: crypto.randomUUID(),

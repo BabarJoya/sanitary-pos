@@ -220,7 +220,8 @@ function AddProduct() {
     // Ensure numeric fields are parsed correctly, treating empty strings as null/0 based on DB defaults
     if (productData.supplier_id === '') productData.supplier_id = null;
     if (productData.c_rate === '') productData.c_rate = 0;
-    if (productData.low_stock_threshold === '') productData.low_stock_threshold = null;
+    // Blank alert level: let the database default apply (never send null — the column may be NOT NULL)
+    if (productData.low_stock_threshold === '' || productData.low_stock_threshold == null) delete productData.low_stock_threshold;
     // Pack fields only when filled in (columns added by sql/units_decimals_migration.sql)
     const packSize = Number(productData.pack_size) || 0
     const packName = String(productData.pack_name || '').trim()
@@ -530,7 +531,7 @@ function AddProduct() {
                 value={form.low_stock_threshold}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Blank = category level (or 10)"
+                placeholder="10"
               />
             </div>
           </div>
