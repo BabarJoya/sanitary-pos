@@ -11,6 +11,7 @@ import { printHTML } from '../utils/printUtils'
 import { buildBillHTML } from '../utils/billTemplates'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { localDateKey } from '../utils/dates'
+import EmptyState from '../components/EmptyState'
 
 function Sales() {
   const { user } = useAuth()
@@ -595,10 +596,11 @@ function Sales() {
 
         {loading ? (
           <p className="text-fg-muted">Loading sales...</p>
+        ) : sales.length === 0 ? (
+          <EmptyState icon="🧾" title="No sales yet" text="Every bill you make in POS appears here, ready to reprint, return or share." action={{ label: '🛒 Make a sale', to: '/pos' }} />
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-fg-subtle text-lg">No sales found</p>
-          </div>
+          <EmptyState icon="🔍" title="No sales match these filters"
+            action={{ label: 'Clear filters', onClick: () => { setSearch(''); setSearchDate(''); setTypeFilter('all'); setPaymentFilter('all'); setTierFilter('all'); setDateFilter('') } }} />
         ) : (
           <div className="bg-surface rounded-xl shadow overflow-hidden">
             <div className="divide-y divide-line-subtle md:hidden">

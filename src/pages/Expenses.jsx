@@ -5,6 +5,7 @@ import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import EmptyState from '../components/EmptyState'
 
 function Expenses() {
   const { user } = useAuth()
@@ -339,7 +340,8 @@ function Expenses() {
           {loading ? (
             <p className="px-6 py-12 text-center text-fg-subtle">Loading expenses...</p>
           ) : expenses.length === 0 ? (
-            <p className="px-6 py-12 text-center text-fg-subtle italic">No expenses recorded yet.</p>
+            <div className="p-4"><EmptyState icon="💸" title="No expenses yet" text="Record rent, bills, salaries and other spending so Close Day and profit are correct."
+              action={!showForm ? { label: '+ Add expense', onClick: () => setShowForm(true) } : null} /></div>
           ) : expenses.map(exp => (
             <div key={exp.id} className={`p-4 ${selected.includes(exp.id) ? 'bg-primary-soft' : ''}`}>
               <div className="flex items-start justify-between gap-3">
@@ -385,7 +387,10 @@ function Expenses() {
               {loading ? (
                 <tr><td colSpan="6" className="px-6 py-12 text-center text-fg-subtle">Loading expenses...</td></tr>
               ) : expenses.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center text-fg-subtle italic">No expenses recorded yet.</td></tr>
+                <tr><td colSpan="6" className="px-6 py-10 text-center text-fg-subtle">
+                  No expenses recorded yet. Record rent, bills and salaries so Close Day and profit are correct.
+                  {!showForm && <button type="button" onClick={() => setShowForm(true)} className="btn btn-primary btn-sm ml-3">+ Add expense</button>}
+                </td></tr>
               ) : expenses.map(exp => (
                 <tr key={exp.id} className={`hover:bg-surface-2 transition group ${selected.includes(exp.id) ? 'bg-primary-soft' : ''}`}>
                   <td className="px-4 py-4">

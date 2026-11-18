@@ -12,6 +12,7 @@ import {
 import { useTheme } from '../context/ThemeContext'
 import { useShopNotifications, NotificationBanners, NotificationPopup, NotificationList } from './ShopNotifications'
 import { useLang } from '../context/LanguageContext'
+import WhatsNewButton from './WhatsNewButton'
 
 let lastLayoutFetchTime = 0
 
@@ -311,7 +312,7 @@ function Layout({ children }) {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu" className="md:hidden w-10 h-10 flex items-center justify-center text-xl text-fg-2 cursor-pointer hover:bg-surface-3 rounded-lg transition flex-shrink-0">☰</button>
             <div className="flex flex-col min-w-0">
               <span className="text-fg font-black tracking-tight text-sm sm:text-lg leading-none truncate max-w-[140px] sm:max-w-[300px]">{shopName}</span>
-              <span className="text-fg-subtle font-bold tracking-tight text-[10px] uppercase mt-0.5">{pageTitle}</span>
+              <span className="text-fg-subtle font-bold tracking-tight text-[10px] uppercase mt-0.5 truncate">{pageTitle}</span>
             </div>
           </div>
 
@@ -320,7 +321,7 @@ function Layout({ children }) {
             <button
               type="button"
               onClick={() => setTheme({ mode: resolvedMode === 'dark' ? 'light' : 'dark' })}
-              className="w-9 h-9 rounded-xl border border-line bg-surface text-fg-3 hover:bg-surface-3 hover:text-fg flex items-center justify-center transition cursor-pointer"
+              className="hidden sm:flex w-9 h-9 rounded-xl border border-line bg-surface text-fg-3 hover:bg-surface-3 hover:text-fg items-center justify-center transition cursor-pointer"
               title={resolvedMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               aria-label={resolvedMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
@@ -330,7 +331,7 @@ function Layout({ children }) {
             {/* Compact Mode Toggle */}
             <button
               onClick={toggleCompactMode}
-              className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border text-[10px] sm:text-xs font-bold transition flex items-center gap-1.5 cursor-pointer select-none ${
+              className={`hidden sm:flex px-2.5 py-1.5 rounded-xl border text-xs font-bold transition items-center gap-1.5 cursor-pointer select-none ${
                 compactMode
                   ? 'bg-primary-soft text-primary-fg border-primary-muted shadow-sm shadow-primary-soft'
                   : 'bg-surface text-fg-muted border-line hover:bg-surface-2'
@@ -348,6 +349,9 @@ function Layout({ children }) {
                 {isOnline ? 'System Online' : 'Offline Mode'}
               </span>
             </div>
+
+            {/* What's new — recent improvements, dot until seen */}
+            <WhatsNewButton />
 
             {/* Screen language (English / Urdu), saved on this device */}
             <LanguageToggle />

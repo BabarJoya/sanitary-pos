@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx'
 import { printHTML } from '../utils/printUtils'
 import { buildBillHTML } from '../utils/billTemplates'
 import { localDateKey } from '../utils/dates'
+import EmptyState from '../components/EmptyState'
 
 function PurchaseHistory() {
     const { user } = useAuth()
@@ -539,8 +540,10 @@ function PurchaseHistory() {
 
                 {loading ? (
                     <p className="text-fg-muted italic">Loading purchase records...</p>
+                ) : purchases.length === 0 ? (
+                    <EmptyState icon="🛒" title="No purchases yet" text="Record stock you buy from suppliers — stock, cost price and supplier balance update by themselves." action={{ label: '+ New purchase', to: '/purchases' }} />
                 ) : filtered.length === 0 ? (
-                    <div className="text-center py-12"><p className="text-fg-subtle text-lg">No purchases found.</p></div>
+                    <EmptyState icon="🔍" title="No purchases match these filters" action={{ label: 'Clear filters', onClick: () => { setSearch(''); setPaymentFilter('all'); setDateFilter('') } }} />
                 ) : (
                     <div className="bg-surface rounded-xl shadow overflow-hidden">
                         <div className="divide-y divide-line-subtle md:hidden">

@@ -10,6 +10,7 @@ import { adjustSupplierBalance, must } from '../services/integrity'
 import { supplierLedgerDelta, withRunningBalance, paymentRowType, openingRow } from '../utils/ledgerMath'
 import PasswordModal from '../components/PasswordModal'
 import { todayLocal, entryTimestamp } from '../utils/dates'
+import EmptyState from '../components/EmptyState'
 
 function Suppliers() {
   const { user } = useAuth()
@@ -747,9 +748,8 @@ function Suppliers() {
       {loading ? (
         <p className="text-fg-muted">Loading...</p>
       ) : suppliers.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-fg-subtle text-lg">No suppliers yet</p>
-        </div>
+        <EmptyState icon="🚚" title="No suppliers yet" text="Add the companies and dealers you buy from to track what you owe them and their purchase history."
+          action={!showForm ? { label: '+ Add first supplier', onClick: () => setShowForm(true) } : null} />
       ) : (
         <div className="bg-surface rounded-xl shadow overflow-hidden">
           <div className="overflow-x-auto">
