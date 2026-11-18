@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-03',
+    date: '3 Dec 2026',
+    title: 'Scan a new item and sell it straight away',
+    items: [
+      { text: 'Barcode not found? Type the name, price and stock in a short form — the product is saved and goes straight into the bill', module: 'POS', to: '/pos' },
+      { text: 'Scanning into the POS search box now works: a known barcode goes into the bill when the scanner presses Enter', module: 'POS', to: '/pos' },
+      { text: 'Only the shop admin or manager can add products this way; cashiers are told to ask the admin', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
     id: '2026-12-02',
     date: '2 Dec 2026',
     title: 'See what is waiting to sync',

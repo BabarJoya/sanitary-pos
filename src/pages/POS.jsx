@@ -18,6 +18,7 @@ import { isLowStock as isLowStockRule } from '../utils/stockRules'
 import { useLang } from '../context/LanguageContext'
 import { can, notAllowed } from '../utils/permissions'
 import SaleCompleteModal from '../components/SaleCompleteModal'
+import QuickAddProduct from '../components/QuickAddProduct'
 import toast from '../utils/toast'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
@@ -180,6 +181,18 @@ function POS() {
   // Barcode scanner mode
   const [barcodeMode, setBarcodeMode] = useState(false) // Off by default — user must click to enable
   const [barcodeInput, setBarcodeInput] = useState('')
+  // Barcode not found → add the product on the spot (admin / manager)
+  const [quickAddCode, setQuickAddCode] = useState('')
+  const canQuickAdd = user?.role === 'admin' || user?.role === 'manager'
+  const findByCode = (raw) => {
+    const skuLower = String(raw).trim().toLowerCase()
+    const clean = skuLower.replace(/[^a-z0-9]/g, '')
+    return products.find(p => {
+      const pSku = String(p.sku || '').trim().toLowerCase()
+      return pSku && (pSku === skuLower || pSku.replace(/[^a-z0-9]/g, '') === clean)
+    })
+  }
+  const looksLikeBarcode = (raw) => /^[A-Za-z0-9-]{4,}$/.test(String(raw).trim()) && /\d/.test(String(raw))
   const barcodeRef = useRef(null)
 
   useEffect(() => {
@@ -248,7 +261,8 @@ function POS() {
         osc.frequency.value = 200
         osc.start(); osc.stop(beep.currentTime + 0.15)
       } catch (_) {}
-      toast.error(`❌ SKU / Barcode "${rawSku}" — product not found. Add SKU in Products page.`)
+      if (canQuickAdd) setQuickAddCode(rawSku)
+      else toast.error(`❌ Barcode "${rawSku}" — product not found. Ask the shop admin to add it.`)
     }
     setBarcodeInput('')
     setTimeout(() => barcodeRef.current?.focus(), 50)
@@ -1423,9 +1437,22 @@ function POS() {
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="🔍 Search products / brand (F2)..."
+            placeholder="🔍 Search or scan barcode (F2)..."
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => {
+              if (e.key !== 'Enter') return
+              const q = search.trim()
+              if (!q) return
+              e.preventDefault()
+              const exact = findByCode(q)
+              const pick = exact || (filtered.length === 1 ? filtered[0] : null)
+              if (pick) { addToCart(pick); setSearch(''); return }
+              if (filtered.length === 0 && looksLikeBarcode(q)) {
+                if (canQuickAdd) setQuickAddCode(q)
+                else toast.error(`❌ Barcode "${q}" — product not found. Ask the shop admin to add it.`)
+              }
+            }}
             className="flex-1 px-3 py-2 border rounded-lg text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-primary min-w-0 shadow-sm"
           />
           <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
@@ -3036,6 +3063,17 @@ function POS() {
             </dl>
         </Modal>
       )}
+      {/* Barcode not found → add product on the spot */}
+      <QuickAddProduct open={!!quickAddCode} barcode={quickAddCode} user={user} showCost={canSeeProfit}
+        onClose={() => { setQuickAddCode(''); setTimeout(() => (barcodeMode ? barcodeRef : searchInputRef).current?.focus(), 50) }}
+        onAdded={(product) => {
+          setProducts(prev => [...prev, product])
+          setQuickAddCode('')
+          setSearch('')
+          // addToCart reads stock from the product object, so it works before the list re-renders
+          addToCart(product)
+          setTimeout(() => (barcodeMode ? barcodeRef : searchInputRef).current?.focus(), 50)
+        }} />
       {/* Held Carts Modal */}
       {showHeldCarts && (
         <Modal open onClose={() => setShowHeldCarts(false)} title="⏸️ Held Bills" maxWidth="max-w-md">
