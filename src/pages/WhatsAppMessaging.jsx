@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import WhatsAppOutbox from '../components/WhatsAppOutbox'
@@ -15,7 +15,9 @@ function WhatsAppMessaging() {
   const [loading, setLoading] = useState(true)
   const [shop, setShop] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [tab, setTab] = useState('reminders') // 'reminders' | 'outbox'
+  const [searchParams] = useSearchParams()
+  const [tab, setTab] = useState(searchParams.get('tab') === 'outbox' ? 'outbox' : 'reminders') // 'reminders' | 'outbox'
+  useEffect(() => { if (searchParams.get('tab') === 'outbox') setTab('outbox') }, [searchParams])
 
   useEffect(() => {
     fetchData()

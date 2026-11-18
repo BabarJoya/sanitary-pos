@@ -31,7 +31,11 @@ function sanitizeBillHTML(htmlString) {
  * Generate a PDF from the bill HTML string.
  * Returns a Blob (PDF).
  */
-export async function generateBillPDF(htmlString) {
+// options.width: px width to lay the bill out at (320 = 80mm receipt, 794 = A4).
+// options.pageWidthMm: make the PDF page that wide (e.g. 80 for a receipt);
+// default keeps the old behaviour (bill image on an A4 page).
+export async function generateBillPDF(htmlString, options = {}) {
+  const layoutWidth = options.width || 320
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import('jspdf'),
     import('html2canvas')
@@ -39,7 +43,7 @@ export async function generateBillPDF(htmlString) {
 
   // Mount the HTML in a hidden offscreen div
   const container = document.createElement('div')
-  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:320px;background:#fff;z-index:-1;font-size:12px;'
+  container.style.cssText = `position:fixed;left:-9999px;top:0;width:${layoutWidth}px;background:#fff;z-index:-1;font-size:12px;`
   container.innerHTML = sanitizeBillHTML(htmlString)
   document.body.appendChild(container)
 
@@ -58,6 +62,15 @@ export async function generateBillPDF(htmlString) {
     const imgData = canvas.toDataURL('image/jpeg', 0.92)
     const pxW = canvas.width
     const pxH = canvas.height
+
+    if (options.pageWidthMm) {
+      // Page as wide as the bill (receipt-shaped PDF), 4mm margins
+      const pdfW = options.pageWidthMm - 8
+      const pdfH = (pxH / pxW) * pdfW
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [options.pageWidthMm, pdfH + 8] })
+      pdf.addImage(imgData, 'JPEG', 4, 4, pdfW, pdfH)
+      return pdf.output('blob')
+    }
 
     // A4 page width in mm = 210, with 10mm margins = 190mm usable
     const pdfW = 190

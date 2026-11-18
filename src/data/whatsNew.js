@@ -1,21 +1,35 @@
 // ============================================================================
-// "What's new" — shown from the sparkle button in the app header.
+// "What's new" — the full-screen updates page (header ✨ button). It opens by
+// itself once after each new release and can always be closed.
 // Newest first. Add an entry with every release that shop owners will notice:
-// give it a new, later `id` (YYYY-MM-DD, add -2, -3 for several on one day) so
-// the header shows a dot until the owner opens the panel.
+// give it a new, later `id` (YYYY-MM-DD, add -2, -3 for several on one day).
+// Each item: { text, module, to } — `to` is the in-app page the "Open" button
+// goes to (e.g. '/whatsapp', '/settings#pos'); leave it out for fixes.
 // Keep each line short and in the shopkeeper's words (what they can now do).
 // ============================================================================
 
 const WHATS_NEW = [
   {
+    id: '2026-11-24',
+    date: '24 Nov 2026',
+    title: 'Real bill with QR for your customers',
+    items: [
+      { text: 'The QR page now shows the actual bill — 80mm receipt or A4 invoice, with its QR — to view, print or download as PDF', module: 'Bill QR page', to: '/sales' },
+      { text: 'Choose in Settings → POS & Receipts whether customers can see the printed bill or only the summary', module: 'Settings', to: '/settings#pos' },
+      { text: 'Professional A4 invoice with a clear "Scan to view this bill online" QR panel', module: 'Settings', to: '/settings#pos' },
+      { text: 'Step-by-step guide inside WhatsApp → Outbox', module: 'WhatsApp', to: '/whatsapp?tab=outbox' },
+      { text: 'This full-screen updates page — tap any update to open that module', module: 'Updates' },
+    ],
+  },
+  {
     id: '2026-11-23',
     date: '23 Nov 2026',
     title: 'Better WhatsApp messages + Outbox',
     items: [
-      'Bill on WhatsApp now lists the items, total, paid, balance and the bill link',
-      'Settings → WhatsApp: edit each message with clickable [placeholders] and a live preview',
-      'WhatsApp → Outbox: every bill, reminder, statement and order you sent, with "Send again" and Copy',
-      'Fixed: scanning a bill QR on a phone with an older copy of the app no longer shows a blank screen',
+      { text: 'Bill on WhatsApp now lists the items, total, paid, balance and the bill link', module: 'POS', to: '/pos' },
+      { text: 'Edit each WhatsApp message with clickable [placeholders] and a live preview', module: 'Settings', to: '/settings#whatsapp' },
+      { text: 'WhatsApp → Outbox: every bill, reminder, statement and order you sent, with "Send again" and Copy', module: 'WhatsApp', to: '/whatsapp?tab=outbox' },
+      { text: 'Fixed: scanning a bill QR on a phone with an older copy of the app no longer shows a blank screen', module: 'Fix' },
     ],
   },
   {
@@ -23,12 +37,11 @@ const WHATS_NEW = [
     date: '22 Nov 2026',
     title: 'New Smart bill with QR code',
     items: [
-      'New "Smart" bill design: big total, easy-to-read items, paid / balance due and the customer\'s account (choose it in Settings → Print)',
-      'Every bill prints a QR code — the customer scans it to open the bill on their phone, handy for warranty and returns',
-      'Reprinted bills from Sales History carry the QR too',
-      'Turn the QR off any time in Settings → Print',
-      'Cleaner "Sale complete" screen: bill number, payment type, change to return, customer balance — Enter prints, Esc starts a new sale',
-      'Fixed: pop-up windows no longer turn the whole screen black',
+      { text: 'New "Smart" bill design: big total, easy-to-read items, paid / balance due and the customer\'s account', module: 'Settings', to: '/settings#pos' },
+      { text: 'Every bill prints a QR code — the customer scans it to open the bill on their phone', module: 'POS', to: '/pos' },
+      { text: 'Reprinted bills from Sales History carry the QR too', module: 'Sales', to: '/sales' },
+      { text: 'Cleaner "Sale complete" screen: bill number, payment type, change to return, customer balance', module: 'POS', to: '/pos' },
+      { text: 'Fixed: pop-up windows no longer turn the whole screen black', module: 'Fix' },
     ],
   },
   {
@@ -36,11 +49,10 @@ const WHATS_NEW = [
     date: '21 Nov 2026',
     title: 'Customers can see their own account',
     items: [
-      'Customer Ledger → 🔗 Customer link: send a private link on WhatsApp',
-      'The customer opens it on their phone without any login and sees their balance, bills (with items) and payments',
-      'Only that customer\'s account is shown — no cost prices, nothing else',
-      'Links work for 6 months; make a new link or turn it off any time',
-      'Fixed: a customer\'s ledger now opens from saved data when the internet is weak',
+      { text: 'Customer Ledger → 🔗 Customer link: send a private link on WhatsApp', module: 'Customer Ledger', to: '/customer-ledger' },
+      { text: 'The customer sees their balance, bills (with items) and payments without any login — nothing else', module: 'Customer Ledger', to: '/customer-ledger' },
+      { text: 'Links work for 6 months; make a new link or turn it off any time', module: 'Customer Ledger', to: '/customer-ledger' },
+      { text: 'Fixed: a customer\'s ledger now opens from saved data when the internet is weak', module: 'Fix' },
     ],
   },
   {
@@ -48,12 +60,12 @@ const WHATS_NEW = [
     date: '20 Nov 2026',
     title: 'Get paid faster, reorder on time',
     items: [
-      'Customer Ledger → Payment reminders: who owes the longest comes first, one tap to send a WhatsApp reminder',
-      "Close Day sends today's summary straight to the owner's WhatsApp (set the number in Settings), with a reminder after 7 pm",
-      'Inventory → Reorder: low stock grouped by supplier with suggested quantities — WhatsApp the order or make a purchase draft',
-      'After saving a purchase, print price labels for exactly what arrived',
-      'Users → Allowed Actions: choose who can give discounts, change prices, sell below cost, see profit or delete',
-      'Fixed: "Hold" in Purchases now works',
+      { text: 'Payment reminders: who owes the longest comes first, one tap to send a WhatsApp reminder', module: 'Customer Ledger', to: '/customer-ledger' },
+      { text: "Close Day sends today's summary straight to the owner's WhatsApp, with a reminder after 7 pm", module: 'Dashboard', to: '/dashboard' },
+      { text: 'Reorder: low stock grouped by supplier — WhatsApp the order or make a purchase draft', module: 'Inventory', to: '/inventory' },
+      { text: 'After saving a purchase, print price labels for exactly what arrived', module: 'Purchases', to: '/purchases' },
+      { text: 'Allowed Actions: choose who can give discounts, change prices, sell below cost, see profit or delete', module: 'Users', to: '/users' },
+      { text: 'Fixed: "Hold" in Purchases now works', module: 'Fix' },
     ],
   },
   {
@@ -61,12 +73,9 @@ const WHATS_NEW = [
     date: '19 Nov 2026',
     title: 'Faster checkout and clearer screens',
     items: [
-      'POS: bigger Cash / Credit / Online / Split buttons that are easier to tap',
-      'POS: the selected customer\'s balance and credit limit are shown next to their name',
-      'After a sale, the change to give back is shown in large numbers',
-      'Customers list shows as easy cards on phones',
-      'Empty screens now tell you what to do next, with a button',
-      'This "What\'s new" panel — check here to see every improvement',
+      { text: 'Bigger Cash / Credit / Online / Split buttons and the customer\'s credit limit next to their name', module: 'POS', to: '/pos' },
+      { text: 'Customers list shows as easy cards on phones', module: 'Customers', to: '/customers' },
+      { text: 'Empty screens now tell you what to do next, with a button', module: 'All screens' },
     ],
   },
   {
@@ -74,14 +83,12 @@ const WHATS_NEW = [
     date: '18 Nov 2026',
     title: 'Bills, credit and stock',
     items: [
-      'Bills show the customer\'s previous balance and total balance (sabiqa / kul baqaya)',
-      'Credit limit per customer — cashiers are stopped when a bill goes over it',
-      'Customer statement for any dates, with dues by age, to print or send on WhatsApp',
-      'Stock Count screen: count many products at once, only the difference is applied',
-      'Full stock history for every product (sale, purchase, return, count)',
-      'Purchases: pay part now and keep the rest on credit',
-      'Quantities like 2.5 ft / 1.5 kg, and box sizes with a "+1 Box" button',
-      'Every sale, purchase and return is now saved in one safe step — nothing half-saved',
+      { text: 'Bills show the customer\'s previous balance and total balance (sabiqa / kul baqaya)', module: 'POS', to: '/pos' },
+      { text: 'Credit limit per customer — cashiers are stopped when a bill goes over it', module: 'Customers', to: '/customers' },
+      { text: 'Customer statement for any dates, with dues by age, to print or send on WhatsApp', module: 'Customer Ledger', to: '/customer-ledger' },
+      { text: 'Stock Count screen and full stock history for every product', module: 'Inventory', to: '/inventory' },
+      { text: 'Purchases: pay part now and keep the rest on credit; quantities like 2.5 ft; box sizes', module: 'Purchases', to: '/purchases' },
+      { text: 'Every sale, purchase and return is now saved in one safe step — nothing half-saved', module: 'Safety' },
     ],
   },
   {
@@ -89,11 +96,10 @@ const WHATS_NEW = [
     date: '17 Nov 2026',
     title: 'Correct totals everywhere',
     items: [
-      'Close Day is now a cash book: cash in drawer, online and credit shown separately',
-      'Dashboard, Reports and printed reports now show the same totals',
-      'Opening balance (purani dues) for new customers and suppliers is kept in the ledger',
-      'Returns are no longer counted twice in customer and supplier ledgers',
-      'Choose how cost price is set on purchase: last price or average',
+      { text: 'Close Day is now a cash book: cash in drawer, online and credit shown separately', module: 'Dashboard', to: '/dashboard' },
+      { text: 'Dashboard, Reports and printed reports now show the same totals', module: 'Reports', to: '/reports' },
+      { text: 'Opening balance (purani dues) for new customers and suppliers is kept in the ledger', module: 'Customers', to: '/customers' },
+      { text: 'Choose how cost price is set on purchase: last price or average', module: 'Settings', to: '/settings#pos' },
     ],
   },
 ]

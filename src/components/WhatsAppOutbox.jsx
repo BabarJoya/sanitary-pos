@@ -8,6 +8,41 @@ import { OUTBOX_KINDS, waUrl, logWhatsApp } from '../utils/whatsapp'
 // with resend / copy / delete. Kept on this device.
 // ============================================================================
 
+// Step-by-step guide (opens by itself while the Outbox is empty)
+const GUIDE = [
+  ['Send a message from anywhere in EdgeX', 'Bill (Sale complete → WhatsApp), payment reminder (Customers, Customer Ledger, WhatsApp → Reminders), statement, customer link, Close Day summary or supplier order (Inventory → Reorder).'],
+  ['WhatsApp opens with the message ready', 'Check the text and press Send in WhatsApp. EdgeX cannot press Send for you.'],
+  ['The message is saved here automatically', 'Every message EdgeX prepared appears in the Outbox with the customer, number, time and type.'],
+  ['Find a message', 'Tap a type (Bill, Reminder, Statement…) or search by name, number or any word in the text. Tap a message to read all of it.'],
+  ['Send it again', 'Tap "Send again" if the customer did not get it, you closed WhatsApp by mistake, or you want to remind them again.'],
+  ['Copy or forward', 'Tap "Copy" to paste the text into another chat, SMS or a group.'],
+  ['Keep it tidy', 'Delete single messages, or "Clear older than 30 days" once a month. The Outbox is kept on this phone/computer only.'],
+  ['Change the wording', 'Settings → WhatsApp: edit the bill, reminder and supplier messages, see a live preview, and press Save Settings.'],
+]
+
+function OutboxGuide({ defaultOpen }) {
+  return (
+    <details className="card p-0 overflow-hidden group" open={defaultOpen}>
+      <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center justify-between gap-3 font-bold text-fg">
+        <span>📘 How to use the WhatsApp Outbox</span>
+        <span className="text-xs font-semibold text-primary-fg group-open:hidden">Show steps</span>
+        <span className="text-xs font-semibold text-primary-fg hidden group-open:inline">Hide</span>
+      </summary>
+      <ol className="px-4 pb-4 space-y-3">
+        {GUIDE.map(([title, text], k) => (
+          <li key={k} className="flex gap-3">
+            <span className="flex-none h-7 w-7 rounded-full bg-primary-soft text-primary-strong text-sm font-black flex items-center justify-center">{k + 1}</span>
+            <div>
+              <p className="text-sm font-bold text-fg">{title}</p>
+              <p className="text-sm text-fg-muted">{text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </details>
+  )
+}
+
 const when = (iso) => {
   const d = new Date(iso)
   return `${d.toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} · ${d.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}`
@@ -64,6 +99,7 @@ export default function WhatsAppOutbox({ shopId }) {
 
   return (
     <div className="space-y-3">
+      <OutboxGuide defaultOpen={(rows || []).length === 0} />
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
         <input className="input flex-1" placeholder="Search name, number or text" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search outbox" />
         <button type="button" onClick={clearOld} className="btn btn-secondary btn-sm shrink-0">Clear older than 30 days</button>

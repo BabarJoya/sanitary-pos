@@ -37,6 +37,8 @@ function Settings() {
   const [shop, setShop] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [billPageSaving, setBillPageSaving] = useState(false)
+  const [billPageMsg, setBillPageMsg] = useState('')
   const [activeSection, setActiveSection] = useState(() => {
     const h = (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '')
     return SECTION_IDS.includes(h) ? h : 'profile'
@@ -81,6 +83,7 @@ function Settings() {
       cost_method: 'last',
       owner_whatsapp: '',
       bill_qr: true,
+      bill_page_full: true,
       tax_number: '',
       pos_layout: 'two_stage'
     }
@@ -188,6 +191,26 @@ function Settings() {
     change: 0
   }
 
+  // QR page: show the printed bill (receipt / A4) — stored on the shop row, so the
+  // customer's phone sees it (sql/bill_page_options_migration.sql)
+  const saveBillPageFull = async (on) => {
+    setBillPageSaving(true); setBillPageMsg('')
+    try {
+      if (!navigator.onLine) throw new Error('Internet chahiye — yeh setting server par save hoti hai.')
+      const { error } = await supabase.rpc('set_bill_page_options', { p_shop_id: user.shop_id, p_show_full: on })
+      if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883') throw new Error('Database update needed: run sql/bill_page_options_migration.sql in Supabase.')
+        throw error
+      }
+      setForm(prev => ({ ...prev, bill_page_full: on }))
+      setBillPageMsg(on ? 'Saved ✓ Customers can view the printed bill.' : 'Saved ✓ Customers see the summary only.')
+    } catch (err) {
+      setBillPageMsg(err?.message || String(err))
+    } finally {
+      setBillPageSaving(false)
+    }
+  }
+
   const getPreviewHTML = (templateId, size) => {
     const tempSettings = {
       name: form.name || 'EdgeX POS Demo',
@@ -276,6 +299,7 @@ function Settings() {
         cost_method:          saved.cost_method  || prev.cost_method  || 'last',
         owner_whatsapp:       saved.owner_whatsapp ?? prev.owner_whatsapp ?? '',
         bill_qr:              saved.bill_qr ?? prev.bill_qr ?? true,
+        bill_page_full:       typeof data.bill_page_full === 'boolean' ? data.bill_page_full : (prev.bill_page_full ?? true),
         // Appearance is a local, per-shop preference (not stored in the shops table) — keep it.
         theme_mode:           saved.theme_mode   || prev.theme_mode,
         theme_accent:         saved.theme_accent || prev.theme_accent,
@@ -983,6 +1007,17 @@ function Settings() {
               <span>
                 <span className="block text-sm font-bold text-fg-2">Print QR code on bills</span>
                 <span className="block text-xs text-fg-muted">The customer scans it to open the bill on their phone — handy for warranty and when the paper fades. Needs sql/bill_link_migration.sql. Saved on this device.</span>
+              </span>
+            </label>
+            <label className="md:col-span-2 flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={form.bill_page_full !== false} disabled={billPageSaving} onChange={e => saveBillPageFull(e.target.checked)}
+                className="mt-1 h-5 w-5 rounded border-line-strong text-primary-fg focus:ring-2 focus:ring-primary disabled:opacity-50" />
+              <span>
+                <span className="block text-sm font-bold text-fg-2">Show the printed bill on the QR page</span>
+                <span className="block text-xs text-fg-muted">
+                  When a customer scans the QR, they can also open the actual bill as an 80mm receipt or an A4 invoice (with the QR), print it or download a PDF. Off = they only see the summary. Saved for all devices.
+                </span>
+                {billPageMsg && <span role="status" className="block text-xs font-semibold text-fg-2 mt-1">{billPageMsg}</span>}
               </span>
             </label>
           </div>
