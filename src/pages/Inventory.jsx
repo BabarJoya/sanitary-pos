@@ -14,6 +14,7 @@ import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import StocktakeModal from '../components/StocktakeModal'
 import ReorderModal from '../components/ReorderModal'
 import toast from '../utils/toast'
+import FilterBar from '../components/FilterBar'
 
 function Inventory() {
   const { user } = useAuth()
@@ -652,12 +653,16 @@ function Inventory() {
       </div>
 
       {/* Filters */}
-      <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle flex flex-col gap-3">
+      <FilterBar shown={filtered.length} total={products.length} noun="products"
+        active={!!search || !!selectedCategory || !!selectedBrand || showLowStockOnly}
+        onClear={() => { setSearch(''); setSelectedCategory(''); setSelectedBrand(''); setShowLowStockOnly(false) }}
+        className="flex flex-col gap-3">
         <div className="flex gap-3 w-full">
           <input
             type="text"
             placeholder="Search product or brand..."
-            className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+            aria-label="Search inventory"
+            className="input flex-1"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -691,8 +696,12 @@ function Inventory() {
               <span className="text-sm font-medium text-fg-2">Low Stock Only</span>
             </label>
           </div>
-          {/* Row 2: Action Buttons */}
-          <div className="flex flex-wrap gap-2 items-center">
+
+        </div>
+      </FilterBar>
+
+      {/* Inventory actions */}
+      <div className="flex flex-wrap gap-2 items-center" aria-label="Inventory actions">
             <button
               onClick={() => setShowBarcodeModal(true)}
               className="px-3 py-1.5 bg-primary-soft hover:bg-primary-muted text-primary-strong border border-primary-line rounded-lg transition font-bold text-xs flex items-center gap-1.5"
@@ -777,8 +786,6 @@ function Inventory() {
               ⟳ Refresh
             </button>
           </div>
-        </div>
-      </div>
 
       {/* Table */}
       <div className="bg-surface rounded-xl shadow-sm border border-line-subtle overflow-hidden">
