@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-05',
+    date: '5 Dec 2026',
+    title: 'Returns by scanning the bill',
+    items: [
+      { text: "Sales History → ↩️ Return by bill: scan the QR on the customer's bill (or type the bill number) and the bill opens ready for the return", module: 'Sales', to: '/sales' },
+      { text: 'On phones that support it, scan the bill QR with the camera right inside the app', module: 'Sales', to: '/sales' },
+      { text: 'Scanned a bill with your phone camera? The bill page now has an \'Open in Sales\' button for shop staff', module: 'Sales', to: '/sales' },
+    ],
+  },
+  {
     id: '2026-12-04',
     date: '4 Dec 2026',
     title: 'Correct cash on part-paid udhaar bills',

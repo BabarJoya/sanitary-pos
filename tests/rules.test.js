@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { getLowStockThreshold, isLowStock, isCriticalStock, isOutOfStock } from '../src/utils/stockRules.js'
 import { localDateKey } from '../src/utils/dates.js'
 import { describeSyncItem, explainSyncError } from '../src/utils/syncLabels.js'
+import { parseBillCode, saleMatchesNumber } from '../src/utils/billCode.js'
 
 test('low stock threshold: product → category → shop default (10); 0 is allowed', () => {
   const cats = [{ id: 1, low_stock_threshold: 4 }]
@@ -42,4 +43,17 @@ test('sync errors are explained with a next step', () => {
   assert.match(explainSyncError('duplicate key value violates unique constraint').hint, /Discard/)
   assert.match(explainSyncError('column "client_ref" does not exist').text, /database needs an update/i)
   assert.match(explainSyncError('', { waiting: true }).text, /earlier change/)
+})
+
+test('bill code: QR link, bare code and invoice numbers are understood', () => {
+  const tok = '0123456789abcdef0123456789abcdef'
+  assert.deepEqual(parseBillCode(`https://pos.edgexsuite.com/b/${tok}`), { token: tok })
+  assert.deepEqual(parseBillCode(`https://pos.edgexsuite.com/b/${tok.toUpperCase()}?x=1`), { token: tok })
+  assert.deepEqual(parseBillCode(tok), { token: tok })
+  assert.deepEqual(parseBillCode('INV-12345678'), { number: '12345678' })
+  assert.deepEqual(parseBillCode('#5021'), { number: '5021' })
+  assert.equal(parseBillCode('   '), null)
+  assert.equal(saleMatchesNumber({ id: 9912345678 }, '12345678'), true, 'last 8 digits as printed')
+  assert.equal(saleMatchesNumber({ id: 5021 }, '5021'), true)
+  assert.equal(saleMatchesNumber({ id: 5021 }, '502'), false)
 })

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Modal } from '../components/ui'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly, saleUnpaidAmount, splitReturnRefund, toIntId, applyLocalDelta, runTx, txMaybeAvailable, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
@@ -16,6 +16,8 @@ import EmptyState from '../components/EmptyState'
 import FilterBar from '../components/FilterBar'
 import { can, notAllowed } from '../utils/permissions'
 import toast from '../utils/toast'
+import BillScanReturn from '../components/BillScanReturn'
+import { saleMatchesNumber } from '../utils/billCode'
 
 function Sales() {
   const { user } = useAuth()
@@ -41,6 +43,49 @@ function Sales() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState([])
 
   const [shopSettings, setShopSettings] = useState({})
+
+  // ── Return by bill (scan the bill QR / type the invoice number) ──
+  const [showScan, setShowScan] = useState(false)
+  const [findingBill, setFindingBill] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const findBill = useCallback(async (code) => {
+    if (!code) return
+    setFindingBill(true)
+    try {
+      const mine = (x) => x && String(x.shop_id) === String(user.shop_id)
+      const match = (x) => code.token ? x?.bill_token === code.token : saleMatchesNumber(x, code.number)
+      let sale = sales.find(x => mine(x) && match(x))
+      if (!sale) sale = (await db.sales.filter(x => mine(x) && match(x)).first().catch(() => null)) || null
+      if (!sale && navigator.onLine) {
+        let q = supabase.from('sales').select('*, customers(name)').eq('shop_id', user.shop_id)
+        if (code.token) q = q.eq('bill_token', code.token)
+        else if (/^\d+$/.test(code.number)) q = q.eq('id', Number(code.number))
+        else q = null
+        if (q) {
+          const { data } = await q.maybeSingle()
+          if (data) { sale = data; await db.sales.put(JSON.parse(JSON.stringify(data))).catch(() => {}) }
+        }
+      }
+      if (!sale) { toast.warning('Bill not found in this shop. Check the number, or sync if it was made on another device.'); return }
+      if (sale.sale_type === 'quotation') { toast.info('This is a quotation — nothing to return.'); return }
+      setShowScan(false)
+      await openSale(sale)
+      toast.info('Enter the quantity coming back for each item, then Process Return.')
+    } catch (e) {
+      toast.error('Could not open the bill: ' + (e?.message || e))
+    } finally {
+      setFindingBill(false)
+    }
+  }, [sales, user?.shop_id])
+
+  // /sales?bill=<code> (from the bill page "Open in Sales") opens that bill
+  useEffect(() => {
+    const token = searchParams.get('bill')
+    if (!token || loading) return
+    const next = new URLSearchParams(searchParams); next.delete('bill'); setSearchParams(next, { replace: true })
+    findBill({ token })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, loading])
 
   useEffect(() => {
     if (user?.shop_id) {
@@ -556,6 +601,9 @@ function Sales() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h1 className="text-2xl font-bold text-fg">📜 Sales History</h1>
           <div className="flex gap-2 flex-wrap items-center">
+            <button type="button" onClick={() => setShowScan(true)} className="btn btn-secondary min-h-10" title="Scan the QR on a customer's bill to return items">
+              ↩️ Return by bill
+            </button>
             {selected.length > 0 && (
               <button onClick={() => requestDelete(selected)} className="px-4 py-2 bg-danger hover:bg-danger-hover text-white rounded-xl transition font-bold text-sm">
                 🗑️ Delete Selected ({selected.length})
@@ -704,6 +752,8 @@ function Sales() {
           </div>
         )
         }
+
+        <BillScanReturn open={showScan} busy={findingBill} onClose={() => setShowScan(false)} onCode={findBill} />
 
         {/* Sale Detail Modal */}
         {
