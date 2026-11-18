@@ -264,7 +264,9 @@ function Purchases() {
         quantity: Number(i.qty),
         unit_price: Number(i.purchase_price),
         total_price: Math.round(Number(i.purchase_price) * Number(i.qty) * 100) / 100,
-        returned_qty: 0,
+        // returned_qty is left to the database default: some databases do not have that
+        // column yet (sql/purchase_items_returned_qty_migration.sql), and sending it would
+        // make the step-by-step / offline save fail.
       }))
       // Cost per the shop's cost method (same rule as complete_purchase in the database)
       //  last    → cost = net unit cost of this purchase (after the bill discount share)
