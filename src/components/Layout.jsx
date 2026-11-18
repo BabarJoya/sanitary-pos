@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
+import { db } from '../services/db'
 import { supabase } from '../services/supabase'
 import { hasFeature } from '../utils/featureGate'
 import {
@@ -34,6 +35,22 @@ function Layout({ children }) {
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserDropdown, setShowUserDropdown] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  // Unsent changes on this device (Sync status page)
+  const [queueInfo, setQueueInfo] = useState({ waiting: 0, stuck: 0 })
+  useEffect(() => {
+    let alive = true
+    const refresh = async () => {
+      try {
+        const all = await db.sync_queue.toArray()
+        const stuck = all.filter(i => i.failed).length
+        if (alive) setQueueInfo({ waiting: all.length - stuck, stuck })
+      } catch { /* local DB unavailable */ }
+    }
+    refresh()
+    const t = setInterval(refresh, 15000)
+    window.addEventListener('sync_completed', refresh)
+    return () => { alive = false; clearInterval(t); window.removeEventListener('sync_completed', refresh) }
+  }, [])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('sidebar_collapsed') === 'true'
@@ -343,12 +360,16 @@ function Layout({ children }) {
             </button>
 
             {/* Status Indicator — dot only on mobile, full pill on sm+ */}
-            <div className={`flex items-center gap-1.5 rounded-full font-black uppercase tracking-widest ${isOnline ? 'text-success-fg' : 'text-warning-fg animate-pulse'}`}>
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-success' : 'bg-warning'}`}></span>
-              <span className={`hidden sm:inline text-[9px] px-2 py-1 rounded-full border ${isOnline ? 'bg-success-soft border-success-muted' : 'bg-warning-soft border-warning-muted'}`}>
-                {isOnline ? 'System Online' : 'Offline Mode'}
+            <Link to="/sync" title={`${isOnline ? 'Online' : 'Offline'} · ${queueInfo.waiting} waiting to send${queueInfo.stuck ? ` · ${queueInfo.stuck} stuck` : ''} — open Sync status`}
+              className={`relative flex items-center gap-1.5 rounded-full font-black uppercase tracking-widest min-h-9 ${isOnline ? 'text-success-fg' : 'text-warning-fg animate-pulse'}`}>
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${queueInfo.stuck ? 'bg-danger' : isOnline ? 'bg-success' : 'bg-warning'}`}></span>
+              <span className={`hidden sm:inline text-[9px] px-2 py-1 rounded-full border ${queueInfo.stuck ? 'bg-danger-soft border-danger-line text-danger-strong' : isOnline ? 'bg-success-soft border-success-muted' : 'bg-warning-soft border-warning-muted'}`}>
+                {queueInfo.stuck ? `${queueInfo.stuck} stuck` : isOnline ? (queueInfo.waiting ? `Sending ${queueInfo.waiting}` : 'System Online') : (queueInfo.waiting ? `Offline · ${queueInfo.waiting} saved` : 'Offline Mode')}
               </span>
-            </div>
+              {(queueInfo.stuck > 0 || queueInfo.waiting > 0) && (
+                <span className={`sm:hidden absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full text-[9px] leading-4 text-center text-white ${queueInfo.stuck ? 'bg-danger' : 'bg-warning'}`}>{queueInfo.stuck || queueInfo.waiting}</span>
+              )}
+            </Link>
 
             {/* What's new — recent improvements, dot until seen */}
             <WhatsNewButton />

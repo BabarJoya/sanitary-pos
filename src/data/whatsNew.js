@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-02',
+    date: '2 Dec 2026',
+    title: 'See what is waiting to sync',
+    items: [
+      { text: 'New Sync status page: every sale, payment or change saved on this device that has not reached the server yet', module: 'Sync', to: '/sync' },
+      { text: 'Stuck items show why in plain words, with Retry or Discard — discarded items can be put back', module: 'Sync', to: '/sync' },
+      { text: 'The Online / Offline sign at the top now shows how many changes are waiting, and turns red if something is stuck — tap it to open Sync status', module: 'Sync', to: '/sync' },
+    ],
+  },
+  {
     id: '2026-12-01',
     date: '1 Dec 2026',
     title: 'No more "OK" pop-ups to tap',

@@ -511,7 +511,7 @@ function Dashboard() {
               text={<><b>{stats.debtorCount}</b> customer{stats.debtorCount === 1 ? ' owes' : 's owe'} you <b>Rs. {Math.round(stats.totalReceivables).toLocaleString()}</b></>} />)
             if (localCounts.held > 0) rows.push(<AttentionRow key="held" icon="⏸️" to="/pos" action="Open POS"
               text={<><b>{localCounts.held}</b> bill{localCounts.held === 1 ? ' is' : 's are'} on hold at the counter</>} />)
-            if (localCounts.unsynced > 0) rows.push(<AttentionRow key="sync" icon="🔄" action={navigator.onLine ? 'Syncing…' : 'Waiting for internet'}
+            if (localCounts.unsynced > 0) rows.push(<AttentionRow key="sync" icon="🔄" to="/sync" action="View"
               text={<><b>{localCounts.unsynced}</b> change{localCounts.unsynced === 1 ? '' : 's'} saved on this device, not yet sent to the server</>} />)
             if (stats.todayLinesWithoutCost > 0 && seeProfit) rows.push(<AttentionRow key="cost" icon="🏷️" to="/products" action="Add cost"
               text={<><b>{stats.todayLinesWithoutCost}</b> item line(s) sold today have no cost price, so profit is shown too high</>} />)

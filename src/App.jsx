@@ -34,6 +34,7 @@ const Settings = lazy(() => import('./pages/Settings'))
 const PurchaseHistory = lazy(() => import('./pages/PurchaseHistory'))
 const TrashBin = lazy(() => import('./pages/TrashBin'))
 const Support = lazy(() => import('./pages/Support'))
+const SyncStatus = lazy(() => import('./pages/SyncStatus'))
 const WhatsAppMessaging = lazy(() => import('./pages/WhatsAppMessaging'))
 
 // Superadmin Portal
@@ -124,6 +125,7 @@ function App() {
             <Route path="/settings" element={<ProtectedRoute requiredModule="settings" allowedRoles={['admin']}><Layout><Settings /></Layout></ProtectedRoute>} />
             <Route path="/trash" element={<ProtectedRoute requiredModule="trash" allowedRoles={['admin']}><Layout><TrashBin /></Layout></ProtectedRoute>} />
             <Route path="/whatsapp" element={<ProtectedRoute requiredModule="customers" allowedRoles={['admin', 'manager', 'cashier']}><Layout><WhatsAppMessaging /></Layout></ProtectedRoute>} />
+            <Route path="/sync" element={<ProtectedRoute><Layout><SyncStatus /></Layout></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute requiredModule="support" allowedRoles={['admin', 'manager', 'cashier', 'accountant']}><Layout><Support /></Layout></ProtectedRoute>} />
             {/* Anything else: refresh an out-of-date app once, then a clear "not found" page (never a blank screen) */}
             <Route path="*" element={<NotFound />} />

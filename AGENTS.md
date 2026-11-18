@@ -20,7 +20,7 @@ Standalone admin: `cd superadmin`, then the same npm scripts.
 
 ## Data, Auth, Offline
 
-- Supabase/RLS header helpers: `src/services/supabase.js`; Dexie schema: `src/services/db.js`; queue runner: `src/services/syncService.js` (30-second interval and `online` event, started by app bootstrap).
+- Supabase/RLS header helpers: `src/services/supabase.js`; Dexie schema: `src/services/db.js`; queue runner: `src/services/syncService.js` (30-second interval and `online` event, started by app bootstrap). Queue items are visible at `/sync` (`src/pages/SyncStatus.jsx`, labels in `src/utils/syncLabels.js`); Discard keeps a local backup (`edgex_sync_discarded`) that can be put back.
 - Login is in `src/pages/Login.jsx`, auth state in `src/context/AuthContext.jsx`. Current offline design persists identity/session material and password hashes in browser storage; this is a security-sensitive legacy constraint, not a secure authorization boundary.
 - **Never put service-role credentials in browser/Vite `VITE_*` variables, and never commit `.env` files (git-ignored; `.env.example` is the template). Server scripts read `SUPABASE_SERVICE_ROLE_KEY`; production builds fail without host-provided `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`.** Privileged superadmin work goes through the `admin-api` Edge Function (`supabase/functions/admin-api`, client `src/services/adminApi.js`), which verifies a superadmin session token and allow-lists tables/actions; see `docs/ADMIN_EDGE_FUNCTIONS.md`. The old key leaked (bundle + git history) and must be rotated.
 - `sessions` is server-written only (`secure_login`, Edge Functions); the browser may read only its own row. Superadmin sessions have `shop_id NULL`. Schema: `sql/superadmin_edge_functions_migration.sql`.
