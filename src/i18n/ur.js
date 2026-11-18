@@ -54,6 +54,9 @@ const ur = {
   "Today's Summary": 'آج کا خلاصہ',
   'Close Day': 'دن بند کریں',
   'Language': 'زبان',
+  'Recent bills': 'حالیہ بل',
+  'Print': 'پرنٹ',
+  'Open': 'کھولیں',
 }
 
 export default ur
