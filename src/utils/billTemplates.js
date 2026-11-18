@@ -1,4 +1,5 @@
 import { summarizeSales, netOf } from './salesSummary'
+import { billUrl, qrSvg, billQrEnabled } from './billLink'
 // ============================================================
 // Bill Templates Utility — 3 templates × 2 sizes (80mm / A4)
 // Usage: buildBillHTML(r, isQuotation, shopSettings)
@@ -643,14 +644,199 @@ function template4(r, isQuotation, s, isPurchase = false) {
   </div>${printScript}</body></html>`
 }
 
+// ── QR CODE + BILL LINK (all templates) ──────────────────────
+// Shown when the sale has a bill_token, the caller did not turn it off
+// (r.showBillQr === false, e.g. an offline bill before the database supports
+// links) and the shop keeps "Print QR code on bills" on.
+function billQrInfo(r, s, isPurchase) {
+  if (isPurchase || !r?.sale?.bill_token || r.showBillQr === false || !billQrEnabled(s)) return null
+  try {
+    const url = billUrl(r.sale.bill_token)
+    return { url, short: url.replace(/^https?:\/\//, ''), svg: (size) => qrSvg(url, { size }) }
+  } catch {
+    return null
+  }
+}
+
+function billQrBlock(r, s, isPurchase, thermal) {
+  const q = billQrInfo(r, s, isPurchase)
+  if (!q) return ''
+  return thermal
+    ? `<div style="text-align:center;margin:10px 0 4px;page-break-inside:avoid">${q.svg(110)}
+         <p style="margin:2px 0;font-size:10px;font-weight:bold">Scan to view this bill online</p>
+         <p style="margin:0;font-size:9px;word-break:break-all;color:#333">${q.short}</p></div>`
+    : `<div style="display:flex;align-items:center;gap:12px;margin-top:18px;page-break-inside:avoid">${q.svg(96)}
+         <div style="font-size:12px;color:#334155"><b>Scan to view this bill online</b><br><span style="font-size:11px;word-break:break-all">${q.short}</span></div></div>`
+}
+
+// ── TEMPLATE 5 — SMART (recommended) ─────────────────────────
+// Clear hierarchy for a busy counter: big total, items on two lines on 80mm
+// paper (name, then qty × rate = amount), customer account, payment, QR link.
+function template5(r, isQuotation, s, isPurchase = false) {
+  const isThermal = s.print_size !== 'a4'
+  const wholesale = isWholesaleBill(r)
+  const title = isPurchase ? 'PURCHASE RECORD' : (isQuotation ? 'QUOTATION' : (wholesale ? 'WHOLESALE INVOICE' : 'INVOICE'))
+  const footer = isPurchase ? '' : (isQuotation ? safeStr(s.quotation_footer, 'یہ صرف قیمت نامہ ہے') : safeStr(s.invoice_footer, 'شکریہ! دوبارہ تشریف لائیں'))
+  const invoiceNo = isPurchase ? `PR-${String(r.sale?.id ?? Date.now()).slice(-8)}` : `${isQuotation ? 'QT' : (s.invoice_prefix || 'INV')}-${String(r.sale?.id ?? Date.now()).slice(-8)}`
+  const created = r.sale?.created_at ? new Date(r.sale.created_at) : new Date()
+  const dateStr = created.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+  const timeStr = created.toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })
+  const total = safeNum(r.total)
+  const paid = safeNum(r.sale?.paid_amount)
+  const remaining = r.sale ? Math.max(0, total - paid) : 0
+  const items = r.items || []
+  const money = (n) => `Rs. ${Math.round(safeNum(n)).toLocaleString('en-PK')}`
+  const status = isQuotation || isPurchase ? '' : (remaining > 0 ? (paid > 0 ? 'PARTLY PAID' : 'UNPAID') : 'PAID')
+
+  if (isThermal) {
+    const rows = items.map(i => {
+      const price = safeNum(i.custom_price ?? i.unit_price ?? i.price)
+      const qty = safeNum(i.qty ?? i.quantity)
+      return `<tr><td colspan="2" style="padding:4px 0 0;font-weight:600">${safeStr(i.name || i.product_name)}${i.brand ? ` <span style="font-weight:400;color:#555">(${i.brand})</span>` : ''}</td></tr>
+        <tr><td style="padding:0 0 4px;color:#333">${qty} × ${price.toLocaleString('en-PK')}</td><td style="padding:0 0 4px;text-align:right;font-weight:700">${Math.round(price * qty).toLocaleString('en-PK')}</td></tr>`
+    }).join('')
+    const line = (l, v, style = '') => `<tr style="${style}"><td>${l}</td><td style="text-align:right">${v}</td></tr>`
+    return `<html><head><title>${title}</title><style>
+      @page{size:80mm auto;margin:2mm}
+      *{box-sizing:border-box}
+      body{font-family:Arial,'Segoe UI',sans-serif;width:302px;margin:0 auto;padding:10px 6px;font-size:12px;color:#000;background:#fff;font-variant-numeric:tabular-nums}
+      p{margin:1px 0;line-height:1.35} .c{text-align:center}
+      table{width:100%;border-collapse:collapse} td{vertical-align:top}
+      .rule{border-top:1px dashed #000;margin:7px 0}
+      .tag{display:inline-block;border:1.5px solid #000;border-radius:4px;padding:1px 6px;font-weight:800;font-size:11px;letter-spacing:.5px}
+      .grand{border-top:2px solid #000;border-bottom:2px solid #000;margin:6px 0;padding:5px 0;font-size:17px;font-weight:900}
+    </style></head><body>
+      ${s.logo_url ? `<img src="${s.logo_url}" style="display:block;margin:0 auto 4px;max-width:90px;max-height:60px">` : ''}
+      <p class="c" style="font-size:18px;font-weight:900;letter-spacing:.3px">${safeStr(s.name, 'Shop')}</p>
+      ${s.address ? `<p class="c">${s.address}</p>` : ''}
+      ${s.phone ? `<p class="c">Ph: ${s.phone}</p>` : ''}
+      ${s.tax_number ? `<p class="c" style="font-size:11px">${s.tax_number}</p>` : ''}
+      <div class="rule"></div>
+      <table><tr><td><span class="tag">${title}</span></td><td style="text-align:right;font-weight:700">${invoiceNo}</td></tr></table>
+      <table style="margin-top:4px;font-size:11px">
+        ${line('Date', `${dateStr} · ${timeStr}`)}
+        ${line(isPurchase ? 'Supplier' : 'Customer', customerLine(r))}
+        ${r.sale?.created_by ? line('Served by', r.sale.created_by) : ''}
+      </table>
+      <div class="rule"></div>
+      <table>${rows}</table>
+      <div class="rule"></div>
+      <table>
+        ${line(`Subtotal <span style="color:#555">(${items.length} item${items.length === 1 ? '' : 's'})</span>`, money(r.subtotal ?? r.total))}
+        ${safeNum(r.totalDiscount) > 0 ? line('Discount', `− ${money(r.totalDiscount)}`) : ''}
+      </table>
+      <table class="grand"><tr><td>TOTAL</td><td style="text-align:right">${money(total)}</td></tr></table>
+      <table>
+        ${!isQuotation && !isPurchase && r.sale ? line('Paid', money(paid)) : ''}
+        ${!isQuotation && safeNum(r.change) > 0 ? line('Change returned', money(r.change)) : ''}
+        ${!isQuotation && remaining > 0 ? line('<b>Balance due</b>', `<b>${money(remaining)}</b>`) : ''}
+        ${accountRows(r, isQuotation, (l, v) => `<tr><td>${l}</td><td style="text-align:right;font-weight:700">${money(v)}</td></tr>`)}
+      </table>
+      ${!isQuotation ? `<div style="margin-top:4px;font-size:11px">${paymentLine(r)}</div>` : ''}
+      ${status ? `<p class="c" style="margin-top:6px"><span class="tag">${status}</span></p>` : ''}
+      ${billQrBlock(r, s, isPurchase, true)}
+      ${footer ? `<div class="rule"></div><p class="c" style="font-size:13px;font-weight:700">${footer}</p>` : ''}
+      ${printScript}</body></html>`
+  }
+
+  // A4 / full page
+  const rows = items.map((i, k) => {
+    const price = safeNum(i.custom_price ?? i.unit_price ?? i.price)
+    const qty = safeNum(i.qty ?? i.quantity)
+    return `<tr>
+      <td class="n">${k + 1}</td>
+      <td><b>${safeStr(i.name || i.product_name)}</b>${i.brand ? `<span class="muted"> · ${i.brand}</span>` : ''}${i.sku ? `<div class="muted" style="font-size:11px">${i.sku}</div>` : ''}</td>
+      <td class="r">${qty}</td><td class="r">${price.toLocaleString('en-PK')}</td><td class="r"><b>${Math.round(price * qty).toLocaleString('en-PK')}</b></td></tr>`
+  }).join('')
+  const trow = (l, v, cls = '') => `<div class="trow ${cls}"><span>${l}</span><span>${v}</span></div>`
+  return `<html><head><title>${title} ${invoiceNo}</title><style>
+    @page{size:A4 portrait;margin:12mm}
+    *{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#0f172a;font-size:13px;margin:0;font-variant-numeric:tabular-nums}
+    .muted{color:#64748b} .r{text-align:right} .n{color:#94a3b8;width:28px}
+    .head{display:flex;justify-content:space-between;gap:24px;padding-bottom:16px;border-bottom:3px solid #0f172a}
+    .shop{display:flex;gap:14px;align-items:center}
+    .shop h1{margin:0;font-size:24px;letter-spacing:-.3px}
+    .meta{text-align:right}
+    .meta .title{font-size:22px;font-weight:900;letter-spacing:2px}
+    .badge{display:inline-block;margin-top:6px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.5px;border:1.5px solid currentColor}
+    .info{display:flex;justify-content:space-between;gap:24px;margin:18px 0}
+    .info .label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#64748b;font-weight:700}
+    table{width:100%;border-collapse:collapse}
+    thead th{background:#0f172a;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:9px 10px;text-align:left}
+    thead th.r{text-align:right}
+    tbody td{padding:9px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top}
+    tbody tr:nth-child(even) td{background:#f8fafc}
+    .bottom{display:flex;justify-content:space-between;gap:24px;margin-top:18px;align-items:flex-start}
+    .totals{width:300px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+    .trow{display:flex;justify-content:space-between;padding:7px 14px;border-bottom:1px solid #f1f5f9}
+    .trow.grand{background:#0f172a;color:#fff;font-size:17px;font-weight:900;border:0}
+    .trow.due{color:#b91c1c;font-weight:800}
+    .foot{margin-top:28px;padding-top:12px;border-top:1px dashed #cbd5e1;display:flex;justify-content:space-between;align-items:flex-end}
+    .sig{border-top:1px solid #0f172a;padding-top:4px;width:180px;text-align:center;font-size:11px;color:#64748b}
+  </style></head><body>
+    <div class="head">
+      <div class="shop">
+        ${s.logo_url ? `<img src="${s.logo_url}" style="max-width:70px;max-height:70px;border-radius:8px">` : ''}
+        <div><h1>${safeStr(s.name, 'Shop')}</h1>
+          ${s.address ? `<div class="muted">${s.address}</div>` : ''}
+          ${s.phone ? `<div class="muted">Phone: ${s.phone}</div>` : ''}
+          ${s.tax_number ? `<div class="muted">${s.tax_number}</div>` : ''}
+        </div>
+      </div>
+      <div class="meta">
+        <div class="title">${title}</div>
+        <div><b>${invoiceNo}</b></div>
+        <div class="muted">${dateStr} · ${timeStr}</div>
+        ${status ? `<span class="badge" style="color:${status === 'PAID' ? '#15803d' : '#b91c1c'}">${status}</span>` : ''}
+      </div>
+    </div>
+    <div class="info">
+      <div><div class="label">${isPurchase ? 'Supplier' : 'Bill to'}</div><div style="font-size:15px;font-weight:700">${customerLine(r)}</div></div>
+      ${r.sale?.created_by ? `<div class="r"><div class="label">Served by</div><div>${r.sale.created_by}</div></div>` : ''}
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="bottom">
+      <div style="flex:1">
+        ${!isQuotation ? `<div class="muted" style="font-size:12px">${paymentLine(r)}</div>` : ''}
+        ${billQrBlock(r, s, isPurchase, false)}
+      </div>
+      <div class="totals">
+        ${trow(`Subtotal (${items.length} item${items.length === 1 ? '' : 's'})`, money(r.subtotal ?? r.total))}
+        ${safeNum(r.totalDiscount) > 0 ? trow('Discount', `− ${money(r.totalDiscount)}`) : ''}
+        ${trow('TOTAL', money(total), 'grand')}
+        ${!isQuotation && !isPurchase && r.sale ? trow('Paid', money(paid)) : ''}
+        ${!isQuotation && safeNum(r.change) > 0 ? trow('Change returned', money(r.change)) : ''}
+        ${!isQuotation && remaining > 0 ? trow('Balance due', money(remaining), 'due') : ''}
+        ${accountRows(r, isQuotation, (l, v) => trow(l, money(v)))}
+      </div>
+    </div>
+    <div class="foot">
+      <div style="font-size:14px;font-weight:700">${footer || ''}</div>
+      <div class="sig">Authorized signature</div>
+    </div>
+    ${printScript}</body></html>`
+}
+
 // ── PUBLIC API ───────────────────────────────────────────────
 export function buildBillHTML(r, isQuotation = false, shopSettings = {}, isPurchase = false) {
-  const template = shopSettings.print_template || localStorage.getItem(`print_template_${shopSettings.shop_id || ''}`) || localStorage.getItem('print_template') || '2'
-  if (template === '1') return template1(r, isQuotation, shopSettings, isPurchase)
-  if (template === '3') return template3(r, isQuotation, shopSettings, isPurchase)
-  if (template === '4') return template4(r, isQuotation, shopSettings, isPurchase)
-  return template2(r, isQuotation, shopSettings, isPurchase)
+  const template = shopSettings.print_template || localStorage.getItem(`print_template_${shopSettings.shop_id || ''}`) || localStorage.getItem('print_template') || DEFAULT_TEMPLATE
+  if (template === '5') return template5(r, isQuotation, shopSettings, isPurchase)
+  let html
+  if (template === '1') html = template1(r, isQuotation, shopSettings, isPurchase)
+  else if (template === '3') html = template3(r, isQuotation, shopSettings, isPurchase)
+  else if (template === '4') html = template4(r, isQuotation, shopSettings, isPurchase)
+  else html = template2(r, isQuotation, shopSettings, isPurchase)
+  // Older templates: add the bill QR just before the print script (end of the bill)
+  const qr = billQrBlock(r, shopSettings, isPurchase, shopSettings.print_size !== 'a4')
+  return qr ? html.replace(printScript, qr + printScript) : html
 }
+
+// Shops that never picked a template get the Smart bill
+export const DEFAULT_TEMPLATE = '5'
 
 // ── SALES REPORT (daily / weekly / monthly) ──────────────────
 export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {

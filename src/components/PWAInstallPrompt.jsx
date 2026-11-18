@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 
 export default function PWAInstallPrompt() {
+  const { pathname } = useLocation()
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showBanner, setShowBanner] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
@@ -50,7 +52,8 @@ export default function PWAInstallPrompt() {
     localStorage.setItem('pwa_install_dismissed', '1')
   }
 
-  if (isInstalled || !showBanner) return null
+  // Customers opening their statement link (/c/…) or a bill QR (/b/…) should not be asked to install the POS
+  if (isInstalled || !showBanner || pathname.startsWith('/c/') || pathname.startsWith('/b/')) return null
 
   return (
     <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 bg-surface rounded-2xl shadow-2xl border border-primary-muted p-4 animate-in slide-in-from-bottom duration-300">

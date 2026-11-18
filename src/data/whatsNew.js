@@ -8,6 +8,29 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-22',
+    date: '22 Nov 2026',
+    title: 'New Smart bill with QR code',
+    items: [
+      'New "Smart" bill design: big total, easy-to-read items, paid / balance due and the customer\'s account (choose it in Settings → Print)',
+      'Every bill prints a QR code — the customer scans it to open the bill on their phone, handy for warranty and returns',
+      'Reprinted bills from Sales History carry the QR too',
+      'Turn the QR off any time in Settings → Print',
+    ],
+  },
+  {
+    id: '2026-11-21',
+    date: '21 Nov 2026',
+    title: 'Customers can see their own account',
+    items: [
+      'Customer Ledger → 🔗 Customer link: send a private link on WhatsApp',
+      'The customer opens it on their phone without any login and sees their balance, bills (with items) and payments',
+      'Only that customer\'s account is shown — no cost prices, nothing else',
+      'Links work for 6 months; make a new link or turn it off any time',
+      'Fixed: a customer\'s ledger now opens from saved data when the internet is weak',
+    ],
+  },
+  {
     id: '2026-11-20',
     date: '20 Nov 2026',
     title: 'Get paid faster, reorder on time',
