@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Modal } from '../components/ui'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { supabase } from '../services/supabase'
@@ -639,25 +640,12 @@ function PurchaseHistory() {
 
                 {/* Detail Modal */}
                 {selectedPurchase && (
-                    <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-                        <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h2 className="text-lg font-bold text-fg">
-                                        Purchase Invoice PR-{String(selectedPurchase.id).slice(-8)}
-                                    </h2>
-                                    <p className="text-sm text-fg-muted">
-                                        {new Date(selectedPurchase.created_at).toLocaleString('en-PK')} |
+                    <Modal open onClose={() => setSelectedPurchase(null)} title={<>Purchase Invoice PR-{String(selectedPurchase.id).slice(-8)}</>} subtitle={<>{new Date(selectedPurchase.created_at).toLocaleString('en-PK')} |
                                         {' '}{selectedPurchase.suppliers?.name || 'Unknown'} |
                                         <span className={selectedPurchase.payment_type === 'cash' ? ' text-success-fg' : ' text-warning-fg'}>
                                             {' '}{selectedPurchase.payment_type?.toUpperCase()}
-                                        </span>
-                                    </p>
-                                </div>
-                                <button onClick={() => setSelectedPurchase(null)} className="text-fg-subtle hover:text-fg-3 text-xl">×</button>
-                            </div>
-
-                            {/* Info Grid */}
+                                        </span></>} maxWidth="max-w-2xl" dismissible={false}>
+                      {/* Info Grid */}
                             <div className="grid grid-cols-2 gap-4 mb-4 bg-surface-2 p-4 rounded-xl border border-line-subtle text-sm">
                                 <p><span className="text-fg-subtle font-medium uppercase text-[10px] block">Supplier</span> <b>{selectedPurchase.suppliers?.name || 'Unknown'}</b></p>
                                 <p><span className="text-fg-subtle font-medium uppercase text-[10px] block">Date</span> <b>{new Date(selectedPurchase.created_at).toLocaleString('en-PK')}</b></p>
@@ -738,8 +726,7 @@ function PurchaseHistory() {
                                     </div>
                                 </>
                             )}
-                        </div>
-                    </div>
+                    </Modal>
                 )}
             </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { Modal } from '../components/ui'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
@@ -959,12 +960,8 @@ function Products() {
 
       {/* Import Preview Modal */}
       {showImportPreview && (
-        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col">
-            <h2 className="text-xl font-bold text-fg mb-1">📥 Import Preview</h2>
-            <p className="text-sm text-fg-muted mb-3">{importPreviewRows.length} products ready to import. Category match status check karein.</p>
-
-            {importPreviewRows.some(r => r.categoryName && !r.categoryId) && (
+        <Modal open onClose={() => { setShowImportPreview(false); setImportPreviewRows([]) }} title="📥 Import Preview" subtitle={<>{importPreviewRows.length} products ready to import. Category match status check karein.</>} maxWidth="max-w-4xl" dismissible={false}>
+          {importPreviewRows.some(r => r.categoryName && !r.categoryId) && (
               <div className="bg-warning-soft border border-warning-line rounded-lg p-3 mb-3">
                 <p className="text-sm text-warning-strong font-medium">
                   ⚠️ {importPreviewRows.filter(r => r.categoryName && !r.categoryId).length} row(s) mein category match nahi hui.
@@ -1047,8 +1044,7 @@ function Products() {
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {showPasswordModal && (
@@ -1062,12 +1058,23 @@ function Products() {
 
       {/* Bulk Edit Modal */}
       {showBulkEdit && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold text-fg mb-1">✏️ Bulk Edit</h2>
-            <p className="text-sm text-fg-muted mb-4">{selected.length} product(s) selected. Sirf woh fields update hongi jo aap select karein.</p>
-
-            <div className="space-y-4">
+        <Modal open onClose={() => { setShowBulkEdit(false); setBulkUnit('') }} title="✏️ Bulk Edit" subtitle={<>{selected.length} product(s) selected. Sirf woh fields update hongi jo aap select karein.</>} maxWidth="max-w-sm" dismissible={false}
+          footer={<>
+            <button
+                onClick={handleBulkEdit}
+                disabled={bulkSaving || (!bulkCategory && !bulkBrand && !bulkUnit)}
+                className="flex-1 py-2 bg-info hover:bg-info-hover text-white rounded-lg font-bold transition disabled:opacity-50"
+              >
+                {bulkSaving ? 'Updating...' : '✅ Apply Changes'}
+              </button>
+              <button
+                onClick={() => { setShowBulkEdit(false); setBulkUnit('') }}
+                className="flex-1 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg font-bold transition"
+              >
+                Cancel
+              </button>
+          </>}>
+          <div className="space-y-4">
               <div>
                 <label className="block text-fg-2 font-medium mb-1">Category</label>
                 <select
@@ -1104,24 +1111,7 @@ function Products() {
                 </select>
               </div>
             </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleBulkEdit}
-                disabled={bulkSaving || (!bulkCategory && !bulkBrand && !bulkUnit)}
-                className="flex-1 py-2 bg-info hover:bg-info-hover text-white rounded-lg font-bold transition disabled:opacity-50"
-              >
-                {bulkSaving ? 'Updating...' : '✅ Apply Changes'}
-              </button>
-              <button
-                onClick={() => { setShowBulkEdit(false); setBulkUnit('') }}
-                className="flex-1 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg font-bold transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Barcode Label Printing Modal */}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Modal } from '../components/ui'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
@@ -934,13 +935,8 @@ function Inventory() {
 
       {/* Adjust Stock Modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-fg">Manual Adjustment</h2>
-              <button onClick={() => setSelectedProduct(null)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-            <p className="text-sm text-fg-muted mb-4">Update stock for <b>{selectedProduct.name}</b></p>
+        <Modal open onClose={() => setSelectedProduct(null)} title="Manual Adjustment" maxWidth="max-w-sm" dismissible={false}>
+          <p className="text-sm text-fg-muted mb-4">Update stock for <b>{selectedProduct.name}</b></p>
             <form onSubmit={handleAdjustStock} className="space-y-4">
               <div>
                 <label className="block text-fg-2 font-medium mb-1">New Stock Quantity</label>
@@ -981,18 +977,12 @@ function Inventory() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* Record Return Modal */}
       {returnProduct && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-fg">Record Product Return</h2>
-              <button onClick={() => setReturnProduct(null)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-            <form onSubmit={handleRecordReturn} className="space-y-4">
+        <Modal open onClose={() => setReturnProduct(null)} title="Record Product Return" maxWidth="max-w-sm" dismissible={false}>
+          <form onSubmit={handleRecordReturn} className="space-y-4">
               <div>
                 <label className="block text-fg-2 font-medium mb-1">Select Product</label>
                 <select
@@ -1044,19 +1034,13 @@ function Inventory() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Bulk Price Update Modal */}
       {showBulkPriceModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-fg">Bulk Price Update</h2>
-              <button onClick={() => setShowBulkPriceModal(false)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-            <p className="text-sm text-fg-muted mb-6">Modify all products of a specific brand by a percentage.</p>
+        <Modal open onClose={() => setShowBulkPriceModal(false)} title="Bulk Price Update" maxWidth="max-w-md" dismissible={false}>
+          <p className="text-sm text-fg-muted mb-6">Modify all products of a specific brand by a percentage.</p>
 
             <form onSubmit={handleBulkPriceUpdate} className="space-y-4">
               <div>
@@ -1133,23 +1117,13 @@ function Inventory() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* History Modal */}
       {historyProduct && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[calc(100dvh-2rem)] flex flex-col">
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <div>
-                <h2 className="text-xl font-bold text-fg">Timeline: {historyProduct.name}</h2>
-                <p className="text-xs text-fg-muted">{historyProduct.brand} | {historyProduct.sku || 'No SKU'}</p>
-              </div>
-              <button onClick={() => setHistoryProduct(null)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+        <Modal open onClose={() => setHistoryProduct(null)} title={<>Timeline: {historyProduct.name}</>} subtitle={<>{historyProduct.brand} | {historyProduct.sku || 'No SKU'}</>} maxWidth="max-w-2xl">
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
               {loadingHistory ? (
                 <p className="text-center py-10 text-fg-subtle">Fetching history logs...</p>
               ) : historyLogs.length === 0 ? (
@@ -1174,8 +1148,7 @@ function Inventory() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <ReorderModal
@@ -1325,13 +1298,8 @@ function Inventory() {
           p.brand === arBrand && (arCategory ? String(p.category_id) === String(arCategory) : true)
         ).length
         return (
-          <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-            <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-fg">🎯 Adjust Rates</h2>
-                <button onClick={() => setShowAdjustRatesModal(false)} className="text-fg-subtle hover:text-fg-3 text-2xl leading-none">×</button>
-              </div>
-              <p className="text-sm text-fg-muted mb-4">Brand aur Category filter karo, phir percentage se rates adjust karo.</p>
+          <Modal open onClose={() => setShowAdjustRatesModal(false)} title="🎯 Adjust Rates" maxWidth="max-w-md" dismissible={false}>
+            <p className="text-sm text-fg-muted mb-4">Brand aur Category filter karo, phir percentage se rates adjust karo.</p>
               <form onSubmit={handleAdjustRates} className="space-y-4">
                 <div>
                   <label className="block text-fg-2 font-medium mb-1 text-sm">Brand *</label>
@@ -1391,8 +1359,7 @@ function Inventory() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
+          </Modal>
         )
       })()}
 

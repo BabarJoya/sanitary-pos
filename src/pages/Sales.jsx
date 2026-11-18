@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Modal } from '../components/ui'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
@@ -706,26 +707,13 @@ function Sales() {
         {/* Sale Detail Modal */}
         {
           selectedSale && (
-            <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-              <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-fg">
-                      {selectedSale.sale_type === 'quotation' ? 'Quotation QT-' : 'Invoice #'}
-                      {String(selectedSale.id).slice(-8)}
-                    </h2>
-                    <p className="text-sm text-fg-muted">
-                      {new Date(selectedSale.created_at).toLocaleString('en-PK')} |
+            <Modal open onClose={() => setSelectedSale(null)} title={<>{selectedSale.sale_type === 'quotation' ? 'Quotation QT-' : 'Invoice #'}
+                      {String(selectedSale.id).slice(-8)}</>} subtitle={<>{new Date(selectedSale.created_at).toLocaleString('en-PK')} |
                       {selectedSale.customers?.name || selectedSale.customer_name || ' Walk-in'} |
                       <span className={selectedSale.payment_type === 'cash' ? ' text-success-fg' : ' text-warning-fg'}>
                         {' '}{selectedSale.payment_type?.toUpperCase()}
-                      </span>
-                    </p>
-                  </div>
-                  <button onClick={() => setSelectedSale(null)} className="text-fg-subtle hover:text-fg-3 text-xl">×</button>
-                </div>
-
-                {loadingItems ? <p className="text-fg-muted text-center py-8">Loading...</p> : (
+                      </span></>} maxWidth="max-w-2xl" dismissible={false}>
+              {loadingItems ? <p className="text-fg-muted text-center py-8">Loading...</p> : (
                   <>
                     <div className="overflow-x-auto">
                       <table className="w-full mb-4 text-sm">
@@ -827,8 +815,7 @@ function Sales() {
                     </div>
                   </>
                 )}
-              </div>
-            </div>
+            </Modal>
           )
         }
       </div>

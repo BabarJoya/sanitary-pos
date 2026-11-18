@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Modal } from '../components/ui'
 import { hasFeature } from '../utils/featureGate'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import UpgradeWall from '../components/UpgradeWall'
@@ -718,13 +719,8 @@ function Purchases() {
 
       {/* Quick View Modal */}
       {quickViewProduct && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setQuickViewProduct(null)}>
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <h3 className="text-lg font-bold text-fg">📋 Product Details & Price History</h3>
-              <button onClick={() => setQuickViewProduct(null)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-3">
+        <Modal open onClose={() => setQuickViewProduct(null)} title="📋 Product Details & Price History" maxWidth="max-w-lg">
+          <div className="flex-1 overflow-y-auto space-y-3">
               <div>
                 <p className="text-sm text-fg-muted">Product Name</p>
                 <p className="font-bold text-fg">{quickViewProduct.name}</p>
@@ -799,19 +795,13 @@ function Purchases() {
             >
               + Add to Purchase Cart
             </button>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Held Purchases Modal */}
       {showHeldPurchases && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowHeldPurchases(false)}>
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-fg">⏸️ Held Purchases</h3>
-              <button onClick={() => setShowHeldPurchases(false)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-            <div className="overflow-y-auto space-y-3 flex-1">
+        <Modal open onClose={() => setShowHeldPurchases(false)} title="⏸️ Held Purchases" maxWidth="max-w-lg">
+          <div className="overflow-y-auto space-y-3 flex-1">
               {heldPurchases.length === 0 && <p className="text-fg-subtle text-center py-8">No held purchases</p>}
               {heldPurchases.map(held => {
                 const sup = suppliers.find(s => String(s.id) === String(held.supplier_id))
@@ -837,8 +827,7 @@ function Purchases() {
                 )
               })}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
       {showLabels && labelItems.length > 0 && (
         <BarcodeLabelModal

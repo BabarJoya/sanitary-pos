@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Modal } from '../components/ui'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
@@ -644,17 +645,8 @@ function Dashboard() {
 
       {/* EOD Modal */}
       {showEOD && (
-        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-line-subtle">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-fg">🌙 End of Day Summary</h2>
-                <button onClick={() => setShowEOD(false)} className="text-fg-subtle hover:text-fg-3 text-2xl leading-none">×</button>
-              </div>
-              <p className="text-sm text-fg-muted mt-1">{new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-            </div>
-
-            {eodLoading ? (
+        <Modal open onClose={() => setShowEOD(false)} title="🌙 End of Day Summary" subtitle={<>{new Date().toLocaleDateString('en-PK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</>} maxWidth="max-w-md" dismissible={false}>
+          {eodLoading ? (
               <div className="p-8 text-center text-fg-subtle">Loading summary...</div>
             ) : eodData ? (
               <div className="p-6 space-y-4 max-h-[70dvh] overflow-y-auto">
@@ -701,8 +693,7 @@ function Dashboard() {
               {eodData && <button onClick={shareEODWhatsApp} className="flex-1 py-2.5 bg-success hover:bg-success-hover text-white font-bold rounded-xl transition">📱 {getShopSettings(user?.shop_id).owner_whatsapp ? 'Send to owner' : 'WhatsApp'}</button>}
               <button onClick={() => setShowEOD(false)} className="flex-1 py-2.5 bg-surface-3 hover:bg-surface-4 text-fg-2 font-bold rounded-xl transition">Close</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )
