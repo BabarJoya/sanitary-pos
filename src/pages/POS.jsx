@@ -15,6 +15,7 @@ import { getPricingConfig, getShopSettings, isWholesaleEnabled, getUnitPrice, no
 import { isLowStock as isLowStockRule } from '../utils/stockRules'
 import { useLang } from '../context/LanguageContext'
 import { can, notAllowed } from '../utils/permissions'
+import SaleCompleteModal from '../components/SaleCompleteModal'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
   { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
@@ -1130,9 +1131,7 @@ function POS() {
 
     }
 
-    if (!savedOnline || !itemsSaved) {
-      alert('Offline mode: Sale saved locally. Will sync automatically when online. 🔄')
-    }
+    // Offline: the Sale complete screen says "Saved offline · will sync" (no blocking alert)
 
     const customer = customers.find(c => String(c.id) === String(customerId))
     const tendered = receivedAmount !== '' ? Number(receivedAmount) : totalPaid
@@ -1153,6 +1152,7 @@ function POS() {
       receivedAmount: tendered,
       changeDue: changeDueVal,
       change: changeDueVal, // bill templates read `change`
+      savedOffline: !savedOnline || !itemsSaved,
       // Customer account on the bill (Sabiqa / Kul baqaya); balance as it was before this sale
       ...(customer && saleType === 'sale' ? {
         previousBalance: Number(customer.outstanding_balance) || 0,
@@ -1279,6 +1279,32 @@ function POS() {
       shop_id:          sid,
     }
     return buildBillHTML(r, isQuotation, shopSettings)
+  }
+
+  // Send the bill (PDF when possible) to the customer's WhatsApp
+  const sendBillWhatsApp = async () => {
+    if (!lastReceipt?.customer?.phone) return
+    const phone = lastReceipt.customer.phone.replace(/[^0-9]/g, '')
+    let formattedPhone = phone
+    if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
+    else if (phone.length === 10) formattedPhone = '92' + phone
+    try {
+      const template = form.wa_bill_template || 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
+      const msg = template
+        .replace(/\[Name\]/g, lastReceipt.customer.name || 'Customer')
+        .replace(/\[Amount\]/g, lastReceipt.total.toFixed(0))
+        .replace(/\[Shop Name\]/g, form.name || 'our shop')
+        .replace(/\[ID\]/g, String(lastReceipt.sale.id).slice(-8))
+      const billHtml = buildReceiptHTML(lastReceipt, false)
+      const pdfBlob = await generateBillPDF(billHtml)
+      const invoiceId = String(lastReceipt.sale.id).slice(-8)
+      await shareOrDownloadPDF(pdfBlob, `bill-${invoiceId}.pdf`, formattedPhone, msg)
+    } catch (err) {
+      console.error('PDF share failed:', err)
+      alert('PDF nahi ban saka. WhatsApp text message bheja ja raha hai.')
+      const msg = `${form.name || 'Shop'} - Bill Rs. ${lastReceipt.total.toFixed(0)}`
+      window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+    }
   }
 
   const printReceipt = () => {
@@ -2751,7 +2777,7 @@ function POS() {
 
       {/* Save Walk-in as Customer Modal */}
       {showSaveCustomer && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h3 className="font-bold text-fg text-lg mb-1">👤 Customer Save Karein</h3>
             <p className="text-sm text-fg-muted mb-4">Yeh walk-in customer ko apni customer list mein add karein</p>
@@ -2799,7 +2825,7 @@ function POS() {
 
       {/* Brand Discount Modal */}
       {showBrandDiscount && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h3 className="font-bold text-fg mb-2">🏷️ {selectedBrand} — Brand Discount</h3>
 
@@ -2885,99 +2911,19 @@ function POS() {
 
       {/* Receipt Modal */}
       {lastReceipt && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <div className="text-center mb-4">
-              <div className="text-4xl mb-1">✅</div>
-              <h2 className="text-xl font-bold text-fg">Sale Complete!</h2>
-              <p className="text-fg-muted text-sm">{lastReceipt.paymentType === 'credit' ? '📒 Credit sale' : '💵 Cash sale'}</p>
-              {form.logo_url && (
-                <div className="mt-2 flex justify-center">
-                  <img src={form.logo_url} alt="Logo Preview" className="h-10 object-contain opacity-50 sepia-[.5]" />
-                </div>
-              )}
-              {lastReceipt.changeDue > 0 && (
-                <div className="bg-gradient-to-r from-success via-success to-success-hover text-white rounded-2xl p-3.5 text-center shadow-xl my-3 border-2 border-success-edge transform transition">
-                  <p className="text-[11px] uppercase font-black tracking-widest text-white/80">🟢 WAPIS KAREIN (CHANGE DUE)</p>
-                  <p className="text-5xl font-black font-mono mt-1 tracking-tight">Rs. {lastReceipt.changeDue.toFixed(0)}</p>
-                  <div className="flex justify-center gap-3 text-[10px] text-white/80 mt-1 font-semibold pt-1 border-t border-success/50">
-                    <span>Paid: Rs. {lastReceipt.receivedAmount}</span>
-                    <span>•</span>
-                    <span>Total: Rs. {lastReceipt.total.toFixed(0)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="bg-surface-2 rounded-lg p-3 mb-4 text-sm space-y-1">
-              {lastReceipt.items.map(i => (
-                <div key={i.id} className="flex justify-between text-xs">
-                  <span>{i.name} × {i.qty} @ Rs.{i.custom_price}</span>
-                  <span>Rs. {(i.custom_price * i.qty).toFixed(0)}</span>
-                </div>
-              ))}
-              <div className="border-t pt-1 flex justify-between font-bold">
-                <span>{t('Total')}</span><span>Rs. {lastReceipt.total.toFixed(0)}</span>
-              </div>
-              {canSeeProfit && (
-                <div className={`flex justify-between text-xs ${lastReceipt.totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
-                  <span>{t('Profit')}</span><span>Rs. {lastReceipt.totalProfit.toFixed(0)}</span>
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-3">
-                <button onClick={printReceipt} className="flex-1 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition">🖨️ Print</button>
-                {lastReceipt.customer?.phone && (
-                  <button
-                    onClick={async (e) => {
-                      const btn = e.currentTarget
-                      btn.disabled = true
-                      btn.textContent = '⏳ Generating PDF...'
-                      try {
-                        const phone = lastReceipt.customer.phone.replace(/[^0-9]/g, '')
-                        let formattedPhone = phone
-                        if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-                        else if (phone.length === 10) formattedPhone = '92' + phone
-
-                        const template = form.wa_bill_template || 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
-                        const msg = template
-                          .replace(/\[Name\]/g, lastReceipt.customer.name || 'Customer')
-                          .replace(/\[Amount\]/g, lastReceipt.total.toFixed(0))
-                          .replace(/\[Shop Name\]/g, form.name || 'our shop')
-                          .replace(/\[ID\]/g, String(lastReceipt.sale.id).slice(-8))
-
-                        const billHtml = buildReceiptHTML(lastReceipt, false)
-                        const pdfBlob = await generateBillPDF(billHtml)
-                        const invoiceId = String(lastReceipt.sale.id).slice(-8)
-                        await shareOrDownloadPDF(pdfBlob, `bill-${invoiceId}.pdf`, formattedPhone, msg)
-                      } catch (err) {
-                        console.error('PDF share failed:', err)
-                        alert('PDF nahi ban saka. WhatsApp text message bheja ja raha hai.')
-                        const phone = lastReceipt.customer.phone.replace(/[^0-9]/g, '')
-                        let formattedPhone = phone
-                        if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-                        else if (phone.length === 10) formattedPhone = '92' + phone
-                        const msg = `${form.name || 'Shop'} - Bill Rs. ${lastReceipt.total.toFixed(0)}`
-                        window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
-                      } finally {
-                        btn.disabled = false
-                        btn.innerHTML = '<span>💬</span> WhatsApp'
-                      }
-                    }}
-                    className="flex-1 py-2 bg-success hover:bg-success-hover text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
-                  >
-                    <span>💬</span> WhatsApp
-                  </button>
-                )}
-              </div>
-              <button onClick={() => setLastReceipt(null)} className="w-full py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition font-medium">{t('Close')}</button>
-            </div>
-          </div>
-        </div>
+        <SaleCompleteModal
+          receipt={lastReceipt}
+          invoicePrefix={form.invoice_prefix || 'INV'}
+          canSeeProfit={canSeeProfit}
+          savedOffline={!!lastReceipt.savedOffline}
+          onPrint={printReceipt}
+          onWhatsApp={sendBillWhatsApp}
+          onClose={() => setLastReceipt(null)}
+        />
       )}
       {/* Quotation Search Modal */}
       {showQuotationSearch && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-fg mb-4">{t('Search Quotation')}</h2>
             <p className="text-sm text-fg-muted mb-4">Quotation number (e.g. QT-abcd1234) enter karein jo bill par likha hai.</p>
@@ -3010,7 +2956,7 @@ function POS() {
       )}
       {/* Held Carts Modal */}
       {showHeldCarts && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-fg">⏸️ Held Bills</h2>
@@ -3048,7 +2994,7 @@ function POS() {
       )}
       {/* Split Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-fg mb-4">🔀 Split Payment</h2>
             <div className="space-y-3 mb-4 max-h-[340px] overflow-y-auto">
@@ -3137,7 +3083,7 @@ function POS() {
       )}
       {/* Quick View Modal */}
       {showQuickView && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h2 className="text-xl font-bold text-fg flex items-center gap-2">

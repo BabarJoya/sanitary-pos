@@ -16,6 +16,8 @@ const WHATS_NEW = [
       'Every bill prints a QR code — the customer scans it to open the bill on their phone, handy for warranty and returns',
       'Reprinted bills from Sales History carry the QR too',
       'Turn the QR off any time in Settings → Print',
+      'Cleaner "Sale complete" screen: bill number, payment type, change to return, customer balance — Enter prints, Esc starts a new sale',
+      'Fixed: pop-up windows no longer turn the whole screen black',
     ],
   },
   {

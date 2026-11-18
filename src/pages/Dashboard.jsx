@@ -15,7 +15,7 @@ import { txMaybeAvailable } from '../services/integrity'
 const StatCard = ({ title, value, icon, color, subValue }) => (
   <div className="bg-surface p-6 rounded-2xl shadow-sm border border-line-subtle hover:shadow-md transition">
     <div className="flex justify-between items-start mb-4">
-      <div className={`p-3 rounded-xl ${color} bg-opacity-10 text-xl`}>
+      <div className={`p-3 rounded-xl ${color} text-xl`}>
         {icon}
       </div>
       {subValue && <span className="text-xs font-bold text-fg-subtle uppercase tracking-wider">{subValue}</span>}
@@ -413,35 +413,35 @@ function Dashboard() {
             title="Today's Sales (Rs)"
             value={stats.todaySales}
             icon="💰"
-            color="text-success-fg bg-success"
+            color="text-success-fg bg-success-soft"
             subValue="Today"
           />
           <StatCard
             title="Today's Profit (Rs)"
             value={stats.todayProfit}
             icon="📈"
-            color="text-success-fg bg-success"
+            color="text-success-fg bg-success-soft"
             subValue="Gross"
           />
           <StatCard
             title="Monthly Sales (Rs)"
             value={stats.monthlySales}
             icon="🗓️"
-            color="text-primary-fg bg-primary"
+            color="text-primary-fg bg-primary-soft"
             subValue="This Month"
           />
           <StatCard
             title="Total Receivables (Rs)"
             value={stats.totalReceivables}
             icon="📒"
-            color="text-warning-fg bg-warning"
+            color="text-warning-fg bg-warning-soft"
             subValue="Pending"
           />
           <StatCard
             title="Low Stock Products"
             value={stats.lowStockCount}
             icon="⚠️"
-            color="text-danger-fg bg-danger"
+            color="text-danger-fg bg-danger-soft"
             subValue="Alert"
           />
         </div>
@@ -586,7 +586,7 @@ function Dashboard() {
 
       {/* EOD Modal */}
       {showEOD && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b border-line-subtle">
               <div className="flex justify-between items-center">
