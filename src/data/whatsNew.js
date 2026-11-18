@@ -10,6 +10,17 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-27',
+    date: '27 Nov 2026',
+    title: 'Faster billing at the counter',
+    items: [
+      { text: 'Fixed: F4 now opens the payment screen straight away', module: 'POS', to: '/pos' },
+      { text: 'Press + or − to change the quantity of the item you added last — no need to click the box', module: 'POS', to: '/pos' },
+      { text: '🧾 Recent bills (F6): print or WhatsApp any of the last 5 bills again', module: 'POS', to: '/pos' },
+      { text: '⌨️ Keys button (or press ?) shows every keyboard shortcut; Complete Sale shows F9', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
     id: '2026-11-26',
     date: '26 Nov 2026',
     title: 'Easier price editing in Inventory',

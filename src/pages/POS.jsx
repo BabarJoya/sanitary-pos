@@ -174,23 +174,6 @@ function POS() {
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [user?.shop_id, posLayout])
 
-  // Keyboard shortcut: F4 triggers Charge / Tender Sheet, Escape closes it
-  useEffect(() => {
-    const handlePOSKeyShortcuts = (e) => {
-      if (e.key === 'F4') {
-        e.preventDefault()
-        if (cart.length > 0 && saleType === 'sale') {
-          setShowTenderSheet(prev => !prev)
-        }
-      }
-      if (e.key === 'Escape' && showTenderSheet) {
-        e.preventDefault()
-        setShowTenderSheet(false)
-      }
-    }
-    window.addEventListener('keydown', handlePOSKeyShortcuts)
-    return () => window.removeEventListener('keydown', handlePOSKeyShortcuts)
-  }, [cart.length, saleType, showTenderSheet])
 
   // Barcode scanner mode
   const [barcodeMode, setBarcodeMode] = useState(false) // Off by default — user must click to enable
@@ -220,6 +203,7 @@ function POS() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.code === 'NumpadAdd' || e.code === 'NumpadSubtract') return; // quantity keys
       if (e.key.length === 1) {
         setBarcodeInput(prev => prev + e.key);
         if (barcodeRef.current && activeEl !== barcodeRef.current) {
@@ -282,6 +266,12 @@ function POS() {
   // Held Carts
   const [heldCarts, setHeldCarts] = useState([])
   const [showHeldCarts, setShowHeldCarts] = useState(false)
+  // Last 5 bills completed on this device in this session (reprint / WhatsApp again)
+  const recentKey = `pos_recent_bills_${user?.shop_id}`
+  const [recentBills, setRecentBills] = useState(() => { try { return JSON.parse(sessionStorage.getItem(recentKey) || '[]') } catch { return [] } })
+  const [showRecentBills, setShowRecentBills] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [lastAddedId, setLastAddedId] = useState(null)
   const [showQuickView, setShowQuickView] = useState(false)
   const [showMobileCart, setShowMobileCart] = useState(false)
 
@@ -536,18 +526,33 @@ function POS() {
         searchInputRef.current?.select()
       } else if (e.key === 'F4') {
         e.preventDefault()
-        if (cart.length > 0) {
+        if (cart.length > 0 && saleType === 'sale') {
           setShowTenderSheet(prev => !prev)
           setPaymentType('cash')
           if (!receivedAmount) setReceivedAmount(total.toString())
         }
+      } else if (e.key === 'F6') {
+        e.preventDefault()
+        setShowRecentBills(prev => !prev)
+      } else if (!isInputFocused && cart.length > 0 && (e.code === 'NumpadAdd' || e.code === 'NumpadSubtract' || (!barcodeMode && (e.key === '+' || e.key === '-')))) {
+        // + / - change the quantity of the item added last (or the top line)
+        e.preventDefault()
+        const line = cart.find(i => i.id === lastAddedId) || cart[0]
+        const step = (e.code === 'NumpadAdd' || e.key === '+') ? 1 : -1
+        const next = Math.round((Number(line.qty) + step) * 1000) / 1000
+        if (next > 0) updateQty(line.id, next)
+      } else if (e.key === '?' && !isInputFocused && !barcodeMode) {
+        e.preventDefault()
+        setShowShortcuts(prev => !prev)
       } else if (e.key === 'F9' || (e.ctrlKey && e.key === 'Enter')) {
         e.preventDefault()
         if (cart.length > 0 && !saving) {
           handleCompleteSale()
         }
       } else if (e.key === 'Escape') {
-        if (showTenderSheet) setShowTenderSheet(false)
+        if (showShortcuts) setShowShortcuts(false)
+        else if (showRecentBills) setShowRecentBills(false)
+        else if (showTenderSheet) setShowTenderSheet(false)
         else if (showPaymentModal) setShowPaymentModal(false)
         else if (showQuickView) setShowQuickView(false)
         else if (showBrandDiscount) setShowBrandDiscount(false)
@@ -564,7 +569,20 @@ function POS() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [total, cart, saving, showTenderSheet, showPaymentModal, showQuickView, showBrandDiscount, showSaveCustomer, showQuotationSearch, showHeldCarts, lastReceipt, search, receivedAmount, wholesaleEnabled, isWholesale, priceTier, products])
+  }, [total, cart, saving, showTenderSheet, showPaymentModal, showQuickView, showBrandDiscount, showSaveCustomer, showQuotationSearch, showHeldCarts, lastReceipt, search, receivedAmount, wholesaleEnabled, isWholesale, priceTier, products, saleType, barcodeMode, lastAddedId, showRecentBills, showShortcuts])
+
+  // Remember each completed bill (newest first, 5 max) for the Recent bills list
+  useEffect(() => {
+    const id = lastReceipt?.sale?.id
+    if (!lastReceipt || id == null) return
+    setRecentBills(prev => {
+      if (prev.some(r => r.sale?.id === id)) return prev
+      const next = [lastReceipt, ...prev].slice(0, 5)
+      try { sessionStorage.setItem(recentKey, JSON.stringify(next)) } catch { /* storage full or blocked */ }
+      return next
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastReceipt])
 
   const categoryNameMap = categories.reduce((acc, c) => {
     acc[String(c.id)] = c.name
@@ -617,6 +635,7 @@ function POS() {
       const { price, fallback } = getUnitPrice(product, activeTier)
       return [{ ...product, qty: lineQty, custom_price: price, price_fallback: fallback, price_overridden: false }, ...prev]
     })
+    setLastAddedId(product.id)
   }
 
   const updateQty = (id, qty) => {
@@ -1594,6 +1613,25 @@ function POS() {
               </button>
             </div>
 
+            {recentBills.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowRecentBills(true)}
+                title="Recent bills (F6): print or send again"
+                className="px-2 py-1 bg-surface hover:bg-surface-3 text-fg-2 border border-line rounded-lg text-[10px] font-bold uppercase transition flex items-center gap-1"
+              >
+                <span>🧾</span> Recent ({recentBills.length})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowShortcuts(true)}
+              title="Keyboard shortcuts (?)"
+              aria-label="Keyboard shortcuts"
+              className="hidden md:flex px-2 py-1 bg-surface hover:bg-surface-3 text-fg-3 border border-line rounded-lg text-[10px] font-bold uppercase transition items-center gap-1"
+            >
+              <span>⌨️</span> Keys
+            </button>
             {heldCarts.length > 0 && (
               <button
                 onClick={() => setShowHeldCarts(true)}
@@ -2282,6 +2320,7 @@ function POS() {
                 }`}
               >
                 {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Print Quote' : (isWholesale ? '✅ Complete Wholesale' : '✅ Complete Sale')}
+                {!saving && <kbd className="hidden md:inline text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-mono font-normal">F9</kbd>}
               </button>
               {saleType === 'quotation' && cart.length > 0 && (
                 <button
@@ -2529,6 +2568,7 @@ function POS() {
                 }`}
               >
                 {saving ? 'Processing...' : saleType === 'quotation' ? '🖨️ Quote' : (isWholesale ? '✅ Complete Wholesale' : '✅ Complete Sale')}
+                {!saving && <kbd className="hidden md:inline text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-mono font-normal">F9</kbd>}
               </button>
             </div>
           </div>
@@ -2770,6 +2810,7 @@ function POS() {
                 className="flex-1 py-3 bg-gradient-to-r from-success to-success hover:from-success-hover hover:to-success-hover text-white font-black text-sm rounded-xl transition shadow-lg shadow-success-line active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {saving ? 'Processing...' : `✅ ${t(isWholesale ? 'Complete Wholesale Sale' : 'Complete Sale')} (Rs. ${total.toFixed(0)})`}
+                {!saving && <kbd className="hidden md:inline text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-mono font-normal">F9</kbd>}
               </button>
             </div>
           </div>
@@ -2952,6 +2993,68 @@ function POS() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Recent Bills (F6) */}
+      {showRecentBills && (
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowRecentBills(false)}>
+          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="recent-bills-title" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-1 shrink-0">
+              <h2 id="recent-bills-title" className="text-xl font-bold text-fg">🧾 {t('Recent bills')}</h2>
+              <button type="button" onClick={() => setShowRecentBills(false)} aria-label="Close recent bills" className="h-10 w-10 rounded-lg text-fg-subtle hover:text-fg-3 hover:bg-surface-2 text-2xl">×</button>
+            </div>
+            <p className="text-xs text-fg-muted mb-3 shrink-0">Last {recentBills.length} bill(s) from this counter. All bills are in Sales History.</p>
+            <ul className="space-y-2 overflow-y-auto min-h-0">
+              {recentBills.map(r => {
+                const who = r.customer?.name || r.walkInName || 'Walk-in'
+                const when = r.sale?.created_at ? new Date(r.sale.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : ''
+                return (
+                  <li key={r.sale.id} className="rounded-xl border border-line p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-bold text-fg truncate">{who}</p>
+                        <p className="text-xs text-fg-muted">Bill #{String(r.sale.id).slice(-8)} · {when} · {(r.items || []).length} item(s){r.savedOffline ? ' · saved offline' : ''}</p>
+                      </div>
+                      <p className="font-black text-primary-fg shrink-0">Rs. {Number(r.total || 0).toFixed(0)}</p>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" onClick={() => printHTML(buildReceiptHTML(r, false))} className="btn btn-secondary btn-sm flex-1 min-h-10">🖨️ {t('Print')}</button>
+                      <button type="button" onClick={() => { setShowRecentBills(false); setLastReceipt(r) }} className="btn btn-primary btn-sm flex-1 min-h-10">{t('Open')}</button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+      {/* Keyboard shortcuts (?) */}
+      {showShortcuts && (
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowShortcuts(false)}>
+          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="pos-keys-title" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h2 id="pos-keys-title" className="text-xl font-bold text-fg">⌨️ Keyboard shortcuts</h2>
+              <button type="button" onClick={() => setShowShortcuts(false)} aria-label="Close shortcuts" className="h-10 w-10 rounded-lg text-fg-subtle hover:text-fg-3 hover:bg-surface-2 text-2xl">×</button>
+            </div>
+            <dl className="divide-y divide-line-subtle text-sm">
+              {[
+                ['F2', 'Search products'],
+                ['F4', 'Payment (cash / credit / online)'],
+                ['F9', 'Complete sale (also Ctrl + Enter)'],
+                ['+  /  −', 'Quantity of the item added last (numpad works in barcode mode too)'],
+                ['F6', 'Recent bills — print or send again'],
+                ...(wholesaleEnabled ? [['F8', 'Retail ⇄ Wholesale']] : []),
+                ['Enter', 'Print the bill on the Sale complete screen'],
+                ['Esc', 'Close a window / clear the search'],
+                ['?', 'Show this list'],
+              ].map(([k, d]) => (
+                <div key={k} className="flex items-center gap-3 py-2">
+                  <dt className="w-20 shrink-0"><kbd className="px-2 py-1 rounded-md border border-line-strong bg-surface-2 font-mono text-xs font-bold text-fg">{k}</kbd></dt>
+                  <dd className="text-fg-2">{d}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </div>
       )}
