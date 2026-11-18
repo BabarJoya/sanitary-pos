@@ -11,6 +11,7 @@ import PasswordModal from '../components/PasswordModal'
 import { getShopSettings, isWholesaleEnabled, normalizeTier } from '../utils/businessPresets'
 import { openingRow } from '../utils/ledgerMath'
 import EmptyState from '../components/EmptyState'
+import FilterBar from '../components/FilterBar'
 import { can, notAllowed } from '../utils/permissions'
 import { openWhatsApp, templateFor, fillTemplate } from '../utils/whatsapp'
 
@@ -18,6 +19,8 @@ function Customers() {
   const { user } = useAuth()
   const wholesaleEnabled = isWholesaleEnabled(getShopSettings(user?.shop_id))
   const [customers, setCustomers] = useState([])
+  const [custSearch, setCustSearch] = useState('')
+  const [owesOnly, setOwesOnly] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -416,6 +419,11 @@ function Customers() {
     `)
   }
 
+  const custQ = custSearch.trim().toLowerCase()
+  const shownCustomers = customers.filter(c => (!owesOnly || Number(c.outstanding_balance) > 0) &&
+    (!custQ || `${c.name || ''} ${c.phone || ''} ${c.address || ''} ${c.city || ''}`.toLowerCase().includes(custQ)))
+  const clearCustFilters = () => { setCustSearch(''); setOwesOnly(false) }
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -512,8 +520,25 @@ function Customers() {
         </div>
       )}
 
+      {!loading && customers.length > 0 && (
+        <div className="mb-3">
+          <FilterBar shown={shownCustomers.length} total={customers.length} noun="customers"
+            active={!!custSearch || owesOnly} onClear={clearCustFilters}
+            className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <input type="search" className="input flex-1" placeholder="Search name, phone or address" aria-label="Search customers"
+              value={custSearch} onChange={e => setCustSearch(e.target.value)} />
+            <label className="flex items-center gap-2 min-h-10 cursor-pointer select-none text-sm font-medium text-fg-2 shrink-0">
+              <input type="checkbox" className="w-4 h-4" checked={owesOnly} onChange={e => setOwesOnly(e.target.checked)} />
+              Owes money only
+            </label>
+          </FilterBar>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-fg-muted">Loading...</p>
+      ) : customers.length > 0 && shownCustomers.length === 0 ? (
+        <EmptyState icon="🔍" title="No customers match these filters" action={{ label: 'Clear filters', onClick: clearCustFilters }} />
       ) : customers.length === 0 ? (
         <EmptyState
           icon="👥"
@@ -525,7 +550,7 @@ function Customers() {
         <>
         {/* Phones: one card per customer, balance and main actions visible without sideways scrolling */}
         <ul className="md:hidden space-y-2" aria-label="Customers">
-          {customers.map((c) => {
+          {shownCustomers.map((c) => {
             const bal = Number(c.outstanding_balance || 0)
             const seg = getSegment(c)
             return (
@@ -581,7 +606,7 @@ function Customers() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {customers.map((c) => (
+                {shownCustomers.map((c) => (
                   <tr key={c.id} className={`hover:bg-surface-2 ${selected.includes(c.id) ? 'bg-primary-soft' : ''}`}>
                     <td className="px-4 py-4">
                       <input

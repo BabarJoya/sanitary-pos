@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-29',
+    date: '29 Nov 2026',
+    title: 'Search stays in view on long lists',
+    items: [
+      { text: 'Products, Inventory, Sales and Customers: the search and filters stay at the top while you scroll', module: 'Products', to: '/products' },
+      { text: 'See "Showing 12 of 340" and clear every filter with one tap', module: 'Sales', to: '/sales' },
+      { text: 'Customers now has a search box (name, phone, address) and "Owes money only"', module: 'Customers', to: '/customers' },
+    ],
+  },
+  {
     id: '2026-11-28',
     date: '28 Nov 2026',
     title: 'Dashboard shows your day at a glance',

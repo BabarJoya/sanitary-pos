@@ -12,6 +12,7 @@ import { buildBillHTML, DEFAULT_TEMPLATE } from '../utils/billTemplates'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { localDateKey } from '../utils/dates'
 import EmptyState from '../components/EmptyState'
+import FilterBar from '../components/FilterBar'
 import { can, notAllowed } from '../utils/permissions'
 
 function Sales() {
@@ -561,12 +562,16 @@ function Sales() {
           </div>
         </div>
         {/* Filters */}
-        <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
+        <FilterBar shown={filtered.length} total={sales.length} noun="bills"
+          active={!!search || !!searchDate || typeFilter !== 'all' || paymentFilter !== 'all' || tierFilter !== 'all' || !!dateFilter}
+          onClear={() => { setSearch(''); setSearchDate(''); setTypeFilter('all'); setPaymentFilter('all'); setTierFilter('all'); setDateFilter('') }}
+          className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center flex-wrap">
           <div className="flex gap-4 w-full sm:w-auto">
             <input
               type="text"
               placeholder="Search invoice or customer..."
-              className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none"
+              aria-label="Search sales"
+              className="input flex-1"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -598,7 +603,8 @@ function Sales() {
               onChange={e => setDateFilter(e.target.value)}
             />
           </div>
-        </div>
+        </FilterBar>
+        <div className="h-3" aria-hidden="true" />
 
         {loading ? (
           <p className="text-fg-muted">Loading sales...</p>

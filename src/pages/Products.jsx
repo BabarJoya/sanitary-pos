@@ -13,6 +13,7 @@ import { hasFeature } from '../utils/featureGate'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
 import EmptyState from '../components/EmptyState'
+import FilterBar from '../components/FilterBar'
 import { can, notAllowed } from '../utils/permissions'
 
 function Products() {
@@ -639,13 +640,17 @@ function Products() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-surface p-4 rounded-xl shadow-sm border border-line-subtle flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+      {/* Filters (sticky) */}
+      <FilterBar shown={filteredProducts.length} total={products.length} noun="products"
+        active={!!search || !!selectedCategory || showLowStockOnly}
+        onClear={() => { setSearch(''); setSelectedCategory(''); setShowLowStockOnly(false) }}
+        className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
         <div className="flex gap-2 w-full sm:w-auto">
           <input
             type="text"
             placeholder="Search products..."
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-64"
+            aria-label="Search products"
+            className="input w-full sm:w-72"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -669,7 +674,7 @@ function Products() {
             <span className="text-sm font-medium text-fg-2">Show Low Stock Only</span>
           </label>
         </div>
-      </div>
+      </FilterBar>
 
       {/* Category Low Stock Alert Banner */}
       {!loading && categoryLowStockAlerts.length > 0 && (
