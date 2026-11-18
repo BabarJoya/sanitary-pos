@@ -12,21 +12,40 @@ import { todayLocal } from '../utils/dates'
 import { useLang } from '../context/LanguageContext'
 import { txMaybeAvailable } from '../services/integrity'
 import { openWhatsApp } from '../utils/whatsapp'
+import { can } from '../utils/permissions'
 
-const StatCard = ({ title, value, icon, color, subValue }) => (
-  <div className="bg-surface p-6 rounded-2xl shadow-sm border border-line-subtle hover:shadow-md transition">
-    <div className="flex justify-between items-start mb-4">
-      <div className={`p-3 rounded-xl ${color} text-xl`}>
-        {icon}
+// Tones used by TodayTile / AttentionRow (listed so Tailwind keeps the classes):
+// bg-success-soft border-success-line text-success-strong bg-primary-soft border-primary-line text-primary-strong
+// bg-warning-soft border-warning-line text-warning-strong bg-info-soft border-info-line text-info-strong bg-danger-soft
+// Big tappable "Today" tile
+const TodayTile = ({ label, value, note, icon, tone, to, onClick }) => {
+  const cls = `group text-left flex flex-col justify-between gap-3 rounded-2xl border p-4 sm:p-5 min-h-32 transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary bg-${tone}-soft border-${tone}-line`
+  const body = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-sm font-bold text-${tone}-strong`}>{icon} {label}</span>
+        <span className={`text-xs font-bold text-${tone}-strong opacity-60 group-hover:opacity-100`} aria-hidden="true">→</span>
       </div>
-      {subValue && <span className="text-xs font-bold text-fg-subtle uppercase tracking-wider">{subValue}</span>}
-    </div>
-    <h3 className="text-fg-muted text-sm font-medium">{title}</h3>
-    <p className="text-2xl font-bold text-fg mt-1">
-      {typeof value === 'number' && title.includes('Rs') ? `Rs. ${value.toLocaleString()}` : value}
-    </p>
-  </div>
-)
+      <div>
+        <p className={`text-2xl sm:text-3xl font-black tabular-nums text-${tone}-strong`}>Rs. {Math.round(Number(value) || 0).toLocaleString()}</p>
+        {note && <p className={`text-xs mt-0.5 text-${tone}-strong opacity-80`}>{note}</p>}
+      </div>
+    </>
+  )
+  return to ? <Link to={to} className={cls}>{body}</Link> : <button type="button" onClick={onClick} className={cls}>{body}</button>
+}
+
+// One line in "Needs attention"
+const AttentionRow = ({ icon, text, action, to, onClick, tone = 'warning' }) => {
+  const btn = `btn btn-sm shrink-0 min-h-10 ${tone === 'danger' ? 'btn-danger' : 'btn-secondary'}`
+  return (
+    <li className="flex items-center gap-3 py-2.5">
+      <span className={`flex-none h-9 w-9 rounded-xl flex items-center justify-center bg-${tone}-soft`} aria-hidden="true">{icon}</span>
+      <span className="flex-1 min-w-0 text-sm text-fg-2">{text}</span>
+      {action && (to ? <Link to={to} className={btn}>{action}</Link> : onClick ? <button type="button" onClick={onClick} className={btn}>{action}</button> : <span className="text-xs text-fg-muted shrink-0">{action}</span>)}
+    </li>
+  )
+}
 
 function Dashboard() {
   const { user, logout } = useAuth()
@@ -47,8 +66,16 @@ function Dashboard() {
     lowStockCount: 0,
     productCount: 0,
     planInfo: null,
-    topDebtors: []
+    topDebtors: [],
+    todayBills: 0,
+    drawerCash: 0,
+    cashOut: 0,
+    recoveries: 0,
+    debtorCount: 0,
   })
+  // Local counts for "Needs attention" (held bills and unsynced changes on this device)
+  const [localCounts, setLocalCounts] = useState({ held: 0, unsynced: 0 })
+  const seeProfit = can(user, 'see_profit')
   const [dailyTarget, setDailyTarget] = useState(() => Number(localStorage.getItem('daily_sales_target') || 0))
   const [editingTarget, setEditingTarget] = useState(false)
   const [targetInput, setTargetInput] = useState('')
@@ -62,6 +89,16 @@ function Dashboard() {
   useEffect(() => {
     if (user?.shop_id) fetchDashboardStats()
   }, [user?.shop_id])
+
+  useEffect(() => {
+    if (!user?.shop_id) return
+    let alive = true
+    Promise.all([
+      db.held_carts.where('shop_id').equals(user.shop_id).count().catch(() => 0),
+      db.sync_queue.count().catch(() => 0),
+    ]).then(([held, unsynced]) => { if (alive) setLocalCounts({ held, unsynced }) })
+    return () => { alive = false }
+  }, [user?.shop_id, loading])
 
   // Today's sale rows with what is needed for cash/online/credit and profit
   const saleCols = `id, total_amount, discount, paid_amount, payment_type, payment_details, sale_type${wholesaleEnabled ? ', price_tier' : ''}`
@@ -85,11 +122,15 @@ function Dashboard() {
         // Dated returns (empty until sql/transactions_migration.sql has run)
         (txMaybeAvailable() ? fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())) : Promise.resolve({ data: [], error: null })),
         (txMaybeAvailable() ? fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', today.toISOString())) : Promise.resolve({ data: [], error: null })),
+        // Today's cash book (same sources as Close Day)
+        fetchAllRows(() => supabase.from('customer_payments').select('amount, payment_type, payment_mode').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())),
+        fetchAllRows(() => supabase.from('supplier_payments').select('amount, payment_type, payment_mode').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())),
+        fetchAllRows(() => supabase.from('expenses').select('amount').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())),
       ])
 
       // Mobile data can be slow: wait longer before falling back to this device's copy
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 12000))
-      const [todayRes, monthRes, custRes, prodRes, catRes, shopConfigRes, retInRes, retOfRes] = await Promise.race([fetchPromise, timeoutPromise])
+      const [todayRes, monthRes, custRes, prodRes, catRes, shopConfigRes, retInRes, retOfRes, cpRes, spRes, expRes] = await Promise.race([fetchPromise, timeoutPromise])
 
       const config = shopConfigRes.data || {}
       if (config.status === 'suspended' && !user.isImpersonating) {
@@ -122,6 +163,9 @@ function Dashboard() {
         planInfo: config,
         returnsInPeriod: retInRes.error ? [] : (retInRes.data || []),
         returnsOfSales: retOfRes.error ? [] : (retOfRes.data || []),
+        customerPayments: cpRes.error ? [] : (cpRes.data || []),
+        supplierPayments: spRes.error ? [] : (spRes.data || []),
+        expenses: expRes.error ? [] : (expRes.data || []),
       }))
     } catch (err) {
       console.log('Dashboard: Calculating stats from local DB', err?.message)
@@ -131,12 +175,16 @@ function Dashboard() {
         const today = periodStart('today')
         const firstDayOfMonth = periodStart('month')
 
-        const [lSales, lCustomers, lProducts, lCats] = await Promise.all([
+        const [lSales, lCustomers, lProducts, lCats, lCp, lSp, lExp] = await Promise.all([
           db.sales.toArray(),
           db.customers.toArray(),
           db.products.toArray(),
-          db.categories.toArray().catch(() => [])
+          db.categories.toArray().catch(() => []),
+          db.customer_payments.toArray().catch(() => []),
+          db.supplier_payments.toArray().catch(() => []),
+          db.expenses.toArray().catch(() => []),
         ])
+        const todayMine = (rows) => rows.filter(x => String(x.shop_id) === sid && new Date(x.created_at) >= today)
         const limits = JSON.parse(localStorage.getItem('plan_limits') || '{}')
 
         const mySales = lSales.filter(x => String(x.shop_id) === sid && isCompletedSale(x))
@@ -151,6 +199,9 @@ function Dashboard() {
           customers: lCustomers.filter(x => String(x.shop_id) === sid),
           products: lProducts.filter(x => String(x.shop_id) === sid),
           categories: lCats.filter(x => String(x.shop_id) === sid),
+          customerPayments: todayMine(lCp),
+          supplierPayments: todayMine(lSp),
+          expenses: todayMine(lExp),
           planInfo: {
             plan_name: limits.plan_name || 'OFFLINE',
             product_limit: limits.product_limit || 100,
@@ -166,11 +217,18 @@ function Dashboard() {
     }
   }
 
-  const buildStats = ({ todaySales, todayItems, monthSales, customers, products, categories, planInfo, returnsInPeriod = [], returnsOfSales = [] }) => {
+  const buildStats = ({ todaySales, todayItems, monthSales, customers, products, categories, planInfo, returnsInPeriod = [], returnsOfSales = [], customerPayments = [], supplierPayments = [], expenses = [] }) => {
     // Today's sales and profit count returns on the day they came back
     const t = applyReturns(summarizeSales(todaySales, todayItems), returnsOfSales, returnsInPeriod)
     const m = summarizeSales(monthSales)
+    const book = summarizeCashBook({ sales: todaySales, customerPayments, supplierPayments, expenses })
+    const debtors = customers.filter(c => Number(c.outstanding_balance) > 0)
     return {
+      todayBills: todaySales.length,
+      drawerCash: book.netCash,
+      cashOut: book.cashOut,
+      recoveries: book.recoveriesCash + book.recoveriesOnline,
+      debtorCount: debtors.length,
       todaySales: t.net,
       todayProfit: t.profit,
       todayCashSales: t.cash,
@@ -403,49 +461,68 @@ function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 animate-pulse">
-          {[1, 2, 3, 4, 5].map(i => (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+          {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-32 bg-surface-3 rounded-2xl"></div>
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <StatCard
-            title="Today's Sales (Rs)"
-            value={stats.todaySales}
-            icon="💰"
-            color="text-success-fg bg-success-soft"
-            subValue="Today"
-          />
-          <StatCard
-            title="Today's Profit (Rs)"
-            value={stats.todayProfit}
-            icon="📈"
-            color="text-success-fg bg-success-soft"
-            subValue="Gross"
-          />
-          <StatCard
-            title="Monthly Sales (Rs)"
-            value={stats.monthlySales}
-            icon="🗓️"
-            color="text-primary-fg bg-primary-soft"
-            subValue="This Month"
-          />
-          <StatCard
-            title="Total Receivables (Rs)"
-            value={stats.totalReceivables}
-            icon="📒"
-            color="text-warning-fg bg-warning-soft"
-            subValue="Pending"
-          />
-          <StatCard
-            title="Low Stock Products"
-            value={stats.lowStockCount}
-            icon="⚠️"
-            color="text-danger-fg bg-danger-soft"
-            subValue="Alert"
-          />
-        </div>
+        <>
+          <h2 className="sr-only">Today</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <TodayTile label="Sale today" icon="💰" tone="success" to="/sales" value={stats.todaySales}
+              note={`${stats.todayBills} bill${stats.todayBills === 1 ? '' : 's'}${stats.todayOnlineSales > 0 ? ` · online Rs. ${Math.round(stats.todayOnlineSales).toLocaleString()}` : ''}`} />
+            <TodayTile label="Cash in drawer" icon="💵" tone="primary" onClick={openEOD} value={stats.drawerCash}
+              note={stats.cashOut > 0 ? `after Rs. ${Math.round(stats.cashOut).toLocaleString()} paid out · tap to Close Day` : 'cash sales + cash received · tap to Close Day'} />
+            <TodayTile label="Udhaar given" icon="📒" tone="warning" to="/customer-ledger" value={stats.todayCreditSales}
+              note="sold on credit today" />
+            <TodayTile label="Payments received" icon="🤝" tone="info" to="/customer-ledger" value={stats.recoveries}
+              note="from customers today" />
+          </div>
+
+          <div className={`grid gap-3 mt-3 ${seeProfit ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2 md:grid-cols-3'}`}>
+            {seeProfit && (
+              <div className="bg-surface border border-line-subtle rounded-xl px-4 py-3">
+                <p className="text-xs font-semibold text-fg-muted">📈 Profit today</p>
+                <p className="text-lg font-bold text-fg tabular-nums">Rs. {Math.round(stats.todayProfit).toLocaleString()}</p>
+              </div>
+            )}
+            <Link to="/reports" className="bg-surface border border-line-subtle rounded-xl px-4 py-3 hover:bg-surface-2">
+              <p className="text-xs font-semibold text-fg-muted">🗓️ This month</p>
+              <p className="text-lg font-bold text-fg tabular-nums">Rs. {Math.round(stats.monthlySales).toLocaleString()}</p>
+            </Link>
+            <Link to="/customer-ledger" className="bg-surface border border-line-subtle rounded-xl px-4 py-3 hover:bg-surface-2">
+              <p className="text-xs font-semibold text-fg-muted">📒 Total udhaar to collect</p>
+              <p className="text-lg font-bold text-danger-fg tabular-nums">Rs. {Math.round(stats.totalReceivables).toLocaleString()}</p>
+            </Link>
+            <Link to="/inventory" className={`bg-surface border border-line-subtle rounded-xl px-4 py-3 hover:bg-surface-2 ${seeProfit ? '' : 'col-span-2 md:col-span-1'}`}>
+              <p className="text-xs font-semibold text-fg-muted">📦 Products</p>
+              <p className="text-lg font-bold text-fg tabular-nums">{stats.productCount}{stats.lowStockCount > 0 && <span className="text-sm text-danger-fg"> · {stats.lowStockCount} low</span>}</p>
+            </Link>
+          </div>
+
+          {/* Needs attention */}
+          {(() => {
+            const rows = []
+            if (stats.lowStockCount > 0) rows.push(<AttentionRow key="low" icon="⚠️" tone="danger" to="/inventory" action="Reorder"
+              text={<><b>{stats.lowStockCount}</b> product{stats.lowStockCount === 1 ? ' is' : 's are'} low on stock</>} />)
+            if (stats.debtorCount > 0) rows.push(<AttentionRow key="debt" icon="📒" to="/whatsapp" action="Send reminders"
+              text={<><b>{stats.debtorCount}</b> customer{stats.debtorCount === 1 ? ' owes' : 's owe'} you <b>Rs. {Math.round(stats.totalReceivables).toLocaleString()}</b></>} />)
+            if (localCounts.held > 0) rows.push(<AttentionRow key="held" icon="⏸️" to="/pos" action="Open POS"
+              text={<><b>{localCounts.held}</b> bill{localCounts.held === 1 ? ' is' : 's are'} on hold at the counter</>} />)
+            if (localCounts.unsynced > 0) rows.push(<AttentionRow key="sync" icon="🔄" action={navigator.onLine ? 'Syncing…' : 'Waiting for internet'}
+              text={<><b>{localCounts.unsynced}</b> change{localCounts.unsynced === 1 ? '' : 's'} saved on this device, not yet sent to the server</>} />)
+            if (stats.todayLinesWithoutCost > 0 && seeProfit) rows.push(<AttentionRow key="cost" icon="🏷️" to="/products" action="Add cost"
+              text={<><b>{stats.todayLinesWithoutCost}</b> item line(s) sold today have no cost price, so profit is shown too high</>} />)
+            return (
+              <section className="mt-4 bg-surface rounded-2xl border border-line-subtle shadow-sm px-4 py-2" aria-labelledby="attention-title">
+                <h2 id="attention-title" className="font-bold text-fg-2 text-sm pt-2">🔔 Needs attention</h2>
+                {rows.length ? <ul className="divide-y divide-line-subtle">{rows}</ul>
+                  : <p className="py-3 text-sm text-success-fg font-semibold">✓ All clear — nothing needs you right now.</p>}
+              </section>
+            )
+          })()}
+        </>
       )}
 
       {showSummaryReminder && !loading && (
@@ -462,26 +539,6 @@ function Dashboard() {
         </div>
       )}
 
-      {/* Today's money: cash in drawer, online/wallet, and credit given */}
-      {!loading && (stats.todayCashSales > 0 || stats.todayOnlineSales > 0 || stats.todayCreditSales > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-          <div className="bg-success-soft border border-success-muted rounded-xl px-4 py-2 flex justify-between items-center">
-            <span className="text-sm font-medium text-success-strong">💵 Cash received</span>
-            <span className="font-bold text-success-strong">Rs. {stats.todayCashSales.toLocaleString()}</span>
-          </div>
-          <div className="bg-info-soft border border-info-muted rounded-xl px-4 py-2 flex justify-between items-center">
-            <span className="text-sm font-medium text-info-strong">📱 Online / wallet</span>
-            <span className="font-bold text-info-strong">Rs. {stats.todayOnlineSales.toLocaleString()}</span>
-          </div>
-          <div className="bg-warning-soft border border-warning-muted rounded-xl px-4 py-2 flex justify-between items-center">
-            <span className="text-sm font-medium text-warning-strong">📒 Credit (unpaid)</span>
-            <span className="font-bold text-warning-strong">Rs. {stats.todayCreditSales.toLocaleString()}</span>
-          </div>
-        </div>
-      )}
-      {!loading && stats.todayLinesWithoutCost > 0 && (
-        <p className="mt-2 text-xs text-warning-strong">⚠️ {stats.todayLinesWithoutCost} item line(s) sold today have no cost price, so today's profit is overstated. Add cost prices in Products.</p>
-      )}
       {!loading && wholesaleEnabled && stats.todayWholesaleSales > 0 && (
         <div className="mt-3 bg-wholesale-soft border border-wholesale-line rounded-xl px-4 py-2 flex justify-between items-center">
           <span className="text-sm font-medium text-wholesale-strong">🏷️ Wholesale Sales Today</span>

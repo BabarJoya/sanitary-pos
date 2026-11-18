@@ -10,6 +10,17 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-28',
+    date: '28 Nov 2026',
+    title: 'Dashboard shows your day at a glance',
+    items: [
+      { text: 'Four big "Today" cards: Sale, Cash in drawer, Udhaar given and Payments received — tap any card to open it', module: 'Dashboard', to: '/dashboard' },
+      { text: 'Cash in drawer counts cash sales and cash received, minus expenses, refunds and supplier cash — same as Close Day', module: 'Dashboard', to: '/dashboard' },
+      { text: '"Needs attention": low stock, customers who owe you, bills on hold and changes waiting for internet, each with a button', module: 'Dashboard', to: '/dashboard' },
+      { text: 'Profit on the Dashboard is shown only to staff allowed to see profit', module: 'Users', to: '/users' },
+    ],
+  },
+  {
     id: '2026-11-27',
     date: '27 Nov 2026',
     title: 'Faster billing at the counter',
