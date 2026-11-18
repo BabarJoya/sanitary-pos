@@ -5,10 +5,14 @@ import fs from 'fs'
 dotenv.config()
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
-const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+// Server-only secret. Never name it VITE_* (Vite would put VITE_* values in the browser bundle).
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('Rename VITE_SUPABASE_SERVICE_ROLE_KEY to SUPABASE_SERVICE_ROLE_KEY in your .env (server-only).')
+}
 
 if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_SERVICE_ROLE_KEY in .env")
+    console.error("Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env")
     process.exit(1)
 }
 

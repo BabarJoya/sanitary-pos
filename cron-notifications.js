@@ -7,7 +7,11 @@ dotenv.config()
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL
-const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+// Server-only secret. Never name it VITE_* (Vite would put VITE_* values in the browser bundle).
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn('Rename VITE_SUPABASE_SERVICE_ROLE_KEY to SUPABASE_SERVICE_ROLE_KEY in your .env (server-only).')
+}
 
 if (!supabaseUrl || !supabaseServiceKey) {
     console.error("Missing Supabase credentials in .env")
