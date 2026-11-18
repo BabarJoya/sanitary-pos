@@ -10,6 +10,18 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-26',
+    date: '26 Nov 2026',
+    title: 'Easier price editing in Inventory',
+    items: [
+      { text: 'Inventory → Edit Prices: easy cards on phones, search, and "Changed only" to check your edits', module: 'Inventory', to: '/inventory' },
+      { text: 'Changed prices are highlighted with an Undo button, and Save shows how many products you changed', module: 'Inventory', to: '/inventory' },
+      { text: 'Closing with unsaved changes now asks first, so edits are not lost by mistake', module: 'Inventory', to: '/inventory' },
+      { text: 'Saved / error messages now appear as a small note at the bottom instead of a pop-up you must tap OK on', module: 'Inventory', to: '/inventory' },
+      { text: 'Bigger History and Adjust buttons in the stock list', module: 'Inventory', to: '/inventory' },
+    ],
+  },
+  {
     id: '2026-11-25',
     date: '25 Nov 2026',
     title: 'Pop-up windows fit the screen',

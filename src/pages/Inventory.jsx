@@ -13,6 +13,7 @@ import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import StocktakeModal from '../components/StocktakeModal'
 import ReorderModal from '../components/ReorderModal'
+import toast from '../utils/toast'
 
 function Inventory() {
   const { user } = useAuth()
@@ -35,6 +36,8 @@ function Inventory() {
   const [bulkAction, setBulkAction] = useState('increase')
   const [showBulkEditor, setShowBulkEditor] = useState(false)
   const [editingProducts, setEditingProducts] = useState([])
+  const [editorSearch, setEditorSearch] = useState('')
+  const [editorChangedOnly, setEditorChangedOnly] = useState(false)
   const [historyProduct, setHistoryProduct] = useState(null)
   const [historyLogs, setHistoryLogs] = useState([])
   const [showStocktake, setShowStocktake] = useState(false)
@@ -116,7 +119,7 @@ function Inventory() {
   const handleReorderWhatsApp = async (e) => {
     const btn = e?.currentTarget
     const lowItems = products.filter(p => isLowStock(p, categories))
-    if (lowItems.length === 0) { alert('Koi bhi product low stock mein nahi hai!'); return }
+    if (lowItems.length === 0) { toast.info('Koi bhi product low stock mein nahi hai!'); return }
 
     // Group by supplier
     const bySupplier = {}
@@ -343,7 +346,7 @@ function Inventory() {
     e.preventDefault()
     if (!selectedProduct || newStock === '') return
     const counted = Number(newStock)
-    if (!Number.isFinite(counted)) { alert('Sahi quantity likhein.'); return }
+    if (!Number.isFinite(counted)) { toast.warning('Sahi quantity likhein.'); return }
     setSaving(true)
     try {
       let current = Number(selectedProduct.stock_quantity) || 0
@@ -372,9 +375,9 @@ function Inventory() {
       setNewStock('')
       setAdjustmentNote('')
       fetchInventory()
-      if (!navigator.onLine) alert('Offline mode: Stock adjusted locally. Will sync when online! 🔄')
+      toast.success(navigator.onLine ? `Stock updated: ${counted}` : 'Stock updated offline — will sync when online 🔄')
     } catch (err) {
-      alert('Error updating stock: ' + (err?.message || String(err)))
+      toast.error('Error updating stock: ' + (err?.message || String(err)))
     } finally {
       setSaving(false)
     }
@@ -386,7 +389,7 @@ function Inventory() {
     e.preventDefault()
     if (!returnProduct || !returnProduct.id || returnQty === '') return
     const qty = Number(returnQty)
-    if (!(qty > 0)) { alert('Quantity 0 se zyada honi chahiye.'); return }
+    if (!(qty > 0)) { toast.warning('Quantity 0 se zyada honi chahiye.'); return }
 
     setSaving(true)
     try {
@@ -397,12 +400,12 @@ function Inventory() {
         return_qty: qty,
         note: 'Stock returned without a bill (no refund recorded)'
       }, user.id, user.shop_id)
-      alert(`${qty} units stock mein wapas aa gaye.${r.queued ? ' Online hone par sync hoga. 🔄' : ''}\nRefund dena ho to Sales → invoice se return karein.`)
+      toast.success(`${qty} units stock mein wapas aa gaye.${r.queued ? ' Online hone par sync hoga. 🔄' : ''}\nRefund dena ho to Sales → invoice se return karein.`)
       setReturnProduct(null)
       setReturnQty('')
       fetchInventory()
     } catch (err) {
-      alert('Error recording return: ' + (err?.message || String(err)))
+      toast.error('Error recording return: ' + (err?.message || String(err)))
     } finally {
       setSaving(false)
     }
@@ -467,12 +470,14 @@ function Inventory() {
   const openBulkEditor = () => {
     const brandProds = bulkBrand ? products.filter(p => p.brand === bulkBrand) : products;
     setEditingProducts(brandProds.map(p => ({ ...p, original_c_rate: p.c_rate || 0, original_cost: p.cost_price, original_sale: p.sale_price, original_wholesale: Number(p.wholesale_price) || 0, wholesale_price: Number(p.wholesale_price) || 0 })));
+    setEditorSearch(''); setEditorChangedOnly(false);
     setShowBulkEditor(true);
   }
 
   const handleBulkEditorSave = async () => {
     setSaving(true)
-    const modified = editingProducts.filter(p => p.c_rate !== p.original_c_rate || p.cost_price !== p.original_cost || p.sale_price !== p.original_sale || (wholesaleEnabled && p.wholesale_price !== p.original_wholesale));
+    const diff = (a, b) => Number(a || 0) !== Number(b || 0)
+    const modified = editingProducts.filter(p => diff(p.c_rate, p.original_c_rate) || diff(p.cost_price, p.original_cost) || diff(p.sale_price, p.original_sale) || (wholesaleEnabled && diff(p.wholesale_price, p.original_wholesale)));
     const priceFields = (p) => ({ c_rate: p.c_rate, cost_price: p.cost_price, sale_price: p.sale_price, ...(wholesaleEnabled ? { wholesale_price: p.wholesale_price } : {}) });
 
     try {
@@ -497,11 +502,11 @@ function Inventory() {
         await db.products.update(p.id, priceFields(p));
       }
 
-      alert('Prices updated and logged!');
+      toast.success(`${modified.length} product price${modified.length === 1 ? '' : 's'} saved${navigator.onLine ? '' : ' offline — will sync when online 🔄'}`);
       setShowBulkEditor(false);
       fetchInventory();
     } catch (err) {
-      alert('Save failed: ' + err.message);
+      toast.error('Save failed: ' + err.message);
     } finally {
       setSaving(false)
     }
@@ -554,12 +559,12 @@ function Inventory() {
         await db.products.update(p.id, scaled(p))
       }
 
-      alert(`Successfully updated ${affected.length} products of brand ${bulkBrand} by ${bulkPercent}%`)
+      toast.success(`Updated ${affected.length} products of brand ${bulkBrand} by ${bulkPercent}%`)
       setShowBulkPriceModal(false)
       setBulkPercent('')
       fetchInventory()
     } catch (err) {
-      alert('Bulk update failed: ' + err.message)
+      toast.error('Bulk update failed: ' + err.message)
     } finally {
       setSaving(false)
     }
@@ -577,7 +582,7 @@ function Inventory() {
     const affected = products.filter(p =>
       p.brand === arBrand && (arCategory ? String(p.category_id) === String(arCategory) : true)
     )
-    if (affected.length === 0) { alert('Koi product nahi mila is filter ke sath.'); return }
+    if (affected.length === 0) { toast.info('Koi product nahi mila is filter ke sath.'); return }
     if (!confirm(`${arAction === 'increase' ? '+' : '-'}${arPercent}% apply karein ${affected.length} product(s) par?`)) return
     setSaving(true)
     try {
@@ -600,12 +605,12 @@ function Inventory() {
         }
         await db.products.update(p.id, updates)
       }
-      alert(`✅ ${affected.length} products update ho gaye.`)
+      toast.success(`${affected.length} products update ho gaye.`)
       setShowAdjustRatesModal(false)
       setArBrand(''); setArCategory(''); setArPercent('')
       fetchInventory()
     } catch (err) {
-      alert('Update failed: ' + err.message)
+      toast.error('Update failed: ' + err.message)
     } finally {
       setSaving(false)
     }
@@ -849,9 +854,9 @@ function Inventory() {
             </thead>
             <tbody className="divide-y divide-line-subtle">
               {loading ? (
-                <tr><td colSpan="8" className="px-6 py-10 text-center text-fg-subtle italic text-lg">Loading inventory data...</td></tr>
+                <tr><td colSpan="9" className="px-6 py-10 text-center text-fg-subtle italic text-lg">Loading inventory data...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan="8" className="px-6 py-10 text-center text-fg-subtle italic text-lg">No products found matching criteria.</td></tr>
+                <tr><td colSpan="9" className="px-6 py-10 text-center text-fg-subtle italic text-lg">No products found matching criteria.</td></tr>
               ) : filtered.map(p => {
                 const isLow = isLowStock(p, categories)
                 const isCritical = isCriticalStock(p, categories)
@@ -894,16 +899,18 @@ function Inventory() {
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         <button
+                          type="button"
                           onClick={() => fetchProductHistory(p)}
-                          className="p-1.5 bg-primary-soft text-primary-fg hover:bg-primary-muted rounded-lg transition"
+                          className="min-h-10 px-3 bg-primary-soft text-primary-fg hover:bg-primary-muted rounded-lg text-sm font-bold transition"
                           title="View Product History"
                         >
-                          📜
+                          📜 History
                         </button>
                         {(user.role === 'admin' || user.role === 'manager') && (
                           <button
+                            type="button"
                             onClick={() => openAdjustModal(p)}
-                            className="px-3 py-1.5 bg-contrast hover:bg-contrast-hover text-white rounded-lg text-sm transition"
+                            className="min-h-10 px-3 bg-contrast hover:bg-contrast-hover text-white rounded-lg text-sm font-bold transition"
                           >
                             Adjust
                           </button>
@@ -1184,111 +1191,122 @@ function Inventory() {
       )}
 
       {/* Bulk Price Editor Modal */}
-      {showBulkEditor && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-4xl max-h-[calc(100dvh-2rem)] flex flex-col">
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <div>
-                <h2 className="text-xl font-bold text-fg">Individual Bulk Price Editor</h2>
-                <p className="text-sm text-fg-muted">Edit costs and sale prices for <b>{bulkBrand || 'All Brands'}</b></p>
+      {showBulkEditor && (() => {
+        const fields = [
+          { key: 'c_rate', orig: 'original_c_rate', label: 'C. Rate' },
+          { key: 'cost_price', orig: 'original_cost', label: 'Cost' },
+          ...(wholesaleEnabled ? [{ key: 'wholesale_price', orig: 'original_wholesale', label: 'Wholesale', wholesale: true }] : []),
+          { key: 'sale_price', orig: 'original_sale', label: wholesaleEnabled ? 'Retail' : 'Sale' },
+        ]
+        const isChanged = (p) => fields.some(f => Number(p[f.key] || 0) !== Number(p[f.orig] || 0))
+        const changedCount = editingProducts.filter(isChanged).length
+        const q = editorSearch.trim().toLowerCase()
+        const rows = editingProducts.filter(p => (!editorChangedOnly || isChanged(p)) && (!q || `${p.name} ${p.brand || ''}`.toLowerCase().includes(q)))
+        const setField = (id, key, value) => setEditingProducts(prev => prev.map(p => p.id === id ? { ...p, [key]: value === '' ? 0 : Number(value) } : p))
+        const undoRow = (id) => setEditingProducts(prev => prev.map(p => p.id === id ? { ...p, c_rate: p.original_c_rate, cost_price: p.original_cost, sale_price: p.original_sale, wholesale_price: p.original_wholesale } : p))
+        const marginOf = (p) => {
+          const m = Number(p.sale_price || 0) - Number(p.cost_price || 0)
+          return { m, pct: Number(p.sale_price) > 0 ? Math.round((m / Number(p.sale_price)) * 100) : 0 }
+        }
+        const inputCls = (p, f) => `input !py-1.5 text-right tabular-nums ${Number(p[f.key] || 0) !== Number(p[f.orig] || 0) ? '!bg-warning-soft !border-warning' : f.wholesale ? '!border-wholesale-edge' : ''}`
+        const close = () => {
+          if (changedCount > 0 && !confirm(`${changedCount} product(s) have unsaved price changes. Close without saving?`)) return
+          setShowBulkEditor(false)
+        }
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+            <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-4xl max-h-[calc(100dvh-2rem)] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="bulk-editor-title">
+              <div className="flex justify-between items-start gap-3 mb-3 shrink-0">
+                <div className="min-w-0">
+                  <h2 id="bulk-editor-title" className="text-lg sm:text-xl font-bold text-fg">Price Editor</h2>
+                  <p className="text-sm text-fg-muted">Edit cost and selling prices for <b>{bulkBrand || 'all brands'}</b> · {editingProducts.length} products</p>
+                </div>
+                <button type="button" onClick={close} aria-label="Close price editor" className="h-10 w-10 shrink-0 rounded-lg text-fg-subtle hover:text-fg-3 hover:bg-surface-2 text-2xl">×</button>
               </div>
-              <button type="button" onClick={() => setShowBulkEditor(false)} aria-label="Close price editor" className="h-10 w-10 shrink-0 rounded-lg text-fg-subtle hover:text-fg-3 hover:bg-surface-2 text-2xl">×</button>
-            </div>
 
-            <div className="flex-1 min-h-0 overflow-auto border border-line rounded-xl mb-4 bg-surface-2">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-3 sticky top-0 z-10">
-                  <tr className="border-b">
-                    <th className="px-4 py-2 text-left text-xs font-bold text-fg-muted uppercase">Product</th>
-                    <th className="px-4 py-2 text-right text-xs font-bold text-fg-muted uppercase">C. Rate</th>
-                    <th className="px-4 py-2 text-right text-xs font-bold text-fg-muted uppercase">Cost Price</th>
-                    {wholesaleEnabled && <th className="px-4 py-2 text-right text-xs font-bold text-wholesale-strong uppercase">Wholesale</th>}
-                    <th className="px-4 py-2 text-right text-xs font-bold text-fg-muted uppercase">{wholesaleEnabled ? 'Retail Price' : 'Sale Price'}</th>
-                    <th className="px-4 py-2 text-center text-xs font-bold text-fg-muted uppercase">Margin</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line bg-surface">
-                  {editingProducts.map((p, idx) => {
-                    const margin = p.sale_price - p.cost_price;
-                    const marginPercent = p.sale_price > 0 ? ((margin / p.sale_price) * 100).toFixed(0) : 0;
-                    return (
-                      <tr key={p.id}>
-                        <td className="px-4 py-2 font-medium text-fg-2">{p.name} <span className="text-[10px] text-fg-subtle">({p.brand})</span></td>
-                        <td className="px-4 py-2">
-                          <input type="number"
-                            value={p.c_rate || 0}
-                            onChange={e => {
-                              const newProds = [...editingProducts];
-                              newProds[idx].c_rate = Number(e.target.value);
-                              setEditingProducts(newProds);
-                            }}
-                            className={`w-20 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-primary outline-none ${p.c_rate !== p.original_c_rate ? 'bg-warning-soft border-warning' : ''}`}
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input type="number"
-                            value={p.cost_price}
-                            onChange={e => {
-                              const newProds = [...editingProducts];
-                              newProds[idx].cost_price = Number(e.target.value);
-                              setEditingProducts(newProds);
-                            }}
-                            className={`w-24 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-info outline-none ${p.cost_price !== p.original_cost ? 'bg-warning-soft border-warning' : ''}`}
-                          />
-                        </td>
-                        {wholesaleEnabled && (
-                          <td className="px-4 py-2">
-                            <input type="number"
-                              aria-label={`Wholesale price for ${p.name}`}
-                              value={p.wholesale_price || 0}
-                              onChange={e => {
-                                const newProds = [...editingProducts];
-                                newProds[idx].wholesale_price = Number(e.target.value);
-                                setEditingProducts(newProds);
-                              }}
-                              className={`w-24 px-2 py-1 border border-wholesale-edge rounded text-right focus:ring-2 focus:ring-wholesale outline-none ${p.wholesale_price !== p.original_wholesale ? 'bg-warning-soft border-warning' : ''}`}
-                            />
-                          </td>
-                        )}
-                        <td className="px-4 py-2">
-                          <input type="number"
-                            value={p.sale_price}
-                            onChange={e => {
-                              const newProds = [...editingProducts];
-                              newProds[idx].sale_price = Number(e.target.value);
-                              setEditingProducts(newProds);
-                            }}
-                            className={`w-24 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-info outline-none ${p.sale_price !== p.original_sale ? 'bg-warning-soft border-warning' : ''}`}
-                          />
-                        </td>
-                        <td className={`px-4 py-2 text-center font-bold ${margin >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
-                          {marginPercent}%
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+              <div className="flex flex-col sm:flex-row gap-2 mb-3 shrink-0">
+                <input className="input flex-1" placeholder="Search product" value={editorSearch} onChange={e => setEditorSearch(e.target.value)} aria-label="Search products in price editor" />
+                <label className="flex items-center gap-2 text-sm font-semibold text-fg-2 min-h-10 px-1 cursor-pointer select-none">
+                  <input type="checkbox" className="h-4 w-4" checked={editorChangedOnly} onChange={e => setEditorChangedOnly(e.target.checked)} />
+                  Changed only {changedCount > 0 && <span className="badge badge-warning">{changedCount}</span>}
+                </label>
+              </div>
 
-            <div className="flex flex-col-reverse sm:flex-row gap-3 shrink-0">
-              <button
-                onClick={handleBulkEditorSave}
-                disabled={saving}
-                className="flex-1 py-3 bg-info hover:bg-info-hover text-white font-bold rounded-lg transition disabled:opacity-50"
-              >
-                {saving ? 'Saving Changes...' : '✅ Save All Changes'}
-              </button>
-              <button
-                onClick={() => setShowBulkEditor(false)}
-                className="px-6 py-3 bg-surface-3 hover:bg-surface-4 text-fg-2 font-bold rounded-lg transition"
-              >
-                Cancel
-              </button>
+              <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-line bg-surface-2 mb-3">
+                {rows.length === 0 ? (
+                  <p className="p-8 text-center text-sm text-fg-muted">{editorChangedOnly ? 'No changes yet — edit a price to see it here.' : 'No product matches your search.'}</p>
+                ) : (
+                  <>
+                    {/* Phones: one card per product */}
+                    <ul className="md:hidden divide-y divide-line">
+                      {rows.map(p => {
+                        const { m, pct } = marginOf(p)
+                        const changed = isChanged(p)
+                        return (
+                          <li key={p.id} className={`p-3 ${changed ? 'bg-warning-soft' : 'bg-surface'}`}>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-fg leading-snug">{p.name}</p>
+                                <p className="text-xs text-fg-subtle">{p.brand || '—'} · Margin <b className={m >= 0 ? 'text-success-fg' : 'text-danger-fg'}>{pct}%</b></p>
+                              </div>
+                              {changed && <button type="button" onClick={() => undoRow(p.id)} className="btn btn-ghost btn-sm shrink-0">Undo</button>}
+                            </div>
+                            <div className={`grid gap-2 ${fields.length === 4 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                              {fields.map(f => (
+                                <label key={f.key} className="block min-w-0">
+                                  <span className={`block text-[11px] font-bold uppercase mb-0.5 ${f.wholesale ? 'text-wholesale-strong' : 'text-fg-muted'}`}>{f.label}</span>
+                                  <input type="number" inputMode="decimal" value={p[f.key] || 0} onChange={e => setField(p.id, f.key, e.target.value)} onFocus={e => e.target.select()} className={`${inputCls(p, f)} w-full`} />
+                                </label>
+                              ))}
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+
+                    {/* Computers: table */}
+                    <table className="hidden md:table w-full text-sm">
+                      <thead className="bg-surface-3 sticky top-0 z-10">
+                        <tr className="border-b border-line">
+                          <th className="px-4 py-2 text-left text-xs font-bold text-fg-muted uppercase">Product</th>
+                          {fields.map(f => <th key={f.key} className={`px-2 py-2 text-right text-xs font-bold uppercase ${f.wholesale ? 'text-wholesale-strong' : 'text-fg-muted'}`}>{f.label}</th>)}
+                          <th className="px-2 py-2 text-center text-xs font-bold text-fg-muted uppercase">Margin</th>
+                          <th className="px-2 py-2 w-16"><span className="sr-only">Undo</span></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line bg-surface">
+                        {rows.map(p => {
+                          const { m, pct } = marginOf(p)
+                          const changed = isChanged(p)
+                          return (
+                            <tr key={p.id} className={changed ? 'bg-warning-soft' : ''}>
+                              <td className="px-4 py-2 font-medium text-fg-2">{p.name} <span className="text-[10px] text-fg-subtle">({p.brand || '—'})</span></td>
+                              {fields.map(f => (
+                                <td key={f.key} className="px-2 py-1.5">
+                                  <input type="number" inputMode="decimal" aria-label={`${f.label} for ${p.name}`} value={p[f.key] || 0} onChange={e => setField(p.id, f.key, e.target.value)} onFocus={e => e.target.select()} className={`${inputCls(p, f)} w-24 ml-auto block`} />
+                                </td>
+                              ))}
+                              <td className={`px-2 py-2 text-center font-bold ${m >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>{pct}%</td>
+                              <td className="px-2 py-2 text-right">{changed && <button type="button" onClick={() => undoRow(p.id)} className="btn btn-ghost btn-sm">Undo</button>}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-3 shrink-0">
+                <button type="button" onClick={close} className="btn btn-secondary min-h-12 sm:px-6">Cancel</button>
+                <button type="button" onClick={handleBulkEditorSave} disabled={saving || changedCount === 0} className="btn btn-primary flex-1 min-h-12 text-base disabled:opacity-50">
+                  {saving ? 'Saving changes…' : changedCount === 0 ? 'No changes yet' : `✅ Save ${changedCount} change${changedCount === 1 ? '' : 's'}`}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ── Adjust Rates Modal ── */}
       {showAdjustRatesModal && (() => {
