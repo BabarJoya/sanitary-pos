@@ -110,6 +110,8 @@ CREATE POLICY "Tenant Isolation" ON purchase_returns AS PERMISSIVE FOR ALL TO an
 ALTER TABLE sales     ADD COLUMN IF NOT EXISTS client_ref UUID;
 ALTER TABLE purchases ADD COLUMN IF NOT EXISTS client_ref UUID;
 ALTER TABLE purchases ADD COLUMN IF NOT EXISTS discount NUMERIC(15,2) DEFAULT 0;
+ALTER TABLE sale_items     ADD COLUMN IF NOT EXISTS returned_qty NUMERIC DEFAULT 0;
+ALTER TABLE purchase_items ADD COLUMN IF NOT EXISTS returned_qty NUMERIC DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS sales_client_ref_key     ON sales (client_ref)     WHERE client_ref IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS purchases_client_ref_key ON purchases (client_ref) WHERE client_ref IS NOT NULL;
 

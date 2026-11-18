@@ -185,6 +185,9 @@ export function txErrorMessage(err) {
   if (short) return `Stock kam hai: ${short[1]}. Stock dobara check karein.`
   const many = msg.match(/return_too_many: (.*)/)
   if (many) return `Itni quantity wapas nahi ho sakti: ${many[1]}.`
+  if (/returned_qty/.test(msg) && /does not exist/.test(msg)) {
+    return 'Database update needed for returns: ask the shop admin to run sql/purchase_items_returned_qty_migration.sql in Supabase.'
+  }
   return msg
 }
 
