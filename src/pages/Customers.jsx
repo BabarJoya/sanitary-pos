@@ -11,6 +11,7 @@ import PasswordModal from '../components/PasswordModal'
 import { getShopSettings, isWholesaleEnabled, normalizeTier } from '../utils/businessPresets'
 import { openingRow } from '../utils/ledgerMath'
 import EmptyState from '../components/EmptyState'
+import { can, notAllowed } from '../utils/permissions'
 
 function Customers() {
   const { user } = useAuth()
@@ -255,6 +256,8 @@ function Customers() {
   }
 
   const requestDelete = (ids) => {
+
+    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setWipeLedger(false)
     setShowPasswordModal(true)

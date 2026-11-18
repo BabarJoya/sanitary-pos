@@ -7,6 +7,7 @@ import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance, applyLocalDelta, runTx, txMaybeAvailable, txKnownAvailable, txErrorMessage } from '../services/integrity'
+import BarcodeLabelModal from '../components/BarcodeLabelModal'
 
 function Purchases() {
   const { user } = useAuth()
@@ -21,6 +22,8 @@ function Purchases() {
   const [supplierId, setSupplierId] = useState('')
   const [paymentType, setPaymentType] = useState('cash')
   const [paidNow, setPaidNow] = useState('') // credit purchase: amount paid at the time of buying
+  const [labelItems, setLabelItems] = useState([]) // last purchase, for price labels
+  const [showLabels, setShowLabels] = useState(false)
   const [saving, setSaving] = useState(false)
   const [discount, setDiscount] = useState(0)
 
@@ -434,6 +437,8 @@ function Purchases() {
       } else {
         alert(`Purchase complete! Stock updated.${owedAmount > 0 ? `\nSupplier balance +Rs. ${owedAmount.toLocaleString()}` : ''}`)
       }
+      // Offer price labels for what just arrived
+      setLabelItems(cart.map(i => ({ ...i })))
       clearCart()
       fetchData()
     } catch (err) {
@@ -473,6 +478,16 @@ function Purchases() {
           <h1 className="text-xl font-bold text-fg">📥 Stock Purchase</h1>
           <span className="text-xs bg-primary-muted text-primary-strong px-2 py-0.5 rounded-full font-bold">{cart.length} items in cart</span>
         </div>
+
+        {labelItems.length > 0 && (
+          <div role="status" className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-success-line bg-success-soft px-3 py-2 text-sm text-success-strong">
+            <span>✓ Purchase saved. Print price labels for the {labelItems.length} item(s) that arrived?</span>
+            <span className="flex gap-2 shrink-0">
+              <button type="button" onClick={() => setShowLabels(true)} className="btn btn-primary btn-sm">🏷️ Print labels</button>
+              <button type="button" onClick={() => setLabelItems([])} className="btn btn-ghost btn-sm" aria-label="Dismiss">✕</button>
+            </span>
+          </div>
+        )}
 
         {/* Search + Filters */}
         <div className="flex gap-2 flex-wrap">
@@ -824,6 +839,16 @@ function Purchases() {
             </div>
           </div>
         </div>
+      )}
+      {showLabels && labelItems.length > 0 && (
+        <BarcodeLabelModal
+          isOpen={showLabels}
+          onClose={() => setShowLabels(false)}
+          products={labelItems}
+          defaultProduct={labelItems[0]}
+          quantities={Object.fromEntries(labelItems.map(i => [i.id, i.qty]))}
+          shopName={localStorage.getItem(`shop_name_${user?.shop_id}`) || 'EdgeX POS'}
+        />
       )}
     </div>
   )

@@ -152,6 +152,12 @@ db.version(11).stores({
   units: '++id, name, abbreviation, shop_id'
 });
 
+// v12: held_purchases was used by Purchases (Hold / Resume) and the Reorder draft
+// but never declared, so holding a purchase always failed. Only adds the table.
+db.version(12).stores({
+  held_purchases: '++id, supplier_id, shop_id, saved_at'
+});
+
 export const addToSyncQueue = async (table, action, data) => {
   await db.sync_queue.add({
     table,

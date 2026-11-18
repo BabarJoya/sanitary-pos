@@ -11,6 +11,7 @@ import { customerLedgerDelta, withRunningBalance, isLedgerSale, paymentRowType, 
 import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { todayLocal, entryTimestamp } from '../utils/dates'
 import CustomerStatement, { AgeingStrip } from '../components/CustomerStatement'
+import { can, notAllowed } from '../utils/permissions'
 
 function CustomerLedger() {
     const { id } = useParams()
@@ -388,6 +389,7 @@ function CustomerLedger() {
     }
 
     const handleDeleteTransaction = async (item) => {
+        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
         if (item.id === 'opening') { alert('Opening balance entry directly delete nahi ho sakti.'); return }
         const label = item.type === 'sale' ? 'Sale/Invoice' : item.type === 'payment' ? 'Payment' : 'Return'
         if (!confirm(`Yeh transaction delete karein?\n\nType: ${label}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\n${item.type !== 'sale' && customerLedgerDelta(item) === 0 ? 'Yeh sirf record hai — balance change nahi hoga (invoice pehle hi kam ho chuki hai).' : 'Customer ka outstanding balance bhi adjust ho ga.'}`)) return
@@ -420,6 +422,7 @@ function CustomerLedger() {
     }
 
     const handleBulkDelete = async () => {
+        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
         const toDelete = ledger.filter(item => selectedIds.has(item.id) && item.id !== 'opening')
         if (!toDelete.length) return
         if (!confirm(`${toDelete.length} transactions delete karein?\n\nCustomer ka outstanding balance bhi adjust ho ga.`)) return

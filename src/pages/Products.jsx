@@ -13,6 +13,7 @@ import { hasFeature } from '../utils/featureGate'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
 import EmptyState from '../components/EmptyState'
+import { can, notAllowed } from '../utils/permissions'
 
 function Products() {
   const [products, setProducts] = useState([])
@@ -451,6 +452,7 @@ function Products() {
 
   // Delete logic
   const requestDelete = (ids) => {
+    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setShowPasswordModal(true)
   }

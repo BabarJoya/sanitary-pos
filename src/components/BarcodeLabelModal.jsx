@@ -59,9 +59,14 @@ function BarcodeSVG({ value, height = 36, width = 1.2 }) {
   )
 }
 
-export default function BarcodeLabelModal({ isOpen, onClose, products = [], defaultProduct = null, shopName = 'EdgeX POS' }) {
+// quantities (optional): { [productId]: stickers } — e.g. pieces just purchased
+export default function BarcodeLabelModal({ isOpen, onClose, products = [], defaultProduct = null, shopName = 'EdgeX POS', quantities = null }) {
   const [selectedProduct, setSelectedProduct] = useState(() => defaultProduct || products[0] || null)
-  const [quantity, setQuantity] = useState(12)
+  const stickersFor = (p) => {
+    const q = quantities && p ? Math.ceil(Number(quantities[p.id]) || 0) : 0
+    return q > 0 ? Math.min(q, 500) : 12
+  }
+  const [quantity, setQuantity] = useState(() => stickersFor(defaultProduct || products[0] || null))
   const [labelFormat, setLabelFormat] = useState('thermal-50x25') // 'thermal-50x25', 'thermal-40x30', 'a4-24', 'a4-30'
   const [showShopName, setShowShopName] = useState(true)
   const [showPrice, setShowPrice] = useState(true)
@@ -245,6 +250,7 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
                 onChange={(e) => {
                   const p = products.find(prod => String(prod.id) === e.target.value)
                   setSelectedProduct(p || null)
+                  if (quantities) setQuantity(stickersFor(p))
                 }}
                 className="w-full px-3.5 py-2 border border-line rounded-xl text-sm font-semibold text-fg bg-surface focus:ring-2 focus:ring-primary outline-none transition"
               >

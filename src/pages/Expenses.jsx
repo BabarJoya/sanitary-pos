@@ -6,6 +6,7 @@ import PasswordModal from '../components/PasswordModal'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import EmptyState from '../components/EmptyState'
+import { can, notAllowed } from '../utils/permissions'
 
 function Expenses() {
   const { user } = useAuth()
@@ -135,6 +136,8 @@ function Expenses() {
   }
 
   const requestDelete = (ids) => {
+
+    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setShowPasswordModal(true)
   }

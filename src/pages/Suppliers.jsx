@@ -11,6 +11,7 @@ import { supplierLedgerDelta, withRunningBalance, paymentRowType, openingRow } f
 import PasswordModal from '../components/PasswordModal'
 import { todayLocal, entryTimestamp } from '../utils/dates'
 import EmptyState from '../components/EmptyState'
+import { can, notAllowed } from '../utils/permissions'
 
 function Suppliers() {
   const { user } = useAuth()
@@ -493,6 +494,8 @@ function Suppliers() {
   }
 
   const requestDelete = (ids) => {
+
+    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setWipeLedger(false)
     setShowPasswordModal(true)

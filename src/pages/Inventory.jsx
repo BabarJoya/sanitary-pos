@@ -12,6 +12,7 @@ import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import StocktakeModal from '../components/StocktakeModal'
+import ReorderModal from '../components/ReorderModal'
 
 function Inventory() {
   const { user } = useAuth()
@@ -37,6 +38,7 @@ function Inventory() {
   const [historyProduct, setHistoryProduct] = useState(null)
   const [historyLogs, setHistoryLogs] = useState([])
   const [showStocktake, setShowStocktake] = useState(false)
+  const [showReorder, setShowReorder] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
 
   const handleExport = () => {
@@ -700,11 +702,18 @@ function Inventory() {
               📤 Export
             </button>
             <button
-              onClick={handleReorderWhatsApp}
+              onClick={() => setShowReorder(true)}
               className="px-3 py-1.5 bg-success hover:bg-success-hover text-white rounded-lg transition font-bold text-xs flex items-center gap-1.5"
-              title="Send low stock reorder list to supplier via WhatsApp"
+              title="Low stock by supplier: send the order on WhatsApp or make a purchase draft"
             >
-              📱 Reorder WA
+              📦 Reorder
+            </button>
+            <button
+              onClick={handleReorderWhatsApp}
+              className="px-3 py-1.5 bg-surface border border-line hover:bg-surface-2 text-fg-2 rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+              title="Purchase order PDF for all low stock items"
+            >
+              📄 Order PDF
             </button>
             {(user.role === 'admin' || user.role === 'manager') && (
               <button
@@ -1154,6 +1163,16 @@ function Inventory() {
           </div>
         </div>
       )}
+
+      <ReorderModal
+        open={showReorder}
+        onClose={() => setShowReorder(false)}
+        products={products}
+        categories={categories}
+        user={user}
+        shopName={getShopBranding(user?.shop_id).name}
+        template={getShopSettings(user?.shop_id).wa_reorder_template}
+      />
 
       {showStocktake && (
         <StocktakeModal

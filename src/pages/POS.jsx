@@ -13,6 +13,7 @@ import { printHTML } from '../utils/printUtils'
 import { getPricingConfig, getShopSettings, isWholesaleEnabled, getUnitPrice, normalizeTier } from '../utils/businessPresets'
 import { isLowStock as isLowStockRule } from '../utils/stockRules'
 import { useLang } from '../context/LanguageContext'
+import { can, notAllowed } from '../utils/permissions'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
   { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
@@ -40,6 +41,10 @@ const getCategoryColor = (catName = '') => {
 function POS() {
   const { user } = useAuth()
   const { t } = useLang()
+  // Staff action permissions (Users → Allowed Actions)
+  const canDiscount = can(user, 'discount')
+  const canEditPrice = can(user, 'edit_price')
+  const canSeeProfit = can(user, 'see_profit')
   const shopSettings = getShopSettings(user?.shop_id)
   const pricingConfig = getPricingConfig(shopSettings)
   const wholesaleEnabled = isWholesaleEnabled(shopSettings)
@@ -620,6 +625,7 @@ function POS() {
   }
 
   const updatePrice = (id, price) => {
+    if (!canEditPrice) return
     const num = parseFloat(price)
     if (isNaN(num) || num < 0) return
     setCart(prev => prev.map(i => i.id === id ? { ...i, custom_price: num, price_overridden: true } : i))
@@ -761,6 +767,7 @@ function POS() {
   }
 
   const applyBrandDiscount = () => {
+    if (!canEditPrice) { alert(notAllowed('price badalne')); return }
     if (!selectedBrand) { alert('Pehle brand select karo!'); return }
     const brandProducts = products.filter(p => p.brand === selectedBrand)
     const val = parseFloat(brandDiscountValue) || 0
@@ -846,6 +853,7 @@ function POS() {
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) { alert('Cart khali hai!'); return }
+    if (totalDiscount > 0 && !canDiscount) { alert(notAllowed('discount dene')); return }
 
     // Stock is checked again here: a converted quotation, a resumed held bill or a
     // brand "add all" fills the cart without going through addToCart.
@@ -877,7 +885,7 @@ function POS() {
     const totalPaid = finalPayments.reduce((s, p) => s + Number(p.amount), 0)
 
     // Only admin / manager may sell below cost (via a typed price, brand discount or bill discount)
-    const canSellBelowCost = user.role === 'admin' || user.role === 'manager'
+    const canSellBelowCost = can(user, 'below_cost')
     if (saleType === 'sale' && !canSellBelowCost) {
       const belowCost = cart.filter(i => Number(i.cost_price) > 0 && Number(i.custom_price) < Number(i.cost_price))
       if (belowCost.length > 0) {
@@ -1372,7 +1380,7 @@ function POS() {
             <option value="">{t('All Brands')}</option>
             {displayBrands.map(bName => <option key={bName} value={bName}>{bName}</option>)}
           </select>
-          {selectedBrand && (
+          {selectedBrand && canEditPrice && (
             <button onClick={() => setShowBrandDiscount(true)}
               className="px-3 py-2 bg-warning hover:bg-warning-hover text-white rounded-lg text-sm transition whitespace-nowrap shadow-sm">
               % Brand Discount
@@ -1444,7 +1452,7 @@ function POS() {
                     <span className={isOutOfStock ? 'text-danger-fg font-bold' : isLowStock ? 'text-warning-fg font-semibold' : 'text-fg-muted'}>
                       Stock: <span className="font-semibold">{p.stock_quantity}</span>
                     </span>
-                    {(user.role === 'admin' || user.role === 'manager') && p.cost_price != null && (
+                    {canSeeProfit && p.cost_price != null && (
                       <span className="text-fg-subtle text-[10px] hidden sm:inline">
                         · Cost: {p.cost_price}
                       </span>
@@ -1679,7 +1687,7 @@ function POS() {
           )}
           {cart.map(item => {
             const itemProfit = (item.custom_price - (item.cost_price || 0)) * item.qty
-            const isAdminOrManager = (user.role === 'admin' || user.role === 'manager' || user.role === 'accountant')
+            const isAdminOrManager = canSeeProfit
             return (
               <div key={item.id} className="group bg-surface hover:bg-primary-soft/40 border border-primary-muted hover:border-primary-edge rounded-lg px-2 py-1 transition duration-150 shadow-2xs">
                 <div className="flex items-center justify-between gap-1.5">
@@ -1698,6 +1706,8 @@ function POS() {
                           type="number"
                           value={item.custom_price}
                           onChange={e => updatePrice(item.id, e.target.value)}
+                          readOnly={!canEditPrice}
+                          aria-label={`Unit price of ${item.name}`}
                           className="w-14 text-xs font-bold text-primary-strong outline-none p-0 bg-transparent"
                         />
                       </div>
@@ -1791,7 +1801,7 @@ function POS() {
                   <span className="font-bold text-fg">Rs. {subtotal.toFixed(0)}</span>
                 </div>
 
-                {hasFeature('discount') && (
+                {hasFeature('discount') && canDiscount && (
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-bold text-fg-muted">Disc:</span>
                     <div className="flex bg-surface-4/80 rounded p-0.5 text-[9px] font-bold">
@@ -1844,7 +1854,7 @@ function POS() {
               </div>
 
               {/* Quick % Presets */}
-              {hasFeature('discount') && (
+              {hasFeature('discount') && canDiscount && (
                 <div className="flex items-center gap-1 pt-0.5 border-t border-line/50">
                   <span className="text-[9px] text-fg-subtle font-semibold shrink-0">Quick %:</span>
                   {[2, 5, 10, 15, 20].map(pct => (
@@ -1888,7 +1898,7 @@ function POS() {
               <div className="flex justify-between items-center pt-1 border-t border-line/70">
                 <div>
                   <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">{t('Net Total')}</span>
-                  {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
+                  {canSeeProfit && totalProfit !== 0 && (
                     <div className={`text-[10px] font-bold ${totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
                       Profit: Rs. {totalProfit.toFixed(0)}
                     </div>
@@ -1964,7 +1974,7 @@ function POS() {
                   <span className="font-bold text-fg">Rs. {subtotal.toFixed(0)}</span>
                 </div>
 
-                {hasFeature('discount') && (
+                {hasFeature('discount') && canDiscount && (
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-bold text-fg-muted">Disc:</span>
                     <div className="flex bg-surface-4/80 rounded p-0.5 text-[9px] font-bold">
@@ -2017,7 +2027,7 @@ function POS() {
               </div>
 
               {/* Quick % Presets */}
-              {hasFeature('discount') && (
+              {hasFeature('discount') && canDiscount && (
                 <div className="flex items-center gap-1 pt-0.5 border-t border-line/50">
                   <span className="text-[9px] text-fg-subtle font-semibold shrink-0">Quick %:</span>
                   {[2, 5, 10, 15, 20].map(pct => (
@@ -2061,7 +2071,7 @@ function POS() {
               <div className="flex justify-between items-center pt-1 border-t border-line/70">
                 <div>
                   <span className="text-fg-muted text-[10px] uppercase font-black tracking-wider block">{t('Net Total')}</span>
-                  {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && totalProfit !== 0 && (
+                  {canSeeProfit && totalProfit !== 0 && (
                     <div className={`text-[10px] font-bold ${totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
                       Net Profit: Rs. {totalProfit.toFixed(0)}
                     </div>
@@ -2424,7 +2434,7 @@ function POS() {
               <div className="bg-surface border border-primary-line/90 rounded-xl px-3 py-2 shadow-2xs flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] uppercase font-black text-fg-subtle tracking-wider leading-none">{t('Net Payable')}</span>
-                  {hasFeature('discount') && (
+                  {hasFeature('discount') && canDiscount && (
                     <div className="flex items-center gap-1.5 text-xs">
                       <span className="font-bold text-fg-muted text-[11px]">Disc:</span>
                       <button
@@ -2898,7 +2908,7 @@ function POS() {
               <div className="border-t pt-1 flex justify-between font-bold">
                 <span>{t('Total')}</span><span>Rs. {lastReceipt.total.toFixed(0)}</span>
               </div>
-              {(user.role === 'admin' || user.role === 'manager' || user.role === 'accountant') && (
+              {canSeeProfit && (
                 <div className={`flex justify-between text-xs ${lastReceipt.totalProfit >= 0 ? 'text-success-fg' : 'text-danger-fg'}`}>
                   <span>{t('Profit')}</span><span>Rs. {lastReceipt.totalProfit.toFixed(0)}</span>
                 </div>
@@ -3146,7 +3156,7 @@ function POS() {
                         {item.brand && <p className="text-xs text-fg-subtle">{item.brand}</p>}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <input type="number" value={item.custom_price} onChange={e => updatePrice(item.id, e.target.value)}
+                        <input type="number" value={item.custom_price} onChange={e => updatePrice(item.id, e.target.value)} readOnly={!canEditPrice}
                           className="w-24 px-2 py-1 border rounded text-center font-semibold text-primary-fg focus:ring-1 focus:ring-primary outline-none" />
                       </td>
                       <td className="px-4 py-3 text-center">

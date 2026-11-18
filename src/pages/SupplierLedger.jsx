@@ -9,6 +9,7 @@ import { supplierLedgerDelta, withRunningBalance, paymentRowType, openingRow } f
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { todayLocal, entryTimestamp } from '../utils/dates'
+import { can, notAllowed } from '../utils/permissions'
 
 function SupplierLedger() {
     const { id } = useParams()
@@ -258,6 +259,7 @@ function SupplierLedger() {
     }
 
     const handleDeleteTransaction = async (item) => {
+        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
         const typeLabel = item.type === 'purchase' ? 'Purchase Order'
             : item.type === 'debit' ? 'Debit Entry'
             : item.type === 'payment' ? 'Payment'
@@ -412,6 +414,7 @@ function SupplierLedger() {
     }
 
     const handleBulkDelete = async () => {
+        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
         const toDelete = ledger.filter(item => selectedIds.has(item.id))
         if (!toDelete.length) return
         if (!confirm(`${toDelete.length} transactions delete karein?\n\nSupplier balance bhi adjust ho ga.`)) return
