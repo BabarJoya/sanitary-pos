@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
 import { hashPassword, verifyPassword } from '../utils/authUtils'
+import { STAFF_ACTIONS, actionState, withActions, hasCustomActions } from '../utils/permissions'
 
 function Users() {
   const { user } = useAuth()
@@ -336,6 +337,42 @@ function Users() {
                     </label>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* What this user may do (actions), on top of which screens they see */}
+            <div className="bg-surface-2 border border-line rounded-xl p-4">
+              <label className="block text-fg font-bold mb-1">Allowed Actions</label>
+              {form.role === 'admin' ? (
+                <div className="text-sm text-primary-fg bg-primary-soft p-3 rounded-lg border border-primary-muted italic">
+                  Admins can do everything.
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-fg-muted mb-3">
+                    {hasCustomActions(form.permissions) ? 'Set by you for this user.' : `Using the usual settings for a ${form.role} — change any switch to customise.`}
+                  </p>
+                  <div className="space-y-2.5">
+                    {STAFF_ACTIONS.map(a => {
+                      const state = actionState(form.role, form.permissions)
+                      return (
+                        <label key={a.id} className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!state[a.id]}
+                            onChange={() => setForm(prev => ({ ...prev, permissions: withActions(prev.permissions, { ...actionState(prev.role, prev.permissions), [a.id]: !state[a.id] }) }))}
+                            className="mt-0.5 w-4 h-4 text-primary-fg rounded border-line-strong focus:ring-primary"
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-fg-2">{a.label}</span>
+                            <span className="block text-xs text-fg-subtle">{a.hint}</span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[11px] text-fg-subtle mt-3">Changes apply the next time this user logs in.</p>
+                </>
               )}
             </div>
 

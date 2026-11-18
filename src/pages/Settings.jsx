@@ -78,6 +78,7 @@ function Settings() {
       custom_price_label: '',
       wholesale_enabled: false,
       cost_method: 'last',
+      owner_whatsapp: '',
       tax_number: '',
       pos_layout: 'two_stage'
     }
@@ -269,6 +270,7 @@ function Settings() {
         wholesale_enabled:    typeof data.wholesale_enabled === 'boolean' ? data.wholesale_enabled : (saved.wholesale_enabled ?? prev.wholesale_enabled ?? false),
         // Cost method is kept in this device's shop settings (not in the shops table yet)
         cost_method:          saved.cost_method  || prev.cost_method  || 'last',
+        owner_whatsapp:       saved.owner_whatsapp ?? prev.owner_whatsapp ?? '',
         // Appearance is a local, per-shop preference (not stored in the shops table) — keep it.
         theme_mode:           saved.theme_mode   || prev.theme_mode,
         theme_accent:         saved.theme_accent || prev.theme_accent,
@@ -779,6 +781,16 @@ function Settings() {
               />
               <p className="text-[11px] text-fg-subtle mt-1">Printed at the top of customer receipts & invoices</p>
             </div>
+          </div>
+
+          {/* Daily summary goes to the owner's WhatsApp from Close Day */}
+          <div className="pt-5 border-t">
+            <label htmlFor="owner-whatsapp" className="block text-sm font-black text-fg uppercase tracking-wider">Owner's WhatsApp (daily summary)</label>
+            <input id="owner-whatsapp" type="tel" inputMode="tel" value={form.owner_whatsapp || ''} onChange={e => setForm(prev => ({ ...prev, owner_whatsapp: e.target.value }))}
+              className="input mt-2 w-full sm:w-72" placeholder="e.g. 03001234567" />
+            <p className="text-xs text-fg-muted mt-1">
+              Close Day sends today's sales, cash in drawer, credit given and low stock straight to this number. After 7 pm the Dashboard reminds you if it has not been sent. Saved on this device.
+            </p>
           </div>
 
           {/* How a purchase sets the product's cost price */}

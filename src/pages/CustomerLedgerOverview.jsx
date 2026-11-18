@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
+import PaymentReminders from '../components/PaymentReminders'
+import { fetchAllRows } from '../services/fetchAll'
 
 function CustomerLedgerOverview() {
     const { user } = useAuth()
     const [customers, setCustomers] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [tab, setTab] = useState('all') // 'all' | 'reminders'
 
     useEffect(() => {
         if (user?.shop_id) fetchCustomers()
@@ -18,11 +21,11 @@ function CustomerLedgerOverview() {
         setLoading(true)
         try {
             if (!navigator.onLine) throw new Error('Offline')
-            const { data, error } = await supabase
+            const { data, error } = await fetchAllRows(() => supabase
                 .from('customers')
                 .select('id, name, phone, address, outstanding_balance, created_at')
                 .eq('shop_id', user.shop_id)
-                .order('outstanding_balance', { ascending: false })
+                .order('outstanding_balance', { ascending: false }))
 
             if (error) throw error
             setCustomers(data || [])
@@ -76,6 +79,17 @@ function CustomerLedgerOverview() {
                 </div>
             </div>
 
+            {/* All balances | Payment reminders */}
+            <div className="mb-4 inline-flex rounded-xl border border-line bg-surface p-1" role="tablist" aria-label="Customer ledger view">
+                {[['all', '📒 All balances'], ['reminders', '💬 Payment reminders']].map(([id, label]) => (
+                    <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+                        className={`min-h-10 px-4 rounded-lg text-sm font-bold transition ${tab === id ? 'bg-primary text-white shadow-sm' : 'text-fg-3 hover:bg-surface-2'}`}>
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            {tab === 'reminders' ? <PaymentReminders customers={customers} user={user} /> : (<>
             {/* Search */}
             <div className="mb-4">
                 <input
@@ -133,6 +147,7 @@ function CustomerLedgerOverview() {
                     </table>
                 </div>
             </div>
+            </>)}
         </div>
     )
 }

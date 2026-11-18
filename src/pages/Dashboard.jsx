@@ -262,6 +262,19 @@ function Dashboard() {
     ['📦 Credit purchases', d.creditPurchases],
   ]
 
+  // Owner's WhatsApp for the daily summary: 03xx… → 923xx…; empty = choose in WhatsApp
+  const ownerWhatsApp = () => {
+    let phone = String(getShopSettings(user?.shop_id).owner_whatsapp || '').replace(/[^0-9]/g, '')
+    if (phone.startsWith('03')) phone = '92' + phone.slice(1)
+    else if (phone.length === 10 && phone.startsWith('3')) phone = '92' + phone
+    return phone
+  }
+  const sentKey = `eod_summary_sent_${user?.shop_id}_${todayLocal()}`
+  const [summarySent, setSummarySent] = useState(() => { try { return !!localStorage.getItem(sentKey) } catch { return false } })
+  const markSummarySent = () => { setSummarySent(true); try { localStorage.setItem(sentKey, '1') } catch { /* storage unavailable */ } }
+  // After 7 pm, remind once a day until the summary has been sent
+  const showSummaryReminder = !summarySent && new Date().getHours() >= 19
+
   const shareEODWhatsApp = () => {
     const d = eodData
     if (!d) return
@@ -275,8 +288,12 @@ function Dashboard() {
       body +
       `\n\n💰 *Net Cash (today): ${rs(d.netCash)}*` +
       (eodOpening !== '' ? `\n🏁 Opening cash: ${rs(eodOpening)}\n🧮 Expected in drawer: ${rs(eodExpected)}` : '') +
-      (eodDifference != null ? `\n✅ Counted: ${rs(eodCounted)} (${eodDifference >= 0 ? '+' : '−'}${rs(Math.abs(eodDifference))})` : '')
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+      (eodDifference != null ? `\n✅ Counted: ${rs(eodCounted)} (${eodDifference >= 0 ? '+' : '−'}${rs(Math.abs(eodDifference))})` : '') +
+      (stats.lowStockCount > 0 ? `\n\n⚠️ Low stock: ${stats.lowStockCount} product(s) — reorder from Inventory` : '')
+    // Straight to the owner's number when set (Settings → Owner's WhatsApp)
+    const owner = ownerWhatsApp()
+    window.open(`https://wa.me/${owner}?text=${encodeURIComponent(msg)}`, '_blank')
+    markSummarySent()
   }
 
   const printEOD = () => {
@@ -427,6 +444,13 @@ function Dashboard() {
             color="text-danger-fg bg-danger"
             subValue="Alert"
           />
+        </div>
+      )}
+
+      {showSummaryReminder && !loading && (
+        <div role="status" className="mt-3 bg-primary-soft border border-primary-line text-primary-strong rounded-xl px-4 py-3 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <span>🌙 Din khatam? Aaj ka hisaab {getShopSettings(user?.shop_id).owner_whatsapp ? 'owner ko' : ''} WhatsApp par bhejein — sales, drawer ka cash, udhaar aur low stock.</span>
+          <button type="button" onClick={openEOD} className="btn btn-primary btn-sm shrink-0">🌙 Close Day</button>
         </div>
       )}
 
@@ -616,7 +640,7 @@ function Dashboard() {
 
             <div className="p-4 border-t border-line-subtle flex gap-3">
               {eodData && <button onClick={printEOD} className="flex-1 py-2.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl transition">🖨️ Print</button>}
-              {eodData && <button onClick={shareEODWhatsApp} className="flex-1 py-2.5 bg-success hover:bg-success-hover text-white font-bold rounded-xl transition">📱 WhatsApp</button>}
+              {eodData && <button onClick={shareEODWhatsApp} className="flex-1 py-2.5 bg-success hover:bg-success-hover text-white font-bold rounded-xl transition">📱 {getShopSettings(user?.shop_id).owner_whatsapp ? 'Send to owner' : 'WhatsApp'}</button>}
               <button onClick={() => setShowEOD(false)} className="flex-1 py-2.5 bg-surface-3 hover:bg-surface-4 text-fg-2 font-bold rounded-xl transition">Close</button>
             </div>
           </div>

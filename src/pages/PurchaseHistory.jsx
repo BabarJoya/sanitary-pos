@@ -12,6 +12,7 @@ import { printHTML } from '../utils/printUtils'
 import { buildBillHTML } from '../utils/billTemplates'
 import { localDateKey } from '../utils/dates'
 import EmptyState from '../components/EmptyState'
+import { can, notAllowed } from '../utils/permissions'
 
 function PurchaseHistory() {
     const { user } = useAuth()
@@ -370,6 +371,8 @@ function PurchaseHistory() {
     }
 
     const requestDelete = (ids) => {
+
+      if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
         setPendingDeleteIds(ids)
         setShowPasswordModal(true)
     }

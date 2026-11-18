@@ -8,6 +8,19 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-20',
+    date: '20 Nov 2026',
+    title: 'Get paid faster, reorder on time',
+    items: [
+      'Customer Ledger → Payment reminders: who owes the longest comes first, one tap to send a WhatsApp reminder',
+      "Close Day sends today's summary straight to the owner's WhatsApp (set the number in Settings), with a reminder after 7 pm",
+      'Inventory → Reorder: low stock grouped by supplier with suggested quantities — WhatsApp the order or make a purchase draft',
+      'After saving a purchase, print price labels for exactly what arrived',
+      'Users → Allowed Actions: choose who can give discounts, change prices, sell below cost, see profit or delete',
+      'Fixed: "Hold" in Purchases now works',
+    ],
+  },
+  {
     id: '2026-11-19',
     date: '19 Nov 2026',
     title: 'Faster checkout and clearer screens',
