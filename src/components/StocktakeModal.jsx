@@ -4,6 +4,7 @@ import { db } from '../services/db'
 import { adjustStock, isTempId, toIntId } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
+import toast from '../utils/toast'
 
 // ============================================================================
 // Stock count (stocktake): enter what is on the shelf for many products at once.
@@ -53,7 +54,7 @@ export default function StocktakeModal({ products, user, onClose, onDone }) {
   }
 
   const save = async () => {
-    if (changed.length === 0) { alert('Koi farq nahi — counted quantity likhein.'); return }
+    if (changed.length === 0) { toast.warning('Koi farq nahi — counted quantity likhein.'); return }
     if (!confirm(`${changed.length} product(s) ka stock count ke mutabiq set ho jayega.\nFarq (cost par): Rs. ${Math.round(varianceValue).toLocaleString()}\n\nContinue?`)) return
     setSaving(true)
     const failed = []
@@ -81,11 +82,11 @@ export default function StocktakeModal({ products, user, onClose, onDone }) {
         else failed.push(c.p.name)
       }
       await recordAuditLog('STOCKTAKE', 'products', null, { note: note || 'Stock count', lines: applied }, user.id, user.shop_id)
-      if (failed.length) alert(`Count saved, but these failed: ${failed.join(', ')}`)
-      else alert(`✅ Stock count saved for ${applied.length} product(s).`)
+      if (failed.length) toast.error(`Count saved, but these failed: ${failed.join(', ')}`)
+      else toast.success(`✅ Stock count saved for ${applied.length} product(s).`)
       onDone?.()
     } catch (err) {
-      alert('Stock count save nahi hua: ' + (err?.message || String(err)))
+      toast.error('Stock count save nahi hua: ' + (err?.message || String(err)))
     } finally {
       setSaving(false)
     }

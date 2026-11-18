@@ -11,6 +11,7 @@ import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import { todayLocal, entryTimestamp } from '../utils/dates'
 import { can, notAllowed } from '../utils/permissions'
+import toast from '../utils/toast'
 
 function SupplierLedger() {
     const { id } = useParams()
@@ -127,7 +128,7 @@ function SupplierLedger() {
     const handleSubmitTransaction = async (e) => {
         e.preventDefault()
         if (purchaseAmt === 0 && paidAmt === 0) {
-            alert('Purchase amount ya paid amount mein se koi ek lazmi hai.')
+            toast.warning('Purchase amount ya paid amount mein se koi ek lazmi hai.')
             return
         }
 
@@ -164,9 +165,9 @@ function SupplierLedger() {
 
             // Atomic change in the database (never overwrite with a total computed from stale data)
             const r = await adjustSupplierBalance(id, purchaseAmt - paidAmt)
-            if (!r.ok) alert('Entries saved, but supplier balance update failed: ' + (r.error?.message || 'unknown error'))
+            if (!r.ok) toast.error('Entries saved, but supplier balance update failed: ' + (r.error?.message || 'unknown error'))
 
-            alert('Transaction save ho gaya! ✅')
+            toast.success('Transaction save ho gaya! ✅')
             resetForm()
             fetchSupplierData()
         } catch (error) {
@@ -186,11 +187,11 @@ function SupplierLedger() {
                 }
                 await adjustSupplierBalance(id, purchaseAmt - paidAmt) // queued as an atomic change
                 setSupplier(s => ({ ...s, outstanding_balance: (Number(s.outstanding_balance) || 0) + purchaseAmt - paidAmt }))
-                alert('Offline mode: Transaction locally save ho gaya. Online hone pr sync hoga! 🔄')
+                toast.success('Offline mode: Transaction locally save ho gaya. Online hone pr sync hoga! 🔄')
                 resetForm()
                 fetchSupplierData()
             } else {
-                alert('Error: ' + errMsg)
+                toast.error('Error: ' + errMsg)
             }
         } finally { setSaving(false) }
     }
@@ -260,7 +261,7 @@ function SupplierLedger() {
     }
 
     const handleDeleteTransaction = async (item) => {
-        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+        if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
         const typeLabel = item.type === 'purchase' ? 'Purchase Order'
             : item.type === 'debit' ? 'Debit Entry'
             : item.type === 'payment' ? 'Payment'
@@ -272,10 +273,10 @@ function SupplierLedger() {
 
         try {
             const failed = await deleteSupplierEntry(item)
-            if (failed.length) alert(`Deleted, but these updates failed: ${failed.join(', ')}`)
+            if (failed.length) toast.error(`Deleted, but these updates failed: ${failed.join(', ')}`)
             fetchSupplierData()
         } catch (err) {
-            alert('Delete nahi hua: ' + err.message)
+            toast.error('Delete nahi hua: ' + err.message)
         }
     }
 
@@ -311,7 +312,7 @@ function SupplierLedger() {
             const ws = wb.Sheets[wb.SheetNames[0]]
             const rows = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' })
 
-            if (!rows.length) { alert('File mein koi data nahi mila.'); return }
+            if (!rows.length) { toast.warning('File mein koi data nahi mila.'); return }
 
             const confirmed = window.confirm(`${rows.length} transactions import karein?`)
             if (!confirmed) return
@@ -349,7 +350,7 @@ function SupplierLedger() {
                 }
             }
 
-            if (!insertRows.length) { alert('Koi valid row nahi mili (Debit/Credit columns check karein).'); return }
+            if (!insertRows.length) { toast.warning('Koi valid row nahi mili (Debit/Credit columns check karein).'); return }
 
             if (navigator.onLine) {
                 const { error } = await supabase.from('supplier_payments').insert(insertRows)
@@ -365,11 +366,11 @@ function SupplierLedger() {
                 await adjustSupplierBalance(id, balanceDelta) // queued (previously never synced)
             }
 
-            alert(`${insertRows.length} entries import ho gayi! ✅`)
+            toast.success(`${insertRows.length} entries import ho gayi! ✅`)
             fetchSupplierData()
         } catch (err) {
             console.error('Import error:', err)
-            alert('Import failed: ' + err.message)
+            toast.error('Import failed: ' + err.message)
         }
     }
 
@@ -415,7 +416,7 @@ function SupplierLedger() {
     }
 
     const handleBulkDelete = async () => {
-        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+        if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
         const toDelete = ledger.filter(item => selectedIds.has(item.id))
         if (!toDelete.length) return
         if (!confirm(`${toDelete.length} transactions delete karein?\n\nSupplier balance bhi adjust ho ga.`)) return
@@ -433,7 +434,7 @@ function SupplierLedger() {
             }
         }
         setSelectedIds(new Set())
-        if (errors.length) alert(`${errors.length} entries had problems:\n${errors.slice(0, 3).join('\n')}`)
+        if (errors.length) toast.error(`${errors.length} entries had problems:\n${errors.slice(0, 3).join('\n')}`)
         fetchSupplierData()
     }
 
@@ -463,7 +464,7 @@ function SupplierLedger() {
             }
             fetchSupplierData()
         } catch (err) {
-            alert('Opening balance save nahi hua: ' + (err?.message || String(err)))
+            toast.error('Opening balance save nahi hua: ' + (err?.message || String(err)))
         }
     }
 
@@ -493,9 +494,9 @@ Supplier balance transaction ledger ke mutabiq sync ho jayega.`)
                 await db.sync_queue.add({ table: 'suppliers', action: 'UPDATE', data: { id, outstanding_balance: computedBalance }, timestamp: new Date().toISOString() })
             }
             setSupplier(s => s ? { ...s, outstanding_balance: computedBalance } : s)
-            alert(`✅ Balance reconciled successfully to Rs. ${computedBalance}`)
+            toast.success(`✅ Balance reconciled successfully to Rs. ${computedBalance}`)
         } catch (err) {
-            alert('Reconcile error: ' + err.message)
+            toast.error('Reconcile error: ' + err.message)
         }
     }
 

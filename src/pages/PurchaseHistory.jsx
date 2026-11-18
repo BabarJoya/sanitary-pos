@@ -14,6 +14,7 @@ import { buildBillHTML } from '../utils/billTemplates'
 import { localDateKey } from '../utils/dates'
 import EmptyState from '../components/EmptyState'
 import { can, notAllowed } from '../utils/permissions'
+import toast from '../utils/toast'
 
 function PurchaseHistory() {
     const { user } = useAuth()
@@ -136,11 +137,11 @@ function PurchaseHistory() {
         // Number() (not parseInt) so fractional quantities like 2.5 m or 1.5 kg can be returned
         const qtyOf = (item) => Number(returnQtys[item.id]) || 0
         const itemsToReturn = purchaseItems.filter(i => qtyOf(i) > 0)
-        if (itemsToReturn.length === 0) { alert('Return karne ke liye qty enter karo!'); return }
+        if (itemsToReturn.length === 0) { toast.warning('Return karne ke liye qty enter karo!'); return }
 
         for (const item of itemsToReturn) {
             const maxReturn = Number(item.quantity) - Number(item.returned_qty || 0)
-            if (qtyOf(item) > maxReturn) { alert(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
+            if (qtyOf(item) > maxReturn) { toast.warning(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
         }
 
         setReturning(true)
@@ -196,7 +197,7 @@ function PurchaseHistory() {
                     items: itemsToReturn.map(it => ({ name: it.product_name, qty: qtyOf(it) }))
                 }, user.id, user.shop_id)
                 setReturnQtys({})
-                alert(`Return successful! Purchase invoice updated.${Number(doc.balance_change) > 0 ? `\nSupplier balance kam hua: Rs. ${Number(doc.balance_change).toFixed(0)}` : ''}`)
+                toast.success(`Return successful! Purchase invoice updated.${Number(doc.balance_change) > 0 ? `\nSupplier balance kam hua: Rs. ${Number(doc.balance_change).toFixed(0)}` : ''}`)
                 const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).maybeSingle()
                 if (updatedPurchase) setSelectedPurchase(updatedPurchase)
                 const localItems = await db.purchase_items.where({ purchase_id: selectedPurchase.id }).toArray().catch(() => [])
@@ -206,7 +207,7 @@ function PurchaseHistory() {
                 return
             }
             if (tx.business || (!tx.missing && !tx.network)) {
-                alert('Error processing return: ' + txErrorMessage(tx.error))
+                toast.error('Error processing return: ' + txErrorMessage(tx.error))
                 setReturning(false)
                 return
             }
@@ -276,19 +277,19 @@ function PurchaseHistory() {
 
             setReturnQtys({})
             if (wentOffline) {
-                alert('Offline mode: Return processed locally. Stock, invoice and supplier balance will sync when online. 🔄')
+                toast.info('Offline mode: Return processed locally. Stock, invoice and supplier balance will sync when online. 🔄')
                 setSelectedPurchase({ ...selectedPurchase, ...purchaseUpdate })
                 const localItems = await db.purchase_items.where({ purchase_id: selectedPurchase.id }).toArray().catch(() => [])
                 if (localItems.length > 0) setPurchaseItems(localItems)
             } else {
-                alert(`Return successful! Purchase invoice updated.${isCredit ? `\nSupplier balance kam hua: Rs. ${totalReturnAmount.toFixed(0)}` : ''}`)
+                toast.success(`Return successful! Purchase invoice updated.${isCredit ? `\nSupplier balance kam hua: Rs. ${totalReturnAmount.toFixed(0)}` : ''}`)
                 const { data: updatedPurchase } = await supabase.from('purchases').select('*, suppliers(name)').eq('id', selectedPurchase.id).maybeSingle()
                 if (updatedPurchase) setSelectedPurchase(updatedPurchase)
             }
             fetchPurchases()
         } catch (err) {
             const finished = `${done.items}/${itemsToReturn.length} items${done.total ? ', invoice total' : ''}${done.balance ? ', supplier balance' : ''}`
-            alert(`Error processing return: ${err?.message || String(err)}\nCompleted so far: ${finished}. Please check before trying again.`)
+            toast.error(`Error processing return: ${err?.message || String(err)}\nCompleted so far: ${finished}. Please check before trying again.`)
         } finally {
             setReturning(false)
         }
@@ -373,7 +374,7 @@ function PurchaseHistory() {
 
     const requestDelete = (ids) => {
 
-      if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+      if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
         setPendingDeleteIds(ids)
         setShowPasswordModal(true)
     }
@@ -435,16 +436,16 @@ function PurchaseHistory() {
         }
 
         if (effectFailures.length) {
-            alert(`Purchases deleted, but some stock/balance reversals failed:\n${effectFailures.join('\n')}\nPlease check these products / suppliers.`)
+            toast.error(`Purchases deleted, but some stock/balance reversals failed:\n${effectFailures.join('\n')}\nPlease check these products / suppliers.`)
         }
 
         setPurchases(prev => prev.filter(p => !successfulIds.includes(p.id)))
         setSelected([])
 
         if (failCount > 0) {
-            alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh purchases mein ledger entries linked hain.\n\nSahi order:\n1. Pehle Purchase Items delete karein (Trash Bin > Purchase Items filter)\n2. Phir yeh purchases delete ho jayenge`)
+            toast.error(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh purchases mein ledger entries linked hain.\n\nSahi order:\n1. Pehle Purchase Items delete karein (Trash Bin > Purchase Items filter)\n2. Phir yeh purchases delete ho jayenge`)
         } else if (successCount > 0) {
-            alert(`🗑️ ${successCount} purchase(s) moved to Trash!`)
+            toast.success(`🗑️ ${successCount} purchase(s) moved to Trash!`)
         }
         fetchPurchases()
     }

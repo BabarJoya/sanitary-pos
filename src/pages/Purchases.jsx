@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustSupplierBalance, applyLocalDelta, runTx, txMaybeAvailable, txKnownAvailable, txErrorMessage } from '../services/integrity'
 import BarcodeLabelModal from '../components/BarcodeLabelModal'
+import toast from '../utils/toast'
 
 function Purchases() {
   const { user } = useAuth()
@@ -218,9 +219,9 @@ function Purchases() {
       await db.held_purchases.add(heldData)
       await fetchHeldPurchases()
       clearCart()
-      alert('Purchase held successfully! ⏸️')
+      toast.success('Purchase held successfully! ⏸️')
     } catch (err) {
-      alert('Error holding purchase: ' + err.message)
+      toast.error('Error holding purchase: ' + err.message)
     }
   }
 
@@ -240,8 +241,8 @@ function Purchases() {
   }
 
   const handleCompletePurchase = async () => {
-    if (cart.length === 0) return alert('Khareedari ke liye products add karein!')
-    if (!supplierId) return alert('Pehle supplier select karein!')
+    if (cart.length === 0) return toast.warning('Khareedari ke liye products add karein!')
+    if (!supplierId) return toast.warning('Pehle supplier select karein!')
 
     setSaving(true)
     try {
@@ -432,18 +433,18 @@ function Purchases() {
       }
 
       if (failed.length > 0) {
-        alert(`Purchase saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / supplier balance.`)
+        toast.error(`Purchase saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / supplier balance.`)
       } else if (offline) {
-        alert('Offline mode: Purchase saved locally. Will sync automatically when online. 🔄')
+        toast.success('Offline mode: Purchase saved locally. Will sync automatically when online. 🔄')
       } else {
-        alert(`Purchase complete! Stock updated.${owedAmount > 0 ? `\nSupplier balance +Rs. ${owedAmount.toLocaleString()}` : ''}`)
+        toast.success(`Purchase complete! Stock updated.${owedAmount > 0 ? `\nSupplier balance +Rs. ${owedAmount.toLocaleString()}` : ''}`)
       }
       // Offer price labels for what just arrived
       setLabelItems(cart.map(i => ({ ...i })))
       clearCart()
       fetchData()
     } catch (err) {
-      alert('Error: ' + txErrorMessage(err))
+      toast.error('Error: ' + txErrorMessage(err))
     } finally {
       setSaving(false)
     }

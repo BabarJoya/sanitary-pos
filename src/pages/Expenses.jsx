@@ -7,6 +7,7 @@ import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import EmptyState from '../components/EmptyState'
 import { can, notAllowed } from '../utils/permissions'
+import toast from '../utils/toast'
 
 function Expenses() {
   const { user } = useAuth()
@@ -120,9 +121,9 @@ function Expenses() {
         setForm({ category: 'Misc', amount: '', note: '' })
         setShowForm(false)
         fetchExpenses()
-        alert('Offline mode: Saved locally. Will sync automatically when online. 🔄')
+        toast.success('Offline mode: Saved locally. Will sync automatically when online. 🔄')
       } else {
-        alert(error.message)
+        toast.error(error.message)
       }
     } finally {
       setSaving(false)
@@ -137,7 +138,7 @@ function Expenses() {
 
   const requestDelete = (ids) => {
 
-    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+    if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setShowPasswordModal(true)
   }
@@ -181,9 +182,9 @@ function Expenses() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}`)
+      toast.error(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}`)
     } else if (successCount > 0) {
-      alert(`🗑️ ${successCount} expense(s) moved to Trash!`)
+      toast.success(`🗑️ ${successCount} expense(s) moved to Trash!`)
     }
     fetchExpenses()
   }

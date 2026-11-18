@@ -437,6 +437,20 @@
   }
 }
 
+/* Touch screens: small action buttons inside tables and lists get a
+   finger-sized hit area (40px). Mouse users keep the compact look. */
+@media (pointer: coarse) {
+  table td button, table td a[href], table td select,
+  .card button.btn-sm, [role="dialog"] button.btn-sm {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  table td input[type="checkbox"], ul input[type="checkbox"] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
 /* Modern minimal scrollbars */
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;

@@ -6,6 +6,7 @@ import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isMissingColumn } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import { getShopPreset, getPricingConfig, isWholesaleEnabled } from '../utils/businessPresets'
+import toast from '../utils/toast'
 
 function AddProduct() {
   const { user } = useAuth()
@@ -154,9 +155,9 @@ function AddProduct() {
         await addToSyncQueue('brands', 'INSERT', localBrandData)
         setBrands([...brands, localBrandData])
         setForm({ ...form, brand: localBrandData.name })
-        alert('Offline mode: Brand added locally. Will sync when online! 🔄')
+        toast.success('Offline mode: Brand added locally. Will sync when online! 🔄')
       } else {
-        alert('Error adding brand: ' + errMsg)
+        toast.error('Error adding brand: ' + errMsg)
       }
     }
 
@@ -193,9 +194,9 @@ function AddProduct() {
     e.preventDefault()
 
     // Validation
-    if (!form.name.trim()) return alert('Product Name is required')
-    if (!form.brand) return alert('Brand is required')
-    if (!form.category_id) return alert('Category is required')
+    if (!form.name.trim()) return toast.warning('Product Name is required')
+    if (!form.brand) return toast.warning('Brand is required')
+    if (!form.category_id) return toast.warning('Category is required')
 
     setLoading(true)
 
@@ -209,7 +210,7 @@ function AddProduct() {
       const currentCount = await db.products.where('shop_id').equals(user.shop_id).count()
 
       if (limits.product_limit && currentCount >= limits.product_limit) {
-        alert(`Limit Reached! Aapka ${limits.plan_name || 'TRIAL'} plan sirf ${limits.product_limit} products ki ijazat deta hai. Meharbani karke Superadmin se plan upgrade karwayein.`)
+        toast.warning(`Limit Reached! Aapka ${limits.plan_name || 'TRIAL'} plan sirf ${limits.product_limit} products ki ijazat deta hai. Meharbani karke Superadmin se plan upgrade karwayein.`)
         setLoading(false)
         return
       }
@@ -249,7 +250,7 @@ function AddProduct() {
       if (error && isMissingColumn(error) && 'pack_size' in supabaseProductData) {
         const { pack_size: _ps, pack_name: _pn, ...rest } = supabaseProductData
         ;({ error } = await supabase.from('products').insert([rest]))
-        if (!error) alert('Pack size needs a database update first (sql/units_decimals_migration.sql). The product was saved without it.')
+        if (!error) toast.warning('Pack size needs a database update first (sql/units_decimals_migration.sql). The product was saved without it.')
       }
       if (error) throw error
 
@@ -262,7 +263,7 @@ function AddProduct() {
         user.shop_id
       )
 
-      alert('Product added successfully!')
+      toast.success('Product added successfully!')
       navigate('/products')
     } catch (error) {
       const errMsg = error?.message || String(error)
@@ -278,10 +279,10 @@ function AddProduct() {
           user.id,
           user.shop_id
         )
-        alert('Offline mode: Product saved locally! It will sync automatically when you are back online. 🔄')
+        toast.success('Offline mode: Product saved locally! It will sync automatically when you are back online. 🔄')
         navigate('/products')
       } else {
-        alert('Error: ' + error.message)
+        toast.error('Error: ' + error.message)
       }
     } finally {
       setLoading(false)

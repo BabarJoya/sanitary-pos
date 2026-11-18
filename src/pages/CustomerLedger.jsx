@@ -15,6 +15,7 @@ import CustomerStatement, { AgeingStrip } from '../components/CustomerStatement'
 import { can, notAllowed } from '../utils/permissions'
 import CustomerLinkButton from '../components/CustomerLinkButton'
 import { openWhatsApp, logWhatsApp } from '../utils/whatsapp'
+import toast from '../utils/toast'
 
 function CustomerLedger() {
     const { id } = useParams()
@@ -185,7 +186,7 @@ function CustomerLedger() {
 
     // ── Excel Export ──────────────────────────────────────────────────────────
     const handleExport = () => {
-        if (!ledger.length) return alert('Koi transaction nahi hai export karne ke liye.')
+        if (!ledger.length) return toast.warning('Koi transaction nahi hai export karne ke liye.')
         const rows = [...ledger].reverse().map((item, idx) => ({
             'Sr#': idx + 1,
             'Date': new Date(item.date).toLocaleDateString('en-PK'),
@@ -219,7 +220,7 @@ function CustomerLedger() {
             const ws = wb.Sheets[wb.SheetNames[0]]
             const rows = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' })
 
-            if (!rows.length) { alert('File mein koi data nahi mila.'); return }
+            if (!rows.length) { toast.warning('File mein koi data nahi mila.'); return }
 
             const confirmed = window.confirm(`${rows.length} transactions import karein?\n\nNote: "Debit (Sale)" column se sale entries aur "Credit (Payment)" column se payment entries banegi.`)
             if (!confirmed) return
@@ -259,14 +260,14 @@ function CustomerLedger() {
                 }
             }
 
-            if (!insertRows.length) { alert('Koi valid row nahi mili (Debit/Credit columns check karein).'); return }
+            if (!insertRows.length) { toast.warning('Koi valid row nahi mili (Debit/Credit columns check karein).'); return }
 
             if (navigator.onLine) {
                 const { error } = await supabase.from('customer_payments').insert(insertRows)
                 if (error) throw error
                 const r = await adjustCustomerBalance(id, balanceDelta)
                 if (r.ok) setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + balanceDelta } : c)
-                else alert('Entries saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
+                else toast.error('Entries saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
             } else {
                 for (const row of insertRows) {
                     const rec = { ...row, id: crypto.randomUUID() }
@@ -277,11 +278,11 @@ function CustomerLedger() {
                 setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + balanceDelta } : c)
             }
 
-            alert(`${insertRows.length} entries import ho gayi! ✅`)
+            toast.success(`${insertRows.length} entries import ho gayi! ✅`)
             fetchCustomerData()
         } catch (err) {
             console.error('Import error:', err)
-            alert('Import failed: ' + err.message)
+            toast.error('Import failed: ' + err.message)
         }
     }
 
@@ -294,7 +295,7 @@ function CustomerLedger() {
         e.preventDefault()
         const saleAmt = parseFloat(txForm.sale_amount) || 0
         const payAmt = parseFloat(txForm.payment_amount) || 0
-        if (saleAmt === 0 && payAmt === 0) return alert('Sale amount ya payment amount mein se koi ek lazmi hai.')
+        if (saleAmt === 0 && payAmt === 0) return toast.warning('Sale amount ya payment amount mein se koi ek lazmi hai.')
         setSaving(true)
         const now = entryTimestamp(txForm.date)
         const commonFields = {
@@ -317,7 +318,7 @@ function CustomerLedger() {
             const delta = saleAmt - payAmt
             const r = await adjustCustomerBalance(id, delta)
             if (r.ok) setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + delta } : c)
-            else alert('Entry saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
+            else toast.error('Entry saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
             if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: now, balanceAfter: (Number(customer?.outstanding_balance) || 0) + delta })
             resetTxForm()
             fetchCustomerData()
@@ -336,9 +337,9 @@ function CustomerLedger() {
                 if (payAmt > 0) setLastPayment({ amount: payAmt, note: txForm.note.trim() || 'Cash Received', date: ts, balanceAfter: (Number(customer?.outstanding_balance) || 0) + delta })
                 resetTxForm()
                 fetchCustomerData()
-                alert('Offline mode: Transaction locally save ho gaya. Online hone par sync hoga! 🔄')
+                toast.success('Offline mode: Transaction locally save ho gaya. Online hone par sync hoga! 🔄')
             } else {
-                alert('Error: ' + errMsg)
+                toast.error('Error: ' + errMsg)
             }
         } finally {
             setSaving(false)
@@ -394,17 +395,17 @@ function CustomerLedger() {
     }
 
     const handleDeleteTransaction = async (item) => {
-        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
-        if (item.id === 'opening') { alert('Opening balance entry directly delete nahi ho sakti.'); return }
+        if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
+        if (item.id === 'opening') { toast.error('Opening balance entry directly delete nahi ho sakti.'); return }
         const label = item.type === 'sale' ? 'Sale/Invoice' : item.type === 'payment' ? 'Payment' : 'Return'
         if (!confirm(`Yeh transaction delete karein?\n\nType: ${label}\nAmount: Rs. ${Number(item.amount).toLocaleString()}\nNote: ${item.note}\n\n${item.type !== 'sale' && customerLedgerDelta(item) === 0 ? 'Yeh sirf record hai — balance change nahi hoga (invoice pehle hi kam ho chuki hai).' : 'Customer ka outstanding balance bhi adjust ho ga.'}`)) return
 
         try {
             const failed = await deleteLedgerEntry(item)
-            if (failed.length) alert(`Deleted, but these updates failed: ${failed.join(', ')}`)
+            if (failed.length) toast.error(`Deleted, but these updates failed: ${failed.join(', ')}`)
             fetchCustomerData()
         } catch (err) {
-            alert('Delete nahi hua: ' + err.message)
+            toast.error('Delete nahi hua: ' + err.message)
         }
     }
 
@@ -427,7 +428,7 @@ function CustomerLedger() {
     }
 
     const handleBulkDelete = async () => {
-        if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+        if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
         const toDelete = ledger.filter(item => selectedIds.has(item.id) && item.id !== 'opening')
         if (!toDelete.length) return
         if (!confirm(`${toDelete.length} transactions delete karein?\n\nCustomer ka outstanding balance bhi adjust ho ga.`)) return
@@ -438,10 +439,10 @@ function CustomerLedger() {
                 const failed = await deleteLedgerEntry(item)
                 if (failed.length) failures.push(`${item.note}: ${failed.join(', ')}`)
             }
-            if (failures.length) alert(`Deleted, but some updates failed:\n${failures.join('\n')}`)
+            if (failures.length) toast.error(`Deleted, but some updates failed:\n${failures.join('\n')}`)
             setSelectedIds(new Set())
         } catch (err) {
-            alert('Kuch entries delete nahi huin: ' + err.message)
+            toast.error('Kuch entries delete nahi huin: ' + err.message)
         } finally {
             fetchCustomerData()
         }
@@ -475,7 +476,7 @@ Customer ka balance change NAHI hoga — sirf ledger mein entry aayegi taake led
             }
             fetchCustomerData()
         } catch (err) {
-            alert('Opening balance save nahi hua: ' + (err?.message || String(err)))
+            toast.error('Opening balance save nahi hua: ' + (err?.message || String(err)))
         }
     }
 
@@ -505,9 +506,9 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
                 await db.sync_queue.add({ table: 'customers', action: 'UPDATE', data: { id, outstanding_balance: computedBalance }, timestamp: new Date().toISOString() })
             }
             setCustomer(c => c ? { ...c, outstanding_balance: computedBalance } : c)
-            alert(`✅ Balance reconciled successfully to Rs. ${computedBalance}`)
+            toast.success(`✅ Balance reconciled successfully to Rs. ${computedBalance}`)
         } catch (err) {
-            alert('Reconcile error: ' + err.message)
+            toast.error('Reconcile error: ' + err.message)
         }
     }
 

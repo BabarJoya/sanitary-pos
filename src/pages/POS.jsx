@@ -18,6 +18,7 @@ import { isLowStock as isLowStockRule } from '../utils/stockRules'
 import { useLang } from '../context/LanguageContext'
 import { can, notAllowed } from '../utils/permissions'
 import SaleCompleteModal from '../components/SaleCompleteModal'
+import toast from '../utils/toast'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
   { id: 'easypaisa', name: 'Easypaisa', icon: '🟢' },
@@ -247,7 +248,7 @@ function POS() {
         osc.frequency.value = 200
         osc.start(); osc.stop(beep.currentTime + 0.15)
       } catch (_) {}
-      alert(`❌ SKU / Barcode "${rawSku}" — product not found. Add SKU in Products page.`)
+      toast.error(`❌ SKU / Barcode "${rawSku}" — product not found. Add SKU in Products page.`)
     }
     setBarcodeInput('')
     setTimeout(() => barcodeRef.current?.focus(), 50)
@@ -619,11 +620,11 @@ function POS() {
     const wantedQty = Math.round(((existing ? Number(existing.qty) : 0) + addQty) * 1000) / 1000
 
     if (enforceStock && stock <= 0) {
-      alert(`${product.name} is out of stock (stock: ${stock}).`)
+      toast.warning(`${product.name} is out of stock (stock: ${stock}).`)
       return
     }
     if (enforceStock && wantedQty > stock) {
-      if (existing) { alert(`Not enough stock! Only ${stock} available.`); return }
+      if (existing) { toast.warning(`Not enough stock! Only ${stock} available.`); return }
     }
     // New line: never add more than the available stock (and never 0 or a negative quantity)
     const lineQty = existing ? wantedQty : (enforceStock ? Math.min(addQty, stock) : addQty)
@@ -643,7 +644,7 @@ function POS() {
     const num = parseFloat(qty)
     if (isNaN(num) || num <= 0) return
     const product = products.find(p => p.id === id)
-    if (saleType !== 'quotation' && product && num > Number(product.stock_quantity)) { alert(`Not enough stock! Only ${product.stock_quantity} available.`); return }
+    if (saleType !== 'quotation' && product && num > Number(product.stock_quantity)) { toast.warning(`Not enough stock! Only ${product.stock_quantity} available.`); return }
     setCart(prev => prev.map(i => i.id === id ? { ...i, qty: num } : i))
   }
 
@@ -714,7 +715,7 @@ function POS() {
 
   const handleSaveCustomer = async () => {
     const name = saveCustomerForm.name.trim()
-    if (!name) return alert('Customer ka naam zaroor darj karein')
+    if (!name) return toast.warning('Customer ka naam zaroor darj karein')
     setSavingCustomer(true)
     const newCustomer = {
       name,
@@ -745,9 +746,9 @@ function POS() {
         setWalkInName('')
         setShowSaveCustomer(false)
         setSaveCustomerForm({ name: '', mobile: '' })
-        alert('Offline: Customer locally save hua. Online hone par sync hoga.')
+        toast.info('Offline: Customer locally save hua. Online hone par sync hoga.')
       } else {
-        alert('Error: ' + errMsg)
+        toast.error('Error: ' + errMsg)
       }
     } finally {
       setSavingCustomer(false)
@@ -771,9 +772,9 @@ function POS() {
       await db.held_carts.add(heldData)
       await fetchHeldCarts()
       clearCart()
-      alert('Bill held successfully! ⏸️')
+      toast.success('Bill held successfully! ⏸️')
     } catch (err) {
-      alert('Error holding bill: ' + err.message)
+      toast.error('Error holding bill: ' + err.message)
     }
   }
 
@@ -790,8 +791,8 @@ function POS() {
   }
 
   const applyBrandDiscount = () => {
-    if (!canEditPrice) { alert(notAllowed('price badalne')); return }
-    if (!selectedBrand) { alert('Pehle brand select karo!'); return }
+    if (!canEditPrice) { toast.warning(notAllowed('price badalne')); return }
+    if (!selectedBrand) { toast.warning('Pehle brand select karo!'); return }
     const brandProducts = products.filter(p => p.brand === selectedBrand)
     const val = parseFloat(brandDiscountValue) || 0
 
@@ -875,8 +876,8 @@ function POS() {
   }
 
   const handleCompleteSale = async () => {
-    if (cart.length === 0) { alert('Cart khali hai!'); return }
-    if (totalDiscount > 0 && !canDiscount) { alert(notAllowed('discount dene')); return }
+    if (cart.length === 0) { toast.warning('Cart khali hai!'); return }
+    if (totalDiscount > 0 && !canDiscount) { toast.warning(notAllowed('discount dene')); return }
 
     // Stock is checked again here: a converted quotation, a resumed held bill or a
     // brand "add all" fills the cart without going through addToCart.
@@ -890,7 +891,7 @@ function POS() {
         return `• ${i.name}: ${i.qty} in bill, ${Number((p ?? i).stock_quantity) || 0} in stock`
       })
       if (short.length > 0) {
-        alert(`Stock kam hai — in items ki quantity kam karein:\n${short.join('\n')}`)
+        toast.warning(`Stock kam hai — in items ki quantity kam karein:\n${short.join('\n')}`)
         return
       }
     }
@@ -912,17 +913,17 @@ function POS() {
     if (saleType === 'sale' && !canSellBelowCost) {
       const belowCost = cart.filter(i => Number(i.cost_price) > 0 && Number(i.custom_price) < Number(i.cost_price))
       if (belowCost.length > 0) {
-        alert(`These items are priced below cost:\n${belowCost.map(i => `• ${i.name}: Rs. ${i.custom_price} (cost Rs. ${i.cost_price})`).join('\n')}\n\nOnly an admin or manager can sell below cost.`)
+        toast.warning(`These items are priced below cost:\n${belowCost.map(i => `• ${i.name}: Rs. ${i.custom_price} (cost Rs. ${i.cost_price})`).join('\n')}\n\nOnly an admin or manager can sell below cost.`)
         return
       }
       if (totalProfit < 0) {
-        alert('This discount makes the bill a loss. Only an admin or manager can approve it.')
+        toast.warning('This discount makes the bill a loss. Only an admin or manager can approve it.')
         return
       }
     }
 
     if ((paymentType === 'credit' || totalPaid < total) && !customerId) {
-      alert('Balance amount (Credit) ke liye customer select karna zaroori hai!');
+      toast.warning('Balance amount (Credit) ke liye customer select karna zaroori hai!');
       return
     }
 
@@ -937,7 +938,7 @@ function POS() {
         if (user.role === 'admin' || user.role === 'manager') {
           if (!confirm(msg + '\n\nPhir bhi udhaar dena hai?')) return
         } else {
-          alert(msg + '\n\nAdmin ya manager se approve karwayein, ya zyada payment lein.')
+          toast.warning(msg + '\n\nAdmin ya manager se approve karwayein, ya zyada payment lein.')
           return
         }
       }
@@ -1025,14 +1026,14 @@ function POS() {
         if (Array.isArray(tx.data.items) && tx.data.items.length) await db.sale_items.bulkPut(tx.data.items)
         if (!tx.data.duplicate) await mirrorLocalEffects()
       } else if (tx.business) {
-        alert(txErrorMessage(tx.error))
+        toast.error(txErrorMessage(tx.error))
         setSaving(false)
         fetchAll()
         return
       } else if (tx.network) {
         txNetworkFail = true
       } else if (!tx.missing) {
-        alert('Error completing sale: ' + (tx.error?.message || String(tx.error)))
+        toast.error('Error completing sale: ' + (tx.error?.message || String(tx.error)))
         setSaving(false)
         return
       }
@@ -1083,7 +1084,7 @@ function POS() {
         await db.sales.put(sale)
       } catch (error) {
         if (!hasUnsyncedRef && !isNetworkError(error)) {
-          alert('Error completing sale: ' + (error?.message || String(error)))
+          toast.error('Error completing sale: ' + (error?.message || String(error)))
           setSaving(false)
           return
         }
@@ -1123,7 +1124,7 @@ function POS() {
           // Hard failure: remove the header so we never keep a sale without its items
           await supabase.from('sales').delete().eq('id', finalSale.id)
           await db.sales.delete(finalSale.id).catch(() => {})
-          alert('Error completing sale (items): ' + itemsError.message + '\nSale was NOT saved — please try again.')
+          toast.error('Error completing sale (items): ' + itemsError.message + '\nSale was NOT saved — please try again.')
           setSaving(false)
           return
         }
@@ -1146,7 +1147,7 @@ function POS() {
           if (!r.ok) failed.push('customer balance')
         }
         if (failed.length > 0) {
-          alert(`Sale saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / customer balance.`)
+          toast.error(`Sale saved, but these updates failed: ${failed.join(', ')}.\nPlease check stock / customer balance.`)
         }
       }
 
@@ -1268,7 +1269,7 @@ function POS() {
       .single()
 
     if (error || !sale) {
-      alert('Quotation nahi mili! Sahi number check karein.')
+      toast.warning('Quotation nahi mili! Sahi number check karein.')
       return
     }
 
@@ -1365,7 +1366,7 @@ function POS() {
       await shareOrDownloadPDF(pdfBlob, `quotation-${String(fakeSale.id).slice(-8)}.pdf`, formattedPhone || null, msg)
     } catch (err) {
       console.error('Quotation PDF failed:', err)
-      alert('PDF nahi ban saka.')
+      toast.warning('PDF nahi ban saka.')
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = '💬' }
     }

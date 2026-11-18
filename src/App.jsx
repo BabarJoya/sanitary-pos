@@ -6,6 +6,7 @@ import { LanguageProvider } from './context/LanguageContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import Layout from './components/Layout'
+import Toaster from './components/Toaster'
 
 // Shop POS Pages
 const CustomerPortal = lazy(() => import('./pages/CustomerPortal'))
@@ -64,6 +65,7 @@ function App() {
       <LanguageProvider>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PWAInstallPrompt />
+        <Toaster />
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/" element={<Login />} />

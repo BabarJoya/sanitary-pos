@@ -15,6 +15,7 @@ import { BUSINESS_PRESETS } from '../utils/businessPresets'
 import { Store, Tag, Receipt, ShieldCheck, Printer, MessageCircle, Database, BarChart3, CreditCard, AlertTriangle, Palette } from 'lucide-react'
 import AppearanceSection from '../components/settings/AppearanceSection'
 import WhatsAppTemplateEditor from '../components/WhatsAppTemplateEditor'
+import toast from '../utils/toast'
 
 // Sidebar sections. `form: true` sections share the single profile form and its Save button.
 const SETTINGS_SECTIONS = [
@@ -359,7 +360,7 @@ function Settings() {
     e.preventDefault()
     if (!String(form.name || '').trim()) {
       goToSection('profile')
-      alert('Store / Shop Name is required')
+      toast.warning('Store / Shop Name is required')
       return
     }
     setSaving(true)
@@ -426,7 +427,7 @@ function Settings() {
           const safeSettings = { ...fullSettings, wholesale_enabled: false }
           localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(safeSettings))
           setForm(prev => ({ ...prev, wholesale_enabled: false }))
-          alert('Wholesale Mode needs a database update first (sql/wholesale_mode_migration.sql). Other settings were saved.')
+          toast.warning('Wholesale Mode needs a database update first (sql/wholesale_mode_migration.sql). Other settings were saved.')
           await db.shops.put({ ...safeSettings, id: sid })
           window.dispatchEvent(new Event('storage'))
           return
@@ -439,16 +440,16 @@ function Settings() {
       await db.shops.put({ ...fullSettings, id: sid })
 
       window.dispatchEvent(new Event('storage'))
-      alert('Settings saved successfully! ✅')
+      toast.success('Settings saved successfully! ✅')
     } catch (err) {
       const errMsg = err?.message || String(err)
       if (errMsg.includes('Failed to fetch') || !navigator.onLine) {
         await db.shops.put({ ...fullSettings, id: sid })
         await addToSyncQueue('shops', 'UPDATE', { id: sid, ...supabasePayload })
         window.dispatchEvent(new Event('storage'))
-        alert('Offline mode: Settings saved to device. Will sync when online. 🔄')
+        toast.success('Offline mode: Settings saved to device. Will sync when online. 🔄')
       } else {
-        alert('Save failed: ' + errMsg)
+        toast.error('Save failed: ' + errMsg)
       }
     } finally {
       setSaving(false)
@@ -519,16 +520,16 @@ function Settings() {
         if (error || (rpcResult && !rpcResult.success)) {
           const msg = error?.message || rpcResult?.error || 'Unknown error'
           console.warn('Logo Supabase save failed:', msg)
-          alert('Logo saved on this device ✅\n⚠️ Could not sync to server: ' + msg + '\nLogo will not show on other devices until synced.')
+          toast.error('Logo saved on this device ✅\n⚠️ Could not sync to server: ' + msg + '\nLogo will not show on other devices until synced.')
         } else {
-          alert('Logo saved & synced to server ✅')
+          toast.success('Logo saved & synced to server ✅')
         }
       } else {
-        alert('Logo saved on this device ✅\n(Offline — will sync when connected)')
+        toast.success('Logo saved on this device ✅\n(Offline — will sync when connected)')
       }
     } catch (err) {
       console.error('Logo upload error:', err)
-      alert('Logo upload failed: ' + (err?.message || String(err)))
+      toast.error('Logo upload failed: ' + (err?.message || String(err)))
     } finally {
       setSaving(false)
     }
@@ -569,14 +570,14 @@ function Settings() {
       }
 
       if (sales.length === 0) {
-        alert('No sales found for the selected period.')
+        toast.warning('No sales found for the selected period.')
         return
       }
 
       const shopSettings = { ...form, print_template: printTemplate }
       printHTML(buildSalesReportHTML(sales, saleItems, reportPeriod, shopSettings))
     } catch (err) {
-      alert('Report failed: ' + err.message)
+      toast.error('Report failed: ' + err.message)
     } finally {
       setReportLoading(false)
     }
@@ -1108,7 +1109,7 @@ function Settings() {
             {hasFeature('offline_sync') && <button
               onClick={async () => {
                 if (!navigator.onLine) {
-                  alert('Aap abhi offline hain! Pehle internet se connect karein.');
+                  toast.warning('Aap abhi offline hain! Pehle internet se connect karein.');
                   return;
                 }
                 setSaving(true);
@@ -1155,9 +1156,9 @@ function Settings() {
                   await safePut('sale_items', siReq.data);
                   await safePut('purchase_items', piReq.data);
 
-                  alert('Sari online data successfully local device mein save ho gayi hai! Ab aap offline aram se kaam kar sakte hain. ✅');
+                  toast.success('Sari online data successfully local device mein save ho gayi hai! Ab aap offline aram se kaam kar sakte hain. ✅');
                 } catch (e) {
-                  alert('Sync failed: ' + e.message);
+                  toast.error('Sync failed: ' + e.message);
                 } finally {
                   setSaving(false);
                 }
@@ -1180,8 +1181,8 @@ function Settings() {
                   await db.purchase_items.clear()
                   await db.expenses.clear()
                   await db.users.clear()
-                  alert('All local cache cleared! Page refresh karein.')
-                  alert('Cache reset instructions complete.')
+                  toast.success('All local cache cleared! Page refresh karein.')
+                  toast.success('Cache reset instructions complete.')
                 }
               }}
               className="px-4 py-2 border border-line hover:bg-surface-2 text-fg-2 rounded-xl transition font-bold text-sm shadow-sm"
@@ -1191,7 +1192,7 @@ function Settings() {
             {hasFeature('offline_sync') && <button
               onClick={async () => {
                 await syncOfflineData()
-                alert('Sync process triggered! Check status in header.')
+                toast.info('Sync process triggered! Check status in header.')
                 fetchShop()
               }}
               className="px-4 py-2 border border-primary-line bg-primary-soft hover:bg-primary-muted text-primary-strong rounded-xl transition font-bold text-sm shadow-sm"
@@ -1237,9 +1238,9 @@ function Settings() {
                   a.click()
                   document.body.removeChild(a)
                   URL.revokeObjectURL(url)
-                  alert('Full backup downloaded! 💾 Is file ko safe rakhein.')
+                  toast.info('Full backup downloaded! 💾 Is file ko safe rakhein.')
                 } catch (err) {
-                  alert('Backup failed: ' + err.message)
+                  toast.error('Backup failed: ' + err.message)
                 }
               }}
               className="w-full py-2 bg-success hover:bg-success-hover text-white rounded-lg transition font-bold text-xs shadow-md"
@@ -1277,9 +1278,9 @@ function Settings() {
 
                   const fileName = `EdgeXPOS_ExcelReports_${new Date().toISOString().slice(0, 10)}.xlsx`
                   XLSX.writeFile(workbook, fileName)
-                  alert('Excel reports generated and downloaded successfully! 📊')
+                  toast.success('Excel reports generated and downloaded successfully! 📊')
                 } catch (err) {
-                  alert('Excel Export failed: ' + err.message)
+                  toast.error('Excel Export failed: ' + err.message)
                 }
               }}
               className="w-full py-2 bg-success hover:bg-success-hover text-white rounded-lg transition font-bold text-xs shadow-md"
@@ -1357,7 +1358,7 @@ function Settings() {
                       alert('Data restored successfully! ✅ Page refresh ho raha hai.')
                       window.location.reload()
                     } catch (err) {
-                      alert('Import failed: ' + err.message)
+                      toast.error('Import failed: ' + err.message)
                     }
                   }
                   reader.readAsText(file)
@@ -1600,7 +1601,7 @@ function Settings() {
             const shopName = form.name || 'My Shop'
             const typed = prompt(`Type "${shopName}" to confirm permanent deletion of ALL data:`)
             if (typed !== shopName) {
-              alert('Shop name does not match. Operation cancelled.')
+              toast.warning('Shop name does not match. Operation cancelled.')
               return
             }
             setClearing(true)
@@ -1631,7 +1632,7 @@ function Settings() {
               alert('✅ All shop data has been cleared successfully!')
               window.location.reload()
             } catch (err) {
-              alert('Error clearing data: ' + err.message)
+              toast.error('Error clearing data: ' + err.message)
             } finally {
               setClearing(false)
             }
@@ -1720,7 +1721,7 @@ function Settings() {
                         }
                       }
                       setPreviewTemplateId(null)
-                      alert('Template applied successfully!')
+                      toast.success('Template applied successfully!')
                     }}
                     className="w-full py-3 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-bold transition shadow-lg shadow-primary-muted flex items-center justify-center gap-2"
                   >
