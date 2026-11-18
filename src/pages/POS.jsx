@@ -6,7 +6,8 @@ import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance, applyLocalDelta, runTx, txMaybeAvailable, txKnownAvailable, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
-import { buildBillHTML } from '../utils/billTemplates'
+import { buildBillHTML, DEFAULT_TEMPLATE } from '../utils/billTemplates'
+import { newBillToken, billLinksKnown, noteBillLinks } from '../utils/billLink'
 import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
@@ -958,6 +959,8 @@ function POS() {
     // so a retry/offline replay after a lost response can never duplicate the sale.
     const clientRef = crypto.randomUUID()
     saleData.client_ref = clientRef
+    // Random bill code for the QR / link printed on the bill (sql/bill_link_migration.sql)
+    saleData.bill_token = newBillToken()
     // Sales that reference a record not synced yet (offline-created customer/product)
     // must go through the queue so syncService can swap in the real ids.
     const hasUnsyncedRef = isTempId(String(customerId || '')) || cart.some(i => isTempId(String(i.id)))
@@ -993,6 +996,7 @@ function POS() {
       if (tx.ok) {
         finalSale = tx.data.sale
         savedOnline = true
+        noteBillLinks(finalSale)
         itemsSaved = true
         txHandled = true
         await db.sales.put(finalSale)
@@ -1045,12 +1049,14 @@ function POS() {
           delete fallbackSaleData.transaction_ref
           delete fallbackSaleData.price_tier
           delete fallbackSaleData.client_ref
+          delete fallbackSaleData.bill_token
           ;({ data: sale, error: saleError } = await supabase.from('sales').insert([fallbackSaleData]).select().single())
         }
 
         if (saleError) throw saleError
         finalSale = sale
         savedOnline = true
+        noteBillLinks(finalSale)
         // Mirror to local DB so Sales history / ledger shows up immediately without reload
         await db.sales.put(sale)
       } catch (error) {
@@ -1134,6 +1140,9 @@ function POS() {
 
     setLastReceipt({
       sale: finalSale,
+      // QR on the bill: saved online → only if the database kept the bill code;
+      // offline → only once this device has seen the database keep bill codes
+      showBillQr: savedOnline ? !!finalSale?.bill_token : billLinksKnown(),
       items: cart,
       customer,
       walkInName: customerId ? null : walkInName,
@@ -1264,8 +1273,9 @@ function POS() {
       quotation_footer: saved.quotation_footer || form.quotation_footer,
       print_size:       saved.print_size       || form.print_size       || 'thermal',
       print_mode:       saved.print_mode       || form.print_mode       || 'manual',
-      print_template:   (sid ? localStorage.getItem(`print_template_${sid}`) : null) || saved.print_template || localStorage.getItem('print_template') || '2',
+      print_template:   (sid ? localStorage.getItem(`print_template_${sid}`) : null) || saved.print_template || localStorage.getItem('print_template') || DEFAULT_TEMPLATE,
       logo_url:         freshLogo,
+      bill_qr:          saved.bill_qr,
       shop_id:          sid,
     }
     return buildBillHTML(r, isQuotation, shopSettings)

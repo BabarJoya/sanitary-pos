@@ -8,7 +8,7 @@ import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, s
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
-import { buildBillHTML } from '../utils/billTemplates'
+import { buildBillHTML, DEFAULT_TEMPLATE } from '../utils/billTemplates'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { localDateKey } from '../utils/dates'
 import EmptyState from '../components/EmptyState'
@@ -365,7 +365,7 @@ function Sales() {
       ...savedSettings,
       logo_url: freshLogo,
       shop_id: sid,
-      print_template: (sid ? localStorage.getItem(`print_template_${sid}`) : null) || savedSettings.print_template || localStorage.getItem('print_template') || '2'
+      print_template: (sid ? localStorage.getItem(`print_template_${sid}`) : null) || savedSettings.print_template || localStorage.getItem('print_template') || DEFAULT_TEMPLATE
     }
     mergedSettings.name = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || mergedSettings.name || 'EdgeX POS'
 
@@ -403,8 +403,11 @@ function Sales() {
         paid_amount: sale.paid_amount ?? sale.amount_paid, // column is paid_amount (amount_paid only in the old schema file)
         created_by: sale.users?.username || 'Staff',
         payment_type: sale.payment_type || sale.payment_method,
-        price_tier: sale.price_tier
+        price_tier: sale.price_tier,
+        bill_token: sale.bill_token, // QR / link on the reprint (sql/bill_link_migration.sql)
       },
+      // A bill made offline and not synced yet has a code the database does not know yet
+      showBillQr: typeof sale.id === 'number' || /^\d+$/.test(String(sale.id)),
       customer,
       walkInName: !customer ? (sale.customer_name || 'Walk-in') : null,
       items: formattedItems,

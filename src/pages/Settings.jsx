@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 import * as XLSX from 'xlsx'
-import { buildSalesReportHTML, buildBillHTML } from '../utils/billTemplates'
+import { buildSalesReportHTML, buildBillHTML, DEFAULT_TEMPLATE } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
 import { printHTML } from '../utils/printUtils'
 import { syncOfflineData, getSyncQueueStatus, retryFailedSyncItems } from '../services/syncService'
@@ -79,6 +79,7 @@ function Settings() {
       wholesale_enabled: false,
       cost_method: 'last',
       owner_whatsapp: '',
+      bill_qr: true,
       tax_number: '',
       pos_layout: 'two_stage'
     }
@@ -113,7 +114,7 @@ function Settings() {
   const [planInfo, setPlanInfo] = useState(null)
   const [printTemplate, setPrintTemplate] = useState(() => {
     const sid = user?.shop_id
-    return (sid ? localStorage.getItem(`print_template_${sid}`) : null) || localStorage.getItem('print_template') || '2'
+    return (sid ? localStorage.getItem(`print_template_${sid}`) : null) || localStorage.getItem('print_template') || DEFAULT_TEMPLATE
   })
   const [reportPeriod, setReportPeriod] = useState('today')
   const [reportLoading, setReportLoading] = useState(false)
@@ -173,6 +174,7 @@ function Settings() {
       created_by: user?.username || 'Staff Cashier',
       payment_type: 'cash',
       paid_amount: dummyTotal,
+      bill_token: '0123456789abcdef0123456789abcdef', // sample QR in the preview
     },
     items: dummyItems,
     customer: {
@@ -196,7 +198,8 @@ function Settings() {
       invoice_prefix: form.invoice_prefix || 'INV',
       print_size: size,
       print_template: templateId,
-      shop_id: user?.shop_id
+      shop_id: user?.shop_id,
+      bill_qr: form.bill_qr !== false,
     }
     
     let html = buildBillHTML(dummyInvoiceData, false, tempSettings)
@@ -271,6 +274,7 @@ function Settings() {
         // Cost method is kept in this device's shop settings (not in the shops table yet)
         cost_method:          saved.cost_method  || prev.cost_method  || 'last',
         owner_whatsapp:       saved.owner_whatsapp ?? prev.owner_whatsapp ?? '',
+        bill_qr:              saved.bill_qr ?? prev.bill_qr ?? true,
         // Appearance is a local, per-shop preference (not stored in the shops table) — keep it.
         theme_mode:           saved.theme_mode   || prev.theme_mode,
         theme_accent:         saved.theme_accent || prev.theme_accent,
@@ -278,7 +282,7 @@ function Settings() {
 
       // Sync immediately to localStorage to ensure consistent branding/printing across pages
       if (sid) {
-        const fullSettings = { ...updated, print_template: data.print_template || saved.print_template || localStorage.getItem(`print_template_${sid}`) || '2' }
+        const fullSettings = { ...updated, print_template: data.print_template || saved.print_template || localStorage.getItem(`print_template_${sid}`) || DEFAULT_TEMPLATE }
         localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(fullSettings))
         localStorage.setItem(`shop_name_${sid}`, updated.name)
         if (updated.logo_url) {
@@ -288,7 +292,7 @@ function Settings() {
       return updated
     })
 
-    const tmpl = data.print_template || saved.print_template || (sid ? localStorage.getItem(`print_template_${sid}`) : null) || '2'
+    const tmpl = data.print_template || saved.print_template || (sid ? localStorage.getItem(`print_template_${sid}`) : null) || DEFAULT_TEMPLATE
     setPrintTemplate(tmpl)
     if (sid) {
       localStorage.setItem(`print_template_${sid}`, tmpl)
@@ -972,6 +976,14 @@ function Settings() {
                 <option value="auto">Auto (Print Direct)</option>
               </select>
             </div>
+            <label className="md:col-span-2 flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={form.bill_qr !== false} onChange={e => setForm(prev => ({ ...prev, bill_qr: e.target.checked }))}
+                className="mt-1 h-5 w-5 rounded border-line-strong text-primary-fg focus:ring-2 focus:ring-primary" />
+              <span>
+                <span className="block text-sm font-bold text-fg-2">Print QR code on bills</span>
+                <span className="block text-xs text-fg-muted">The customer scans it to open the bill on their phone — handy for warranty and when the paper fades. Needs sql/bill_link_migration.sql. Saved on this device.</span>
+              </span>
+            </label>
           </div>
 
           </div>
@@ -1366,6 +1378,7 @@ function Settings() {
         </div>
         <div className="p-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[
+            { id: '5', name: 'Smart', desc: 'New & recommended. Big total, easy-to-read items, paid / balance, customer account and a QR code that opens the bill online.', icon: '🆕' },
             { id: '1', name: 'Simple', desc: 'Minimal & clean. No logo area, compact spacing. Fast to print.', icon: '📄' },
             { id: '2', name: 'Classic', desc: 'Standard receipt style with logo, dashed lines and item table. Recommended.', icon: '🧾' },
             { id: '3', name: 'Professional', desc: 'Full invoice look — letterhead, invoice number box, PAID stamp, signature line.', icon: '📋' },

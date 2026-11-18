@@ -8,6 +8,17 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-22',
+    date: '22 Nov 2026',
+    title: 'New Smart bill with QR code',
+    items: [
+      'New "Smart" bill design: big total, easy-to-read items, paid / balance due and the customer\'s account (choose it in Settings → Print)',
+      'Every bill prints a QR code — the customer scans it to open the bill on their phone, handy for warranty and returns',
+      'Reprinted bills from Sales History carry the QR too',
+      'Turn the QR off any time in Settings → Print',
+    ],
+  },
+  {
     id: '2026-11-21',
     date: '21 Nov 2026',
     title: 'Customers can see their own account',

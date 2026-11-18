@@ -9,6 +9,7 @@ import Layout from './components/Layout'
 
 // Shop POS Pages
 const CustomerPortal = lazy(() => import('./pages/CustomerPortal'))
+const BillView = lazy(() => import('./pages/BillView'))
 const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const POS = lazy(() => import('./pages/POS'))
@@ -67,6 +68,8 @@ function App() {
             <Route path="/" element={<Login />} />
             {/* Public customer statement link (no login) — sql/customer_portal_migration.sql */}
             <Route path="/c/:token" element={<CustomerPortal />} />
+            {/* Public bill page opened from the QR code on a bill — sql/bill_link_migration.sql */}
+            <Route path="/b/:token" element={<BillView />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
 
             {/* ── Superadmin Platform Portal (Role: superadmin only) ── */}

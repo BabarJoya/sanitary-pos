@@ -52,8 +52,8 @@ export default function PWAInstallPrompt() {
     localStorage.setItem('pwa_install_dismissed', '1')
   }
 
-  // Customers opening their statement link (/c/…) should not be asked to install the POS
-  if (isInstalled || !showBanner || pathname.startsWith('/c/')) return null
+  // Customers opening their statement link (/c/…) or a bill QR (/b/…) should not be asked to install the POS
+  if (isInstalled || !showBanner || pathname.startsWith('/c/') || pathname.startsWith('/b/')) return null
 
   return (
     <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-50 bg-surface rounded-2xl shadow-2xl border border-primary-muted p-4 animate-in slide-in-from-bottom duration-300">

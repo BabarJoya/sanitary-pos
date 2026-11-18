@@ -9,7 +9,7 @@ const LOCAL_ONLY_TABLES = ['held_carts', 'held_purchases']
 const MAX_RETRIES = 5
 // Optional columns an un-migrated database may not have yet
 const OPTIONAL_COLUMNS = {
-    sales: ['online_provider', 'transaction_ref', 'price_tier', 'client_ref'],
+    sales: ['online_provider', 'transaction_ref', 'price_tier', 'client_ref', 'bill_token'],
     purchases: ['client_ref', 'discount'],
     customer_payments: ['client_ref'],
     supplier_payments: ['client_ref'],
