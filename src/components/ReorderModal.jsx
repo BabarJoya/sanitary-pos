@@ -4,6 +4,7 @@ import { Modal } from './ui'
 import { db } from '../services/db'
 import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
 import { openWhatsApp } from '../utils/whatsapp'
+import toast from '../utils/toast'
 
 // ============================================================================
 // Reorder: low-stock products grouped by supplier, with a suggested quantity
@@ -42,7 +43,7 @@ export default function ReorderModal({ open, onClose, products, categories, user
 
   const sendWhatsApp = (grp) => {
     const items = lines(grp)
-    if (!items.length) return alert('Koi item select nahi.')
+    if (!items.length) return toast.warning('Koi item select nahi.')
     const list = items.map(p => {
       const q = Number(qtyOf(p))
       const pack = Number(p.pack_size) > 1 ? ` (${Math.round(q / Number(p.pack_size) * 100) / 100} ${p.pack_name || 'Box'})` : ''
@@ -55,7 +56,7 @@ export default function ReorderModal({ open, onClose, products, categories, user
 
   const makeDraft = async (grp) => {
     const items = lines(grp)
-    if (!items.length) return alert('Koi item select nahi.')
+    if (!items.length) return toast.warning('Koi item select nahi.')
     const cart = items.map(p => ({ ...p, qty: Number(qtyOf(p)), purchase_price: Number(p.cost_price) || 0 }))
     try {
       await db.held_purchases.add({
@@ -68,7 +69,7 @@ export default function ReorderModal({ open, onClose, products, categories, user
       })
       setSavedFor(prev => ({ ...prev, [grp.key]: true }))
     } catch (err) {
-      alert('Draft save nahi hua: ' + (err?.message || String(err)))
+      toast.error('Draft save nahi hua: ' + (err?.message || String(err)))
     }
   }
 

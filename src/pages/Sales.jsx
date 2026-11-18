@@ -15,6 +15,7 @@ import { localDateKey } from '../utils/dates'
 import EmptyState from '../components/EmptyState'
 import FilterBar from '../components/FilterBar'
 import { can, notAllowed } from '../utils/permissions'
+import toast from '../utils/toast'
 
 function Sales() {
   const { user } = useAuth()
@@ -161,11 +162,11 @@ function Sales() {
     // Number() (not parseInt) so fractional quantities like 0.5 kg can be returned
     const qtyOf = (item) => Number(returnQtys[item.id]) || 0
     const itemsToReturn = saleItems.filter(i => qtyOf(i) > 0)
-    if (itemsToReturn.length === 0) { alert('Return karne ke liye qty enter karo!'); return }
+    if (itemsToReturn.length === 0) { toast.warning('Return karne ke liye qty enter karo!'); return }
 
     for (const item of itemsToReturn) {
       const maxReturn = Number(item.quantity) - Number(item.returned_qty || 0)
-      if (qtyOf(item) > maxReturn) { alert(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
+      if (qtyOf(item) > maxReturn) { toast.warning(`${item.product_name}: max ${maxReturn} return ho sakta hai`); return }
     }
 
     setReturning(true)
@@ -233,7 +234,7 @@ function Sales() {
           items: itemsToReturn.map(it => ({ name: it.product_name, qty: qtyOf(it) }))
         }, user.id, user.shop_id)
         setReturnQtys({})
-        alert(`Return successful! Invoice updated.\nCash to give back: Rs. ${Number(doc.cash_refund || 0).toFixed(0)}${Number(doc.credit_refund) > 0 ? `\nTaken off customer balance: Rs. ${Number(doc.credit_refund).toFixed(0)}` : ''}`)
+        toast.success(`Return successful! Invoice updated.\nCash to give back: Rs. ${Number(doc.cash_refund || 0).toFixed(0)}${Number(doc.credit_refund) > 0 ? `\nTaken off customer balance: Rs. ${Number(doc.credit_refund).toFixed(0)}` : ''}`)
         const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
         if (updatedSale) { setSelectedSale(updatedSale); await db.sales.put(saleRowOnly(updatedSale)).catch(() => {}) }
         const { data: updatedItems } = await supabase.from('sale_items').select('*, products(name, stock_quantity)').eq('sale_id', selectedSale.id)
@@ -247,7 +248,7 @@ function Sales() {
         return
       }
       if (tx.business || (!tx.missing && !tx.network)) {
-        alert('Error processing return: ' + txErrorMessage(tx.error))
+        toast.error('Error processing return: ' + txErrorMessage(tx.error))
         setReturning(false)
         return
       }
@@ -332,12 +333,12 @@ function Sales() {
 
       setReturnQtys({})
       if (wentOffline) {
-        alert('Offline mode: Return processed locally. Stock and Invoice updated! 🔄')
+        toast.success('Offline mode: Return processed locally. Stock and Invoice updated! 🔄')
         setSelectedSale({ ...selectedSale, ...saleUpdate })
         const localUpdated = await db.sale_items.where({ sale_id: selectedSale.id }).toArray().catch(() => [])
         if (localUpdated.length > 0) setSaleItems(localUpdated)
       } else {
-        alert(`Return successful! Invoice updated.\nCash to give back: Rs. ${plan.cashPart.toFixed(0)}${plan.creditPart > 0 ? `\nTaken off customer balance: Rs. ${plan.creditPart.toFixed(0)}` : ''}`)
+        toast.success(`Return successful! Invoice updated.\nCash to give back: Rs. ${plan.cashPart.toFixed(0)}${plan.creditPart > 0 ? `\nTaken off customer balance: Rs. ${plan.creditPart.toFixed(0)}` : ''}`)
         const { data: updatedSale } = await supabase.from('sales').select('*, customers(name)').eq('id', selectedSale.id).maybeSingle()
         if (updatedSale) setSelectedSale(updatedSale)
         const { data: updatedItems } = await supabase.from('sale_items').select('*, products(name, stock_quantity)').eq('sale_id', selectedSale.id)
@@ -350,7 +351,7 @@ function Sales() {
       fetchSales()
     } catch (err) {
       const finished = `${done.items.size}/${itemsToReturn.length} items${done.saleTotal ? ', invoice total' : ''}${done.refund ? ', refund' : ''}`
-      alert(`Error processing return: ${err?.message || err}\nCompleted before the error: ${finished}. Please review this invoice before retrying.`)
+      toast.error(`Error processing return: ${err?.message || err}\nCompleted before the error: ${finished}. Please review this invoice before retrying.`)
     } finally {
       setReturning(false)
     }
@@ -458,7 +459,7 @@ function Sales() {
 
   const requestDelete = (ids) => {
 
-    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+    if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setShowPasswordModal(true)
   }
@@ -526,16 +527,16 @@ function Sales() {
       }
     }
     if (effectFailures.length) {
-      alert(`Sales deleted, but some stock/balance reversals failed:\n${effectFailures.join('\n')}\nPlease check these products / customers.`)
+      toast.error(`Sales deleted, but some stock/balance reversals failed:\n${effectFailures.join('\n')}\nPlease check these products / customers.`)
     }
 
     setSales(prev => prev.filter(s => !successfulIds.includes(s.id)))
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh sales mein payments ya ledger entries linked hain.\n\nSahi order:\n1. Pehle Sale Items delete karein (Trash Bin > Sale Items filter)\n2. Phir yeh sales delete ho jayengi`)
+      toast.error(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh sales mein payments ya ledger entries linked hain.\n\nSahi order:\n1. Pehle Sale Items delete karein (Trash Bin > Sale Items filter)\n2. Phir yeh sales delete ho jayengi`)
     } else if (successCount > 0) {
-      alert(`🗑️ ${successCount} sale(s) moved to Trash!`)
+      toast.success(`🗑️ ${successCount} sale(s) moved to Trash!`)
     }
     fetchSales()
   }

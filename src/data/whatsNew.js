@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-01',
+    date: '1 Dec 2026',
+    title: 'No more "OK" pop-ups to tap',
+    items: [
+      { text: 'Saved, error and reminder messages now show as a small note at the bottom — work continues without tapping OK', module: 'All screens' },
+      { text: 'Green = done, red = problem, amber = check this; longer messages stay longer and you can tap to close', module: 'All screens' },
+      { text: 'On phones and tablets, small buttons in lists (Edit, Ledger, WhatsApp…) are now bigger and easier to tap', module: 'All screens' },
+    ],
+  },
+  {
     id: '2026-11-30',
     date: '30 Nov 2026',
     title: 'All pop-up windows work the same way',

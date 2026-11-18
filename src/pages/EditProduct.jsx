@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isMissingColumn } from '../services/integrity'
 import { getShopPreset, getPricingConfig, isWholesaleEnabled } from '../utils/businessPresets'
+import toast from '../utils/toast'
 
 function EditProduct() {
   const { id } = useParams()
@@ -195,9 +196,9 @@ function EditProduct() {
         await addToSyncQueue('brands', 'INSERT', brandData)
         setBrands([...brands, brandData])
         setForm({ ...form, brand: brandData.name })
-        alert('Offline mode: Brand added locally. Will sync when online! 🔄')
+        toast.success('Offline mode: Brand added locally. Will sync when online! 🔄')
       } else {
-        alert('Error adding brand: ' + errMsg)
+        toast.error('Error adding brand: ' + errMsg)
       }
     }
 
@@ -274,11 +275,11 @@ function EditProduct() {
       if (error && isMissingColumn(error) && 'pack_size' in updatedProductData) {
         const { pack_size: ps, pack_name: _pn, ...rest } = updatedProductData
         ;({ error } = await supabase.from('products').update(rest).eq('id', id))
-        if (!error && ps) alert('Pack size needs a database update first (sql/units_decimals_migration.sql). Other changes were saved.')
+        if (!error && ps) toast.warning('Pack size needs a database update first (sql/units_decimals_migration.sql). Other changes were saved.')
       }
       if (error) throw error
 
-      alert('Product updated successfully!')
+      toast.success('Product updated successfully!')
       navigate('/products')
     } catch (error) {
       const errMsg = error?.message || String(error)
@@ -286,10 +287,10 @@ function EditProduct() {
         // Offline: Save to Local DB and Queue Sync
         await db.products.update(id, updatedProductData)
         await addToSyncQueue('products', 'UPDATE', { id, ...updatedProductData })
-        alert('Offline mode: Product updated locally! It will sync automatically when you are back online. 🔄')
+        toast.success('Offline mode: Product updated locally! It will sync automatically when you are back online. 🔄')
         navigate('/products')
       } else {
-        alert('Error: ' + error.message)
+        toast.error('Error: ' + error.message)
       }
     } finally {
       setLoading(false)

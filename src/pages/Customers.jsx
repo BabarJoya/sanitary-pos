@@ -14,6 +14,7 @@ import EmptyState from '../components/EmptyState'
 import FilterBar from '../components/FilterBar'
 import { can, notAllowed } from '../utils/permissions'
 import { openWhatsApp, templateFor, fillTemplate } from '../utils/whatsapp'
+import toast from '../utils/toast'
 
 function Customers() {
   const { user } = useAuth()
@@ -118,7 +119,7 @@ function Customers() {
       const data = XLSX.utils.sheet_to_json(ws)
 
       if (data.length === 0) {
-        alert('Empty file!')
+        toast.warning('Empty file!')
         return
       }
 
@@ -139,7 +140,7 @@ function Customers() {
       const skipped = formatted.length - unique.length
 
       if (unique.length === 0) {
-        alert('Tamam rows pehle se exist karti hain (phone number match). Kuch import nahi hua.')
+        toast.error('Tamam rows pehle se exist karti hain (phone number match). Kuch import nahi hua.')
         setLoading(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
         return
@@ -152,12 +153,12 @@ function Customers() {
           .map(c => openingRow({ table: 'customer_payments', shopId: user.shop_id, partyId: c.id, amount: Number(c.outstanding_balance) }))
         for (let k = 0; k < obRows.length; k += 500) {
           const { error: obErr } = await supabase.from('customer_payments').insert(obRows.slice(k, k + 500))
-          if (obErr) { alert('Customers imported, but opening balance ledger entries failed: ' + obErr.message); break }
+          if (obErr) { toast.error('Customers imported, but opening balance ledger entries failed: ' + obErr.message); break }
         }
       }
-      if (error) alert(error.message)
+      if (error) toast.error(error.message)
       else {
-        alert(`Customers import ho gaye! ✅ ${unique.length} add${skipped ? `, ${skipped} skip (duplicate phone)` : ''}`)
+        toast.success(`Customers import ho gaye! ✅ ${unique.length} add${skipped ? `, ${skipped} skip (duplicate phone)` : ''}`)
         fetchCustomers()
       }
       setLoading(false)
@@ -207,7 +208,7 @@ function Customers() {
         if (error && isMissingColumn(error) && 'credit_limit' in payload) {
           const { credit_limit: _cl, ...rest } = payload
           ;({ error } = await supabase.from('customers').update(rest).eq('id', editingId))
-          if (!error && _cl != null) alert('Credit limit needs a database update first (sql/transactions_migration.sql). Other details were saved.')
+          if (!error && _cl != null) toast.warning('Credit limit needs a database update first (sql/transactions_migration.sql). Other details were saved.')
         }
         if (error) throw error
       } else {
@@ -219,7 +220,7 @@ function Customers() {
         if (error) throw error
         if (opening !== 0 && created?.id != null) {
           const { error: obErr } = await supabase.from('customer_payments').insert([openingRow({ table: 'customer_payments', shopId: user.shop_id, partyId: created.id, amount: opening })])
-          if (obErr) alert('Customer saved, but the opening balance ledger entry failed: ' + obErr.message)
+          if (obErr) toast.error('Customer saved, but the opening balance ledger entry failed: ' + obErr.message)
         }
       }
       setEditingId(null)
@@ -247,9 +248,9 @@ function Customers() {
         setForm({ name: '', phone: '', address: '' })
         setShowForm(false)
         fetchCustomers()
-        alert('Offline mode: Saved locally. Will sync automatically when online. 🔄')
+        toast.success('Offline mode: Saved locally. Will sync automatically when online. 🔄')
       } else {
-        alert('Error: ' + error.message)
+        toast.error('Error: ' + error.message)
       }
     } finally {
       setSaving(false)
@@ -258,7 +259,7 @@ function Customers() {
 
   const requestDelete = (ids) => {
 
-    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+    if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setWipeLedger(false)
     setShowPasswordModal(true)
@@ -334,9 +335,9 @@ function Customers() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh customers ke sales records abhi bhi database mein hain.\n\nSahi order:\n1. Sale Items delete karein (Trash Bin)\n2. Sales delete karein\n3. Phir yeh customers delete ho jayenge`)
+      toast.error(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh customers ke sales records abhi bhi database mein hain.\n\nSahi order:\n1. Sale Items delete karein (Trash Bin)\n2. Sales delete karein\n3. Phir yeh customers delete ho jayenge`)
     } else if (successCount > 0) {
-      alert(`🗑️ ${successCount} customer(s) moved to Trash!`)
+      toast.success(`🗑️ ${successCount} customer(s) moved to Trash!`)
     }
     fetchCustomers()
   }
@@ -369,7 +370,7 @@ function Customers() {
   const handlePrintOutstanding = () => {
     const outstanding = customers.filter(c => c.outstanding_balance > 0)
     if (outstanding.length === 0) {
-      alert('Sab customers ka balance 0 hai!')
+      toast.info('Sab customers ka balance 0 hai!')
       return
     }
 

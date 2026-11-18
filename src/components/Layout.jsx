@@ -13,7 +13,6 @@ import { useTheme } from '../context/ThemeContext'
 import { useShopNotifications, NotificationBanners, NotificationPopup, NotificationList } from './ShopNotifications'
 import { useLang } from '../context/LanguageContext'
 import WhatsNewButton from './WhatsNewButton'
-import Toaster from './Toaster'
 
 let lastLayoutFetchTime = 0
 
@@ -594,7 +593,6 @@ function Layout({ children }) {
           border-radius: 0.5rem !important;
         }
       `}</style>
-      <Toaster />
     </div>
   )
 }

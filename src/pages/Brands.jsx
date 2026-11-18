@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import { db, addToSyncQueue } from '../services/db'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import toast from '../utils/toast'
 
 function Brands() {
   const { user } = useAuth()
@@ -98,10 +99,10 @@ function Brands() {
         await addToSyncQueue('brands', 'INSERT', offlineData)
         await db.brands.add(offlineData)
       }
-      alert(`✅ Brand "${missingItem.name}" Master Data mein add ho gaya!`)
+      toast.success(`✅ Brand "${missingItem.name}" Master Data mein add ho gaya!`)
       fetchBrands()
     } catch (err) {
-      alert('Error adding brand: ' + (err.message || err))
+      toast.error('Error adding brand: ' + (err.message || err))
     } finally {
       setSyncingMissing(false)
     }
@@ -130,10 +131,10 @@ function Brands() {
         }
         count++
       }
-      alert(`✅ ${count} missing brands Master Data mein successfully add ho gaye!`)
+      toast.success(`✅ ${count} missing brands Master Data mein successfully add ho gaye!`)
       fetchBrands()
     } catch (err) {
-      alert('Error syncing brands: ' + (err.message || err))
+      toast.error('Error syncing brands: ' + (err.message || err))
     } finally {
       setSyncingMissing(false)
     }
@@ -214,7 +215,7 @@ function Brands() {
         )
         if (insBcErr) {
           console.error('brand_categories insert error:', insBcErr)
-          alert('Categories link karne mein masla hua: ' + insBcErr.message + '\n\nSQL migration dobara run karein: sql/add_brand_categories.sql')
+          toast.warning('Categories link karne mein masla hua: ' + insBcErr.message + '\n\nSQL migration dobara run karein: sql/add_brand_categories.sql')
         }
       }
       // Always sync to IndexedDB regardless of Supabase result
@@ -254,9 +255,9 @@ function Brands() {
         setSelectedCategoryIds([])
         setShowForm(false)
         fetchBrands()
-        alert('Offline mode: Saved locally. Will sync automatically when online. 🔄')
+        toast.success('Offline mode: Saved locally. Will sync automatically when online. 🔄')
       } else {
-        alert('Error: ' + errMsg)
+        toast.error('Error: ' + errMsg)
       }
     } finally {
       setSaving(false)
@@ -276,9 +277,9 @@ function Brands() {
         await db.brands.delete(id)
         await addToSyncQueue('brands', 'DELETE', { id })
         fetchBrands()
-        alert('Offline mode: Brand deleted locally. Will sync when online! 🔄')
+        toast.success('Offline mode: Brand deleted locally. Will sync when online! 🔄')
       } else {
-        alert('Error: ' + errMsg)
+        toast.error('Error: ' + errMsg)
       }
     }
   }
@@ -293,7 +294,7 @@ function Brands() {
   }
 
   const handleExport = () => {
-    if (brands.length === 0) return alert('No data to export')
+    if (brands.length === 0) return toast.warning('No data to export')
     const data = brands.map(b => ({
       'Brand Name': b.name,
       'Created At': new Date(b.created_at).toLocaleDateString()
@@ -316,7 +317,7 @@ function Brands() {
       const ws = wb.Sheets[wsname]
       const data = XLSX.utils.sheet_to_json(ws)
 
-      if (data.length === 0) return alert('No data found in file')
+      if (data.length === 0) return toast.warning('No data found in file')
 
       setLoading(true)
       let importedCount = 0
@@ -333,7 +334,7 @@ function Brands() {
         }
       }
       setLoading(false)
-      alert(`${importedCount} new brands imported!`)
+      toast.success(`${importedCount} new brands imported!`)
       fetchBrands()
     }
     reader.readAsBinaryString(file)

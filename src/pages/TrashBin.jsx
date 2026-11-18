@@ -6,6 +6,7 @@ import { applySaleEffects, applyPurchaseEffects, saleRowOnly, isNetworkError } f
 import PasswordModal from '../components/PasswordModal'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import toast from '../utils/toast'
 
 // Deletion priority — lower number = delete first (no dependencies)
 const DELETION_ORDER = {
@@ -164,13 +165,13 @@ function TrashBin() {
                 }
             }
             if (effectFailures.length) {
-                alert(`Restored, but some stock/balance updates failed:\n${effectFailures.join('\n')}`)
+                toast.error(`Restored, but some stock/balance updates failed:\n${effectFailures.join('\n')}`)
             }
-            alert(`✅ ${items.length} item(s) restored successfully!`)
+            toast.success(`✅ ${items.length} item(s) restored successfully!`)
             setSelected([])
             fetchTrash()
         } catch (err) {
-            alert('Restore failed: ' + err.message)
+            toast.error('Restore failed: ' + err.message)
         }
     }
 
@@ -179,11 +180,11 @@ function TrashBin() {
             for (const item of items) {
                 await db.trash.delete(item.id)
             }
-            alert(`🗑️ ${items.length} item(s) permanently deleted!`)
+            toast.success(`🗑️ ${items.length} item(s) permanently deleted!`)
             setSelected([])
             fetchTrash()
         } catch (err) {
-            alert('Delete failed: ' + err.message)
+            toast.error('Delete failed: ' + err.message)
         }
     }
 

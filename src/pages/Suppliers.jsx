@@ -12,6 +12,7 @@ import PasswordModal from '../components/PasswordModal'
 import { todayLocal, entryTimestamp } from '../utils/dates'
 import EmptyState from '../components/EmptyState'
 import { can, notAllowed } from '../utils/permissions'
+import toast from '../utils/toast'
 
 function Suppliers() {
   const { user } = useAuth()
@@ -141,7 +142,7 @@ function Suppliers() {
       const delta = isDebit ? amount : -amount
       const newBal = (Number(txSup.outstanding_balance) || 0) + delta
       const r = await adjustSupplierBalance(txSup.id, delta)
-      if (!r.ok) alert('Entry saved, but supplier balance update failed: ' + (r.error?.message || 'unknown error'))
+      if (!r.ok) toast.error('Entry saved, but supplier balance update failed: ' + (r.error?.message || 'unknown error'))
       setTxSup({ ...txSup, outstanding_balance: newBal })
       setSuppliers(prev => prev.map(s => s.id === txSup.id ? { ...s, outstanding_balance: newBal } : s))
 
@@ -162,9 +163,9 @@ function Suppliers() {
         setTxForm({ date: todayLocal(), bill_number: '', type: 'debit', amount: '', note: '' })
         setShowAddTx(false)
         await openTxModal({ ...txSup, outstanding_balance: newBal })
-        alert('Offline: Locally saved, will sync when online.')
+        toast.success('Offline: Locally saved, will sync when online.')
       } else {
-        alert('Error: ' + msg)
+        toast.error('Error: ' + msg)
       }
     } finally {
       setTxSaving(false)
@@ -203,12 +204,12 @@ function Suppliers() {
         const ws = wb.Sheets[wb.SheetNames[0]]
         const rows = XLSX.utils.sheet_to_json(ws)
 
-        if (rows.length === 0) { alert('File khali hai!'); return }
+        if (rows.length === 0) { toast.warning('File khali hai!'); return }
 
         // Validate columns
         const sample = rows[0]
         if (!('Amount (Rs.)' in sample) && !('Amount' in sample)) {
-          alert('Column "Amount (Rs.)" nahi mili. Sahi format use karein:\nDate | Bill Number | Type | Amount (Rs.) | Description')
+          toast.warning('Column "Amount (Rs.)" nahi mili. Sahi format use karein:\nDate | Bill Number | Type | Amount (Rs.) | Description')
           return
         }
 
@@ -257,9 +258,9 @@ function Suppliers() {
 
         // Recalculate balance from all transactions (re-fetch ledger)
         await openTxModal(txSup)
-        alert(`✅ ${inserted} transactions import ho gayi!${!navigator.onLine ? '\n(Offline: sync hogi jab online hon)' : ''}`)
+        toast.success(`✅ ${inserted} transactions import ho gayi!${!navigator.onLine ? '\n(Offline: sync hogi jab online hon)' : ''}`)
       } catch (err) {
-        alert('Import error: ' + (err.message || err))
+        toast.error('Import error: ' + (err.message || err))
       } finally {
         setTxImporting(false)
       }
@@ -384,7 +385,7 @@ function Suppliers() {
       const data = XLSX.utils.sheet_to_json(ws)
 
       if (data.length === 0) {
-        alert('Empty file!')
+        toast.warning('Empty file!')
         return
       }
 
@@ -406,12 +407,12 @@ function Suppliers() {
           .map(x => openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: x.id, amount: Number(x.outstanding_balance) }))
         for (let k = 0; k < obRows.length; k += 500) {
           const { error: obErr } = await supabase.from('supplier_payments').insert(obRows.slice(k, k + 500))
-          if (obErr) { alert('Suppliers imported, but opening balance ledger entries failed: ' + obErr.message); break }
+          if (obErr) { toast.error('Suppliers imported, but opening balance ledger entries failed: ' + obErr.message); break }
         }
       }
-      if (error) alert(error.message)
+      if (error) toast.error(error.message)
       else {
-        alert('Suppliers imported successfully! ✅')
+        toast.success('Suppliers imported successfully! ✅')
         fetchSuppliers()
       }
       setLoading(false)
@@ -455,7 +456,7 @@ function Suppliers() {
         }
         if (opening !== 0 && created?.id != null) {
           const { error: obErr } = await supabase.from('supplier_payments').insert([openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: created.id, amount: opening })])
-          if (obErr) alert('Supplier saved, but the opening balance ledger entry failed: ' + obErr.message)
+          if (obErr) toast.error('Supplier saved, but the opening balance ledger entry failed: ' + obErr.message)
         }
       }
       setEditingId(null)
@@ -484,9 +485,9 @@ function Suppliers() {
         setForm({ name: '', phone: '', address: '', brand: '', product_type: '', other_details: '' })
         setShowForm(false)
         fetchSuppliers()
-        alert('Offline mode: Saved locally. Will sync automatically when online. 🔄')
+        toast.success('Offline mode: Saved locally. Will sync automatically when online. 🔄')
       } else {
-        alert('Error: ' + errMsg)
+        toast.error('Error: ' + errMsg)
       }
     } finally {
       setSaving(false)
@@ -495,7 +496,7 @@ function Suppliers() {
 
   const requestDelete = (ids) => {
 
-    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+    if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setWipeLedger(false)
     setShowPasswordModal(true)
@@ -576,9 +577,9 @@ function Suppliers() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh suppliers ke purchase records abhi bhi database mein hain.\n\nSahi order:\n1. Purchase Items delete karein (Trash Bin)\n2. Purchases delete karein\n3. Phir yeh suppliers delete ho jayenge`)
+      toast.error(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh suppliers ke purchase records abhi bhi database mein hain.\n\nSahi order:\n1. Purchase Items delete karein (Trash Bin)\n2. Purchases delete karein\n3. Phir yeh suppliers delete ho jayenge`)
     } else if (successCount > 0) {
-      alert(`🗑️ ${successCount} supplier(s) moved to Trash!`)
+      toast.success(`🗑️ ${successCount} supplier(s) moved to Trash!`)
     }
     fetchSuppliers()
   }

@@ -16,6 +16,7 @@ import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
 import EmptyState from '../components/EmptyState'
 import FilterBar from '../components/FilterBar'
 import { can, notAllowed } from '../utils/permissions'
+import toast from '../utils/toast'
 
 function Products() {
   const [products, setProducts] = useState([])
@@ -228,7 +229,7 @@ function Products() {
       const wb = XLSX.read(bstr, { type: 'binary' })
       const ws = wb.Sheets[wb.SheetNames[0]]
       const data = XLSX.utils.sheet_to_json(ws)
-      if (data.length === 0) { alert('Empty file!'); return }
+      if (data.length === 0) { toast.warning('Empty file!'); return }
 
       const previewRows = []
       for (const row of data) {
@@ -261,7 +262,7 @@ function Products() {
         })
       }
 
-      if (previewRows.length === 0) { alert('No valid rows (Product Name + Brand required)'); return }
+      if (previewRows.length === 0) { toast.warning('No valid rows (Product Name + Brand required)'); return }
       setImportPreviewRows(previewRows)
       setAutoCreateCategories(false)
       setShowImportPreview(true)
@@ -395,7 +396,7 @@ function Products() {
     }
 
     if (formatted.length === 0) {
-      alert(`⚠️ Koi naya product nahi mila.\n${skipped.length} products pehle se mojood hain (duplicate skip kiye).`)
+      toast.warning(`⚠️ Koi naya product nahi mila.\n${skipped.length} products pehle se mojood hain (duplicate skip kiye).`)
       setLoading(false)
       setImportPreviewRows([])
       return
@@ -403,11 +404,11 @@ function Products() {
 
     const { error } = await supabase.from('products').insert(formatted)
     if (error) {
-      alert('Import error: ' + error.message)
+      toast.error('Import error: ' + error.message)
     } else {
       await recordAuditLog('BULK_IMPORT_PRODUCTS', 'products', 'multiple', { count: formatted.length }, user.id, user.shop_id)
       const skipMsg = skipped.length > 0 ? `\n⏭️ ${skipped.length} duplicate(s) skip kiye.` : ''
-      alert(`Import successful! ✅ ${formatted.length} products added.${skipMsg}`)
+      toast.success(`Import successful! ✅ ${formatted.length} products added.${skipMsg}`)
       fetchProducts()
     }
     setLoading(false)
@@ -415,7 +416,7 @@ function Products() {
   }
 
   const handleInlineSave = async () => {
-    if (!inlineForm.name?.trim()) return alert('Product Name is required')
+    if (!inlineForm.name?.trim()) return toast.warning('Product Name is required')
     setInlineSaving(true)
     const toIntOrNull = toIntId // strict: never parseInt a UUID
     const updates = {
@@ -443,9 +444,9 @@ function Products() {
         await addToSyncQueue('products', 'UPDATE', { id: inlineEditId, ...updates })
         setInlineEditId(null)
         fetchProducts()
-        alert('Offline mode: Updated locally! Will sync when online. 🔄')
+        toast.success('Offline mode: Updated locally! Will sync when online. 🔄')
       } else {
-        alert('Error: ' + errMsg)
+        toast.error('Error: ' + errMsg)
       }
     } finally {
       setInlineSaving(false)
@@ -454,7 +455,7 @@ function Products() {
 
   // Delete logic
   const requestDelete = (ids) => {
-    if (!can(user, 'delete')) { alert(notAllowed('delete karne')); return }
+    if (!can(user, 'delete')) { toast.warning(notAllowed('delete karne')); return }
     setPendingDeleteIds(ids)
     setShowPasswordModal(true)
   }
@@ -499,9 +500,9 @@ function Products() {
     setSelected([])
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh products abhi bhi Sales ya Purchases mein linked hain.\n\nSahi order:\n1. Sale Items delete karein (Trash Bin > Sale Items)\n2. Purchase Items delete karein (Trash Bin > Purchase Items)\n3. Sales & Purchases delete karein\n4. Phir yeh products delete ho jayenge`)
+      toast.error(`⚠️ Partially completed.\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}\n\n👉 Yeh products abhi bhi Sales ya Purchases mein linked hain.\n\nSahi order:\n1. Sale Items delete karein (Trash Bin > Sale Items)\n2. Purchase Items delete karein (Trash Bin > Purchase Items)\n3. Sales & Purchases delete karein\n4. Phir yeh products delete ho jayenge`)
     } else if (successCount > 0) {
-      alert(`🗑️ ${successCount} product(s) moved to Trash!`)
+      toast.success(`🗑️ ${successCount} product(s) moved to Trash!`)
     }
 
     fetchProducts()
@@ -521,7 +522,7 @@ function Products() {
 
   const handleBulkEdit = async () => {
     if (!bulkCategory && !bulkBrand && !bulkUnit) {
-      alert('Category, Brand ya Unit mein se kuch toh select karo!')
+      toast.warning('Category, Brand ya Unit mein se kuch toh select karo!')
       return
     }
     if (!confirm(`${selected.length} product(s) update honge. Continue?`)) return
@@ -571,9 +572,9 @@ function Products() {
     setBulkSaving(false)
 
     if (failCount > 0) {
-      alert(`⚠️ Partially completed.\n✅ Updated: ${successCount}\n❌ Failed: ${failCount}`)
+      toast.error(`⚠️ Partially completed.\n✅ Updated: ${successCount}\n❌ Failed: ${failCount}`)
     } else {
-      alert(`✅ ${successCount} product(s) updated successfully!`)
+      toast.success(`✅ ${successCount} product(s) updated successfully!`)
     }
   }
 
