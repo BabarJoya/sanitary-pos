@@ -11,6 +11,7 @@ import { isLowStock } from '../utils/stockRules'
 import { todayLocal } from '../utils/dates'
 import { useLang } from '../context/LanguageContext'
 import { txMaybeAvailable } from '../services/integrity'
+import { openWhatsApp } from '../utils/whatsapp'
 
 const StatCard = ({ title, value, icon, color, subValue }) => (
   <div className="bg-surface p-6 rounded-2xl shadow-sm border border-line-subtle hover:shadow-md transition">
@@ -292,7 +293,7 @@ function Dashboard() {
       (stats.lowStockCount > 0 ? `\n\n⚠️ Low stock: ${stats.lowStockCount} product(s) — reorder from Inventory` : '')
     // Straight to the owner's number when set (Settings → Owner's WhatsApp)
     const owner = ownerWhatsApp()
-    window.open(`https://wa.me/${owner}?text=${encodeURIComponent(msg)}`, '_blank')
+    openWhatsApp({ shopId: user?.shop_id, kind: 'summary', phone: owner, name: 'Owner', text: msg })
     markSummarySent()
   }
 

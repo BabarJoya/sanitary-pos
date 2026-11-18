@@ -14,6 +14,7 @@ import { syncOfflineData, getSyncQueueStatus, retryFailedSyncItems } from '../se
 import { BUSINESS_PRESETS } from '../utils/businessPresets'
 import { Store, Tag, Receipt, ShieldCheck, Printer, MessageCircle, Database, BarChart3, CreditCard, AlertTriangle, Palette } from 'lucide-react'
 import AppearanceSection from '../components/settings/AppearanceSection'
+import WhatsAppTemplateEditor from '../components/WhatsAppTemplateEditor'
 
 // Sidebar sections. `form: true` sections share the single profile form and its Save button.
 const SETTINGS_SECTIONS = [
@@ -69,8 +70,8 @@ function Settings() {
       quotation_footer: 'یہ صرف قیمت نامہ ہے',
       print_size: 'thermal',
       print_mode: 'manual',
-      wa_reminder_template: 'Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!',
-      wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!',
+      wa_reminder_template: '',
+      wa_bill_template: '',
       wa_reorder_template: 'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!',
       invoice_prefix: '',
       business_preset: 'general',
@@ -992,42 +993,14 @@ function Settings() {
           {activeSection === 'whatsapp' && (
           <div className={SECTION_GROUP}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-            <div className="md:col-span-2">
-              <h3 className="text-sm font-black text-primary-fg uppercase tracking-wider mb-3">WhatsApp Messaging Templates</h3>
-              <p className="text-[10px] text-fg-subtle mb-4">
-                Customer templates: <code className="bg-surface-3 px-1 rounded">[Name]</code> <code className="bg-surface-3 px-1 rounded">[Amount]</code> <code className="bg-surface-3 px-1 rounded">[Shop Name]</code> <code className="bg-surface-3 px-1 rounded">[ID]</code>
-                &nbsp;·&nbsp; Reorder template: <code className="bg-surface-3 px-1 rounded">[Supplier Name]</code> <code className="bg-surface-3 px-1 rounded">[Shop Name]</code> <code className="bg-surface-3 px-1 rounded">[Items]</code>
-              </p>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-fg-3 mb-1">💬 Debt Reminder Template</label>
-              <textarea
-                value={form.wa_reminder_template}
-                onChange={e => setForm({ ...form, wa_reminder_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-20"
-                placeholder="Hello [Name], your balance is Rs. [Amount]..."
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-fg-3 mb-1">🧾 New Bill / Sale Template</label>
-              <textarea
-                value={form.wa_bill_template}
-                onChange={e => setForm({ ...form, wa_bill_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-20"
-                placeholder="Hello [Name], thank you for shopping! Bill #[ID] for Rs. [Amount]..."
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-fg-3 mb-1">📦 Low Stock Reorder Template (Inventory → Reorder WA)</label>
-              <textarea
-                value={form.wa_reorder_template}
-                onChange={e => setForm({ ...form, wa_reorder_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-24"
-                placeholder="Assalam-o-Alaikum *[Supplier Name]*!&#10;&#10;*[Shop Name]* se order:&#10;&#10;[Items]&#10;&#10;Meharbani farma kar supply karein."
-              />
-              <p className="text-[10px] text-fg-subtle mt-1">
-                <code className="bg-surface-3 px-1 rounded">[Items]</code> is auto-filled with low stock product names, current stock and suggested reorder quantity.
-              </p>
+            <div className="md:col-span-2 space-y-4">
+              <div>
+                <h3 className="text-sm font-black text-primary-fg uppercase tracking-wider">WhatsApp message templates</h3>
+                <p className="text-xs text-fg-muted mt-1">Click a [placeholder] to insert it. The preview shows how the message will look in WhatsApp. Press Save Settings below to keep changes. Every message sent appears in WhatsApp → Outbox.</p>
+              </div>
+              <WhatsAppTemplateEditor kind="bill" value={form.wa_bill_template} onChange={v => setForm(prev => ({ ...prev, wa_bill_template: v }))} />
+              <WhatsAppTemplateEditor kind="reminder" value={form.wa_reminder_template} onChange={v => setForm(prev => ({ ...prev, wa_reminder_template: v }))} />
+              <WhatsAppTemplateEditor kind="reorder" value={form.wa_reorder_template} onChange={v => setForm(prev => ({ ...prev, wa_reorder_template: v }))} />
             </div>
           </div>
 

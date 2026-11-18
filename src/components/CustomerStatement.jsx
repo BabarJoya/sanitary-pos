@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { buildStatement, ageBalance, customerLedgerDelta } from '../utils/ledgerMath'
 import { localDateKey, todayLocal } from '../utils/dates'
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
+import { openWhatsApp } from '../utils/whatsapp'
 
 // ============================================================================
 // Customer statement for a date range (opening → lines → closing) and ageing of
@@ -64,9 +65,7 @@ export default function CustomerStatement({ ledger, customer, user, onClose }) {
       + `Opening balance: ${rs(st.opening)}\nSales: ${rs(st.debit)}\nReceived / returns: ${rs(st.credit)}\n*Closing balance: ${rs(st.closing)}*`
       + (age.total > 0 && age.oldestDays > 30 ? `\n\nOldest unpaid bill: ${age.oldestDays} din purana.` : '')
       + `\n\nShukriya!`
-    let phone = String(customer.phone || '').replace(/\D/g, '')
-    if (phone.startsWith('0')) phone = '92' + phone.slice(1)
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    openWhatsApp({ shopId: user?.shop_id, kind: 'statement', phone: customer.phone, name: customer.name, text: msg })
   }
 
   return (

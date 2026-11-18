@@ -13,6 +13,7 @@ import { todayLocal, entryTimestamp } from '../utils/dates'
 import CustomerStatement, { AgeingStrip } from '../components/CustomerStatement'
 import { can, notAllowed } from '../utils/permissions'
 import CustomerLinkButton from '../components/CustomerLinkButton'
+import { openWhatsApp, logWhatsApp } from '../utils/whatsapp'
 
 function CustomerLedger() {
     const { id } = useParams()
@@ -565,6 +566,7 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
 
                                         const shopInfo = { name: shop?.name || 'Shop', phone: shop?.phone || '', address: shop?.address || '' }
                                         const pdfBlob = generateOutstandingPDF(customer, ledger, shopInfo)
+                                        logWhatsApp({ shopId: user.shop_id, kind: 'reminder', phone: customer.phone, name: customer.name, text: msg })
                                         await shareOrDownloadPDF(pdfBlob, `outstanding-${customer.name.replace(/\s+/g, '-')}.pdf`, formattedPhone, msg)
                                     } catch (err) {
                                         console.error('Outstanding PDF failed:', err)
@@ -573,7 +575,7 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
                                         if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
                                         else if (phone.length === 10) formattedPhone = '92' + phone
                                         const msg = `${customer.name} — Outstanding: Rs. ${(customer.outstanding_balance || 0).toLocaleString()}`
-                                        window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+                                        openWhatsApp({ shopId: user.shop_id, kind: 'reminder', phone: formattedPhone, name: customer.name, text: msg })
                                     } finally {
                                         btn.disabled = false
                                         btn.innerHTML = '<span>💬</span> WhatsApp Reminder'

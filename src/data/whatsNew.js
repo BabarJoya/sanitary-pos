@@ -8,6 +8,17 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-23',
+    date: '23 Nov 2026',
+    title: 'Better WhatsApp messages + Outbox',
+    items: [
+      'Bill on WhatsApp now lists the items, total, paid, balance and the bill link',
+      'Settings → WhatsApp: edit each message with clickable [placeholders] and a live preview',
+      'WhatsApp → Outbox: every bill, reminder, statement and order you sent, with "Send again" and Copy',
+      'Fixed: scanning a bill QR on a phone with an older copy of the app no longer shows a blank screen',
+    ],
+  },
+  {
     id: '2026-11-22',
     date: '22 Nov 2026',
     title: 'New Smart bill with QR code',

@@ -10,6 +10,7 @@ const ur = {
   'Customers': 'گاہک',
   'Customer Ledger': 'گاہک کھاتہ',
   'WhatsApp Reminders': 'واٹس ایپ یاد دہانی',
+  'WhatsApp': 'واٹس ایپ',
   'Sales History': 'سیلز ریکارڈ',
   'Suppliers': 'سپلائرز',
   'Purchases': 'خریداری',

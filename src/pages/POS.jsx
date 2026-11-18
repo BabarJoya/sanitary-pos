@@ -7,7 +7,8 @@ import { db, addToSyncQueue } from '../services/db'
 import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance, applyLocalDelta, runTx, txMaybeAvailable, txKnownAvailable, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import { buildBillHTML, DEFAULT_TEMPLATE } from '../utils/billTemplates'
-import { newBillToken, billLinksKnown, noteBillLinks } from '../utils/billLink'
+import { newBillToken, billLinksKnown, noteBillLinks, billUrl } from '../utils/billLink'
+import { openWhatsApp, logWhatsApp, templateFor, fillTemplate, billVars, waPhone, waUrl } from '../utils/whatsapp'
 import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { printHTML } from '../utils/printUtils'
@@ -1284,26 +1285,26 @@ function POS() {
   // Send the bill (PDF when possible) to the customer's WhatsApp
   const sendBillWhatsApp = async () => {
     if (!lastReceipt?.customer?.phone) return
-    const phone = lastReceipt.customer.phone.replace(/[^0-9]/g, '')
-    let formattedPhone = phone
-    if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-    else if (phone.length === 10) formattedPhone = '92' + phone
+    const sid = user?.shop_id
+    const settings = { ...form, ...getShopSettings(sid) }
+    const sale = lastReceipt.sale || {}
+    // The bill's own page (QR link) when the database keeps bill codes
+    const link = sale.bill_token && lastReceipt.showBillQr !== false ? billUrl(sale.bill_token) : ''
+    const msg = fillTemplate(templateFor('bill', settings), billVars(lastReceipt, { shopName: settings.name || form.name, link }))
+    const entry = { shopId: sid, kind: 'bill', phone: lastReceipt.customer.phone, name: lastReceipt.customer.name, text: msg }
+
+    // With a bill link the text is enough (fast, opens on any phone). Without one,
+    // send the bill as a PDF so the customer still gets the details.
+    if (link) { openWhatsApp(entry); return }
     try {
-      const template = form.wa_bill_template || 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!'
-      const msg = template
-        .replace(/\[Name\]/g, lastReceipt.customer.name || 'Customer')
-        .replace(/\[Amount\]/g, lastReceipt.total.toFixed(0))
-        .replace(/\[Shop Name\]/g, form.name || 'our shop')
-        .replace(/\[ID\]/g, String(lastReceipt.sale.id).slice(-8))
+      logWhatsApp(entry)
       const billHtml = buildReceiptHTML(lastReceipt, false)
       const pdfBlob = await generateBillPDF(billHtml)
-      const invoiceId = String(lastReceipt.sale.id).slice(-8)
-      await shareOrDownloadPDF(pdfBlob, `bill-${invoiceId}.pdf`, formattedPhone, msg)
+      const invoiceId = String(sale.id).slice(-8)
+      await shareOrDownloadPDF(pdfBlob, `bill-${invoiceId}.pdf`, waPhone(lastReceipt.customer.phone), msg)
     } catch (err) {
       console.error('PDF share failed:', err)
-      alert('PDF nahi ban saka. WhatsApp text message bheja ja raha hai.')
-      const msg = `${form.name || 'Shop'} - Bill Rs. ${lastReceipt.total.toFixed(0)}`
-      window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+      window.open(waUrl(lastReceipt.customer.phone, msg), '_blank')
     }
   }
 

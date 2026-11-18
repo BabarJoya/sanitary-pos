@@ -5,6 +5,9 @@ import { db } from '../services/db'
 import { Link } from 'react-router-dom'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
+import WhatsAppOutbox from '../components/WhatsAppOutbox'
+import { openWhatsApp, templateFor, fillTemplate } from '../utils/whatsapp'
+import { getShopSettings } from '../utils/businessPresets'
 
 function WhatsAppMessaging() {
   const { user } = useAuth()
@@ -12,6 +15,7 @@ function WhatsAppMessaging() {
   const [loading, setLoading] = useState(true)
   const [shop, setShop] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [tab, setTab] = useState('reminders') // 'reminders' | 'outbox'
 
   useEffect(() => {
     fetchData()
@@ -51,23 +55,17 @@ function WhatsAppMessaging() {
     }
   }
 
-  const getWhatsAppLink = (customer) => {
-    const phone = customer.phone?.replace(/[^0-9]/g, '')
-    if (!phone) return null
-
-    // Format: 923001234567 (Pakistan code if missing)
-    let formattedPhone = phone
-    if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-    else if (phone.length === 10) formattedPhone = '92' + phone
-
-    const template = shop?.wa_reminder_template || "Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!"
-    
-    const message = template
-      .replace(/\[Name\]/g, customer.name)
-      .replace(/\[Amount\]/g, customer.outstanding_balance.toLocaleString())
-      .replace(/\[Shop Name\]/g, shop?.name || 'our shop')
-
-    return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`
+  // Reminder text from the shop's template (Settings → WhatsApp), logged to the Outbox
+  const sendReminder = (customer) => {
+    const settings = { ...(shop || {}), ...getShopSettings(user?.shop_id) }
+    const text = fillTemplate(templateFor('reminder', settings), {
+      Name: customer.name,
+      'Shop Name': shop?.name || settings.name || 'our shop',
+      Amount: Math.round(Number(customer.outstanding_balance) || 0).toLocaleString('en-PK'),
+      Days: '',
+      Link: '',
+    })
+    openWhatsApp({ shopId: user.shop_id, kind: 'reminder', phone: customer.phone, name: customer.name, text })
   }
 
   const filteredCustomers = customers.filter(c => 
@@ -82,13 +80,24 @@ function WhatsAppMessaging() {
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-fg">📲 WhatsApp Reminders</h1>
-          <p className="text-sm text-fg-muted">Send debt reminders to customers with outstanding balances.</p>
+          <h1 className="text-2xl font-bold text-fg">📲 WhatsApp</h1>
+          <p className="text-sm text-fg-muted">Send payment reminders, and see every message the app prepared in the Outbox.</p>
         </div>
-        <Link to="/settings" className="px-4 py-2 bg-surface border border-line rounded-xl text-xs font-bold text-fg-3 hover:bg-surface-2 transition shadow-sm">
-          ⚙️ Edit Templates
+        <Link to="/settings#whatsapp" className="px-4 py-2 bg-surface border border-line rounded-xl text-xs font-bold text-fg-3 hover:bg-surface-2 transition shadow-sm">
+          ⚙️ Edit message templates
         </Link>
       </div>
+
+      <div className="inline-flex rounded-xl border border-line bg-surface p-1" role="tablist" aria-label="WhatsApp">
+        {[['reminders', '💬 Reminders'], ['outbox', '📤 Outbox']].map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+            className={`min-h-10 px-4 rounded-lg text-sm font-bold transition ${tab === id ? 'bg-primary text-white shadow-sm' : 'text-fg-3 hover:bg-surface-2'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'outbox' ? <WhatsAppOutbox shopId={user.shop_id} /> : (<>
 
       <div className="bg-surface rounded-2xl shadow-sm border border-line-subtle overflow-hidden">
         <div className="p-4 bg-surface-2 border-b">
@@ -119,7 +128,7 @@ function WhatsAppMessaging() {
                 </tr>
               ) : (
                 filteredCustomers.map(customer => {
-                  const waLink = getWhatsAppLink(customer)
+                  const hasPhone = !!String(customer.phone || '').replace(/[^0-9]/g, '')
                   return (
                     <tr key={customer.id} className="hover:bg-primary-soft/30 transition group">
                       <td className="px-6 py-4">
@@ -130,16 +139,15 @@ function WhatsAppMessaging() {
                         <div className="font-black text-danger-fg">Rs. {customer.outstanding_balance?.toLocaleString()}</div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {waLink ? (
-                          <a 
-                            href={waLink} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
+                        {hasPhone ? (
+                          <button
+                            type="button"
+                            onClick={() => sendReminder(customer)}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-success hover:bg-success-hover text-white rounded-xl text-xs font-black transition shadow-lg shadow-success-muted uppercase"
                           >
                             <span>💬</span>
                             <span>Send Reminder</span>
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-[10px] text-warning-fg font-bold uppercase py-2 block">Missing Phone</span>
                         )}
@@ -162,6 +170,7 @@ function WhatsAppMessaging() {
           </p>
         </div>
       </div>
+      </>)}
     </div>
   )
 }

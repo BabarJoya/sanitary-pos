@@ -10,6 +10,7 @@ import Layout from './components/Layout'
 // Shop POS Pages
 const CustomerPortal = lazy(() => import('./pages/CustomerPortal'))
 const BillView = lazy(() => import('./pages/BillView'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const POS = lazy(() => import('./pages/POS'))
@@ -122,6 +123,8 @@ function App() {
             <Route path="/trash" element={<ProtectedRoute requiredModule="trash" allowedRoles={['admin']}><Layout><TrashBin /></Layout></ProtectedRoute>} />
             <Route path="/whatsapp" element={<ProtectedRoute requiredModule="customers" allowedRoles={['admin', 'manager', 'cashier']}><Layout><WhatsAppMessaging /></Layout></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute requiredModule="support" allowedRoles={['admin', 'manager', 'cashier', 'accountant']}><Layout><Support /></Layout></ProtectedRoute>} />
+            {/* Anything else: refresh an out-of-date app once, then a clear "not found" page (never a blank screen) */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

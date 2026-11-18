@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Modal } from './ui'
 import { db } from '../services/db'
 import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
+import { openWhatsApp } from '../utils/whatsapp'
 
 // ============================================================================
 // Reorder: low-stock products grouped by supplier, with a suggested quantity
@@ -11,11 +12,6 @@ import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
 // opens in Purchases ready to receive.
 // ============================================================================
 
-const waPhone = (p) => {
-  let phone = String(p || '').replace(/[^0-9]/g, '')
-  if (phone.startsWith('03')) phone = '92' + phone.slice(1)
-  return phone
-}
 
 function suggestQty(p, categories) {
   const need = Math.max(0, getLowStockThreshold(p, categories) * 2 - Math.max(0, Number(p.stock_quantity) || 0))
@@ -54,7 +50,7 @@ export default function ReorderModal({ open, onClose, products, categories, user
     }).join('\n')
     const tpl = template || 'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!'
     const msg = tpl.replace(/\[Supplier Name\]/g, grp.name).replace(/\[Shop Name\]/g, shopName || 'Shop').replace(/\[Items\]/g, list)
-    window.open(`https://wa.me/${waPhone(grp.phone)}?text=${encodeURIComponent(msg)}`, '_blank')
+    openWhatsApp({ shopId: user?.shop_id, kind: 'reorder', phone: grp.phone, name: grp.name, text: msg })
   }
 
   const makeDraft = async (grp) => {
