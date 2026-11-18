@@ -12,6 +12,7 @@ import { generateOutstandingPDF, shareOrDownloadPDF } from '../utils/pdfShare'
 import { todayLocal, entryTimestamp } from '../utils/dates'
 import CustomerStatement, { AgeingStrip } from '../components/CustomerStatement'
 import { can, notAllowed } from '../utils/permissions'
+import CustomerLinkButton from '../components/CustomerLinkButton'
 
 function CustomerLedger() {
     const { id } = useParams()
@@ -57,6 +58,8 @@ function CustomerLedger() {
             const [custRes, salesRes, paymentsRes] = await Promise.race([fetchPromise, timeoutPromise])
 
             // If customer not found, show not-found screen
+            // A failed request (flaky internet) is not "customer not found": use this device's copy
+            if (custRes.error) throw custRes.error
             if (!custRes.data) { setLoading(false); return }
             setCustomer(custRes.data)
 
@@ -581,6 +584,7 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
                                 <span>💬</span> WhatsApp Reminder
                             </button>
                         )}
+                        <CustomerLinkButton customer={customer} user={user} />
                         <button
                             onClick={() => setShowStatement(true)}
                             className="w-full sm:w-auto px-4 py-2.5 bg-surface border border-line hover:bg-surface-2 text-fg-2 rounded-lg transition font-semibold flex items-center justify-center gap-1.5"
