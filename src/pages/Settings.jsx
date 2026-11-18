@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE } from '../utils/shopNotifications'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
@@ -1077,6 +1077,7 @@ function Settings() {
               <p className="text-xs text-fg-3 mt-0.5">
                 Offline sales, purchases and stock changes stay on this device until they reach the server. Failed items are kept — nothing is deleted.
               </p>
+              <Link to="/sync" className="inline-block mt-1 text-sm font-bold text-primary-fg underline">Open Sync status — see each item, Retry or Discard →</Link>
             </div>
             {syncStatus.failed > 0 && (
               <button

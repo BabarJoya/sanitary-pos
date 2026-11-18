@@ -10,6 +10,55 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-06',
+    date: '6 Dec 2026',
+    title: 'Shift close saved on the server',
+    items: [
+      { text: "Close Day → count the cash → 💾 Save shift close: opening, expected, counted and short/extra are saved with the cashier's name", module: 'Dashboard', to: '/dashboard' },
+      { text: 'See the last closes and who was short or extra — from any phone or computer', module: 'Dashboard', to: '/dashboard' },
+      { text: 'Saved closes cannot be changed or deleted later; offline closes send when the internet is back', module: 'Safety' },
+    ],
+  },
+  {
+    id: '2026-12-05',
+    date: '5 Dec 2026',
+    title: 'Returns by scanning the bill',
+    items: [
+      { text: "Sales History → ↩️ Return by bill: scan the QR on the customer's bill (or type the bill number) and the bill opens ready for the return", module: 'Sales', to: '/sales' },
+      { text: 'On phones that support it, scan the bill QR with the camera right inside the app', module: 'Sales', to: '/sales' },
+      { text: 'Scanned a bill with your phone camera? The bill page now has an \'Open in Sales\' button for shop staff', module: 'Sales', to: '/sales' },
+    ],
+  },
+  {
+    id: '2026-12-04',
+    date: '4 Dec 2026',
+    title: 'Correct cash on part-paid udhaar bills',
+    items: [
+      { text: 'Fixed: when a credit (udhaar) bill was partly paid at the counter, that cash was missing from Cash in drawer, Close Day and Reports — it is now counted', module: 'Fix' },
+      { text: 'Automatic checks now test the money totals (cash, credit, returns, ledgers) before every update, so totals stay correct', module: 'Safety' },
+    ],
+  },
+  {
+    id: '2026-12-03',
+    date: '3 Dec 2026',
+    title: 'Scan a new item and sell it straight away',
+    items: [
+      { text: 'Barcode not found? Type the name, price and stock in a short form — the product is saved and goes straight into the bill', module: 'POS', to: '/pos' },
+      { text: 'Scanning into the POS search box now works: a known barcode goes into the bill when the scanner presses Enter', module: 'POS', to: '/pos' },
+      { text: 'Only the shop admin or manager can add products this way; cashiers are told to ask the admin', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
+    id: '2026-12-02',
+    date: '2 Dec 2026',
+    title: 'See what is waiting to sync',
+    items: [
+      { text: 'New Sync status page: every sale, payment or change saved on this device that has not reached the server yet', module: 'Sync', to: '/sync' },
+      { text: 'Stuck items show why in plain words, with Retry or Discard — discarded items can be put back', module: 'Sync', to: '/sync' },
+      { text: 'The Online / Offline sign at the top now shows how many changes are waiting, and turns red if something is stuck — tap it to open Sync status', module: 'Sync', to: '/sync' },
+    ],
+  },
+  {
     id: '2026-12-01',
     date: '1 Dec 2026',
     title: 'No more "OK" pop-ups to tap',

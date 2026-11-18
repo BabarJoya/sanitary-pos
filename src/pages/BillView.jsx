@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { buildBillHTML, DEFAULT_TEMPLATE } from '../utils/billTemplates'
 
@@ -89,6 +89,11 @@ export default function BillView() {
   const [state, setState] = useState({ status: 'loading', data: null })
   const [view, setView] = useState('summary') // 'summary' | 'receipt' | 'a4'
   const [busy, setBusy] = useState(false)
+  // Shop staff who scan a bill with the phone camera land here: offer the
+  // return screen when this device is logged in with Sales access.
+  const staffCanReturn = useMemo(() => {
+    try { return ['admin', 'manager', 'accountant'].includes(JSON.parse(localStorage.getItem('user') || 'null')?.role) } catch { return false }
+  }, [])
 
   const load = async () => {
     setState({ status: 'loading', data: null })
@@ -242,6 +247,9 @@ export default function BillView() {
         )}
         {view === 'summary' && canShowPrinted && (
           <button type="button" onClick={() => setView('receipt')} className="btn btn-secondary">🧾 View printed bill</button>
+        )}
+        {staffCanReturn && !isQuote && (
+          <Link to={`/sales?bill=${token}`} className="btn btn-secondary">↩️ Open in Sales (return items)</Link>
         )}
         {shopWa && (
           <a className={`btn ${view === 'summary' ? 'btn-primary' : 'btn-secondary'}`} href={`https://wa.me/${shopWa}?text=${encodeURIComponent(`Assalam-o-Alaikum, bill ${billNo} ke baare mein baat karni hai.`)}`} target="_blank" rel="noopener noreferrer">

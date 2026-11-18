@@ -46,8 +46,10 @@ export function paidByMethod(sale) {
     out.cash += left // payment lines short of paid_amount: count the rest as cash
     return out
   }
-  if (method === 'credit') return out
-  if (isCashMethod(method)) out.cash = applied
+  // Credit bill with part paid at the counter (cashier chose Credit and typed an
+  // amount received): that money was taken in cash. It used to be counted
+  // nowhere, so Cash in drawer / Close Day came out short.
+  if (method === 'credit' || isCashMethod(method)) out.cash = applied
   else out.online = applied
   return out
 }

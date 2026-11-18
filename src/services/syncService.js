@@ -285,6 +285,11 @@ async function processQueue() {
                 error = err;
                 returnedData = resData;
 
+                // Server-only tables (e.g. cash_shifts) have no local copy to refresh
+                if (!error && returnedData && !db[item.table]) {
+                    await db.sync_queue.delete(item.id)
+                    continue
+                }
                 if (!error && returnedData) {
                     if (isArray) {
                         const originalIds = processedData.map(d => d.id).filter(id => typeof id === 'string' && id.includes('-'));
@@ -348,6 +353,53 @@ export async function getSyncQueueStatus() {
     const all = await db.sync_queue.toArray()
     const failed = all.filter(i => i.failed)
     return { pending: all.length - failed.length, failed: failed.length, failedItems: failed }
+}
+
+// ── Sync status page (/sync) ─────────────────────────────────────────
+// Every queued change with its state: 'failed' (parked, needs a decision),
+// 'waiting' (needs an earlier unsynced record first) or 'pending'.
+export async function getSyncQueueItems() {
+    const all = await db.sync_queue.toArray()
+    return all
+        .filter(i => !LOCAL_ONLY_TABLES.includes(i.table))
+        .map(i => {
+            const payload = i.action === 'INSERT'
+                ? (Array.isArray(i.data) ? i.data.map(({ id: _i, ...rest }) => rest) : (({ id: _i, ...rest }) => rest)(i.data || {}))
+                : i.data
+            const state = i.failed ? 'failed' : (hasUnresolvedRef(payload) ? 'waiting' : 'pending')
+            return { ...i, state }
+        })
+        .sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)))
+}
+
+export async function retrySyncItem(id) {
+    await db.sync_queue.update(id, { failed: false, retry_count: 0 })
+    return syncOfflineData()
+}
+
+// Discard never loses data silently: the item is kept in a local backup
+// (newest 50) and can be put back from the Sync status page.
+const DISCARD_KEY = 'edgex_sync_discarded'
+export function getDiscardedSyncItems() {
+    try { return JSON.parse(localStorage.getItem(DISCARD_KEY) || '[]') } catch { return [] }
+}
+export async function discardSyncItem(id) {
+    const item = await db.sync_queue.get(id)
+    if (!item) return
+    const list = [{ ...item, discarded_at: new Date().toISOString() }, ...getDiscardedSyncItems()].slice(0, 50)
+    try { localStorage.setItem(DISCARD_KEY, JSON.stringify(list)) } catch { /* storage full: still keep going */ }
+    await db.sync_queue.delete(id)
+}
+export async function restoreDiscardedSyncItem(index) {
+    const list = getDiscardedSyncItems()
+    const item = list[index]
+    if (!item) return
+    // eslint-disable-next-line no-unused-vars
+    const { id, discarded_at, failed, retry_count, last_error, failed_at, ...rest } = item
+    await db.sync_queue.add(rest)
+    list.splice(index, 1)
+    try { localStorage.setItem(DISCARD_KEY, JSON.stringify(list)) } catch { /* ignore */ }
+    return syncOfflineData()
 }
 
 export async function retryFailedSyncItems() {
