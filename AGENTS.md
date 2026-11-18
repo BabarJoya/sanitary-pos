@@ -11,7 +11,7 @@ Read this first, then inspect only the modules needed. Treat this as the compact
 
 ## Commands And Baseline
 
-Root: `npm run dev`, `npm run build`, `npm run lint`, `npm run preview`.
+Root: `npm run dev`, `npm run build`, `npm run lint`, `npm test`, `npm run preview`. `npm test` runs `tests/*.test.js` with Node's built-in runner (no install; also in `.github/workflows/test.yml`) — add a case whenever a money, ledger or stock rule changes.
 Standalone admin: `cd superadmin`, then the same npm scripts.
 
 - Root lint currently exits successfully with 0 errors and 113 warnings (hook dependencies, unused values, empty catches, and related cleanup).

@@ -10,6 +10,15 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-04',
+    date: '4 Dec 2026',
+    title: 'Correct cash on part-paid udhaar bills',
+    items: [
+      { text: 'Fixed: when a credit (udhaar) bill was partly paid at the counter, that cash was missing from Cash in drawer, Close Day and Reports — it is now counted', module: 'Fix' },
+      { text: 'Automatic checks now test the money totals (cash, credit, returns, ledgers) before every update, so totals stay correct', module: 'Safety' },
+    ],
+  },
+  {
     id: '2026-12-03',
     date: '3 Dec 2026',
     title: 'Scan a new item and sell it straight away',
