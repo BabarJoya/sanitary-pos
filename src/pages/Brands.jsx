@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { Modal } from '../components/ui'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import * as XLSX from 'xlsx'
@@ -616,17 +617,8 @@ function Brands() {
 
       {/* View Products Modal */}
       {viewBrand && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setViewBrand(null)}>
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <div>
-                <h2 className="text-xl font-bold text-fg">📦 Products of {viewBrand.name}</h2>
-                <p className="text-xs text-fg-muted">Click any product row to view purchase price history</p>
-              </div>
-              <button onClick={() => setViewBrand(null)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-
-            <div className="flex-1 overflow-auto border rounded-xl bg-surface-2">
+        <Modal open onClose={() => setViewBrand(null)} title={<>📦 Products of {viewBrand.name}</>} subtitle={<>Click any product row to view purchase price history</>} maxWidth="max-w-4xl">
+          <div className="flex-1 overflow-auto border rounded-xl bg-surface-2">
               {loadingProducts ? (
                 <p className="text-center text-fg-subtle py-10">Loading products...</p>
               ) : brandProducts.length === 0 ? (
@@ -700,8 +692,7 @@ function Brands() {
                 </table>
               )}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

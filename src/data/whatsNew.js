@@ -10,6 +10,17 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-30',
+    date: '30 Nov 2026',
+    title: 'All pop-up windows work the same way',
+    items: [
+      { text: 'Every pop-up has its title and a ✕ at the top, and closes with the Esc key', module: 'All screens' },
+      { text: 'On phones pop-ups open from the bottom, with Save / Done buttons always visible', module: 'All screens' },
+      { text: 'Forms (stock adjust, add transaction, split payment…) no longer close if you tap outside by mistake — your typing is kept', module: 'All screens' },
+      { text: 'The cursor goes straight to the first box, and back to where you were when the pop-up closes', module: 'All screens' },
+    ],
+  },
+  {
     id: '2026-11-29',
     date: '29 Nov 2026',
     title: 'Search stays in view on long lists',

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { Modal } from '../components/ui'
 import { useParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
@@ -829,12 +830,8 @@ Supplier balance transaction ledger ke mutabiq sync ho jayega.`)
 
             {/* ── Add Transaction Modal ── */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-                    <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold text-fg mb-1">➕ Add Transaction</h2>
-                        <p className="text-xs text-fg-subtle mb-4">Purchase aur payment ek saath darj kar saktay hain</p>
-
-                        <form onSubmit={handleSubmitTransaction} className="space-y-4">
+                <Modal open onClose={resetForm} title="➕ Add Transaction" subtitle={<>Purchase aur payment ek saath darj kar saktay hain</>} maxWidth="max-w-md" dismissible={false}>
+                  <form onSubmit={handleSubmitTransaction} className="space-y-4">
 
                             {/* Date + Bill # */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -958,8 +955,7 @@ Supplier balance transaction ledger ke mutabiq sync ho jayega.`)
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
+                </Modal>
             )}
         </div>
     )

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { Modal } from '../components/ui'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
@@ -2819,11 +2820,23 @@ function POS() {
 
       {/* Save Walk-in as Customer Modal */}
       {showSaveCustomer && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <h3 className="font-bold text-fg text-lg mb-1">👤 Customer Save Karein</h3>
-            <p className="text-sm text-fg-muted mb-4">Yeh walk-in customer ko apni customer list mein add karein</p>
-            <div className="space-y-3">
+        <Modal open onClose={() => { setShowSaveCustomer(false); setSaveCustomerForm({ name: '', mobile: '' }) }} title="👤 Customer Save Karein" subtitle={<>Yeh walk-in customer ko apni customer list mein add karein</>} maxWidth="max-w-sm" dismissible={false}
+          footer={<>
+            <button
+                onClick={handleSaveCustomer}
+                disabled={savingCustomer}
+                className="flex-1 py-2.5 bg-success hover:bg-success-hover text-white rounded-lg font-bold transition disabled:opacity-50"
+              >
+                {savingCustomer ? 'Saving...' : '✅ Save Customer'}
+              </button>
+              <button
+                onClick={() => { setShowSaveCustomer(false); setSaveCustomerForm({ name: '', mobile: '' }) }}
+                className="flex-1 py-2.5 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg font-bold transition"
+              >
+                Cancel
+              </button>
+          </>}>
+          <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-fg-2 mb-1">Naam *</label>
                 <input
@@ -2846,32 +2859,13 @@ function POS() {
                 />
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={handleSaveCustomer}
-                disabled={savingCustomer}
-                className="flex-1 py-2.5 bg-success hover:bg-success-hover text-white rounded-lg font-bold transition disabled:opacity-50"
-              >
-                {savingCustomer ? 'Saving...' : '✅ Save Customer'}
-              </button>
-              <button
-                onClick={() => { setShowSaveCustomer(false); setSaveCustomerForm({ name: '', mobile: '' }) }}
-                className="flex-1 py-2.5 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg font-bold transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Brand Discount Modal */}
       {showBrandDiscount && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <h3 className="font-bold text-fg mb-2">🏷️ {selectedBrand} — Brand Discount</h3>
-
-            {/* Mode Toggle */}
+        <Modal open onClose={() => setShowBrandDiscount(false)} title={<>🏷️ {selectedBrand} — Brand Discount</>} maxWidth="max-w-sm" dismissible={false}>
+          {/* Mode Toggle */}
             <div className="flex gap-2 mb-3">
               <button onClick={() => setBrandDiscountMode('cart_only')}
                 className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${brandDiscountMode === 'cart_only' ? 'bg-success text-white' : 'bg-surface-3 text-fg-3'}`}>
@@ -2947,8 +2941,7 @@ function POS() {
               </button>
               <button onClick={() => setShowBrandDiscount(false)} className="flex-1 py-2 bg-surface-3 hover:bg-surface-4 text-fg-2 rounded-lg transition">{t('Cancel')}</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Receipt Modal */}
@@ -2965,11 +2958,8 @@ function POS() {
       )}
       {/* Quotation Search Modal */}
       {showQuotationSearch && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold text-fg mb-4">{t('Search Quotation')}</h2>
-            <p className="text-sm text-fg-muted mb-4">Quotation number (e.g. QT-abcd1234) enter karein jo bill par likha hai.</p>
-            <div className="space-y-4">
+        <Modal open onClose={() => setShowQuotationSearch(false)} title={<>{t('Search Quotation')}</>} subtitle={<>Quotation number (e.g. QT-abcd1234) enter karein jo bill par likha hai.</>} maxWidth="max-w-sm" dismissible={false}>
+          <div className="space-y-4">
               <input
                 type="text"
                 autoFocus
@@ -2993,18 +2983,12 @@ function POS() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* Recent Bills (F6) */}
       {showRecentBills && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowRecentBills(false)}>
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="recent-bills-title" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-1 shrink-0">
-              <h2 id="recent-bills-title" className="text-xl font-bold text-fg">🧾 {t('Recent bills')}</h2>
-              <button type="button" onClick={() => setShowRecentBills(false)} aria-label="Close recent bills" className="h-10 w-10 rounded-lg text-fg-subtle hover:text-fg-3 hover:bg-surface-2 text-2xl">×</button>
-            </div>
-            <p className="text-xs text-fg-muted mb-3 shrink-0">Last {recentBills.length} bill(s) from this counter. All bills are in Sales History.</p>
+        <Modal open onClose={() => setShowRecentBills(false)} title={<>🧾 {t('Recent bills')}</>} maxWidth="max-w-md">
+          <p className="text-xs text-fg-muted mb-3 shrink-0">Last {recentBills.length} bill(s) from this counter. All bills are in Sales History.</p>
             <ul className="space-y-2 overflow-y-auto min-h-0">
               {recentBills.map(r => {
                 const who = r.customer?.name || r.walkInName || 'Walk-in'
@@ -3026,18 +3010,12 @@ function POS() {
                 )
               })}
             </ul>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* Keyboard shortcuts (?) */}
       {showShortcuts && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowShortcuts(false)}>
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="pos-keys-title" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-3">
-              <h2 id="pos-keys-title" className="text-xl font-bold text-fg">⌨️ Keyboard shortcuts</h2>
-              <button type="button" onClick={() => setShowShortcuts(false)} aria-label="Close shortcuts" className="h-10 w-10 rounded-lg text-fg-subtle hover:text-fg-3 hover:bg-surface-2 text-2xl">×</button>
-            </div>
-            <dl className="divide-y divide-line-subtle text-sm">
+        <Modal open onClose={() => setShowShortcuts(false)} title="⌨️ Keyboard shortcuts" maxWidth="max-w-sm">
+          <dl className="divide-y divide-line-subtle text-sm">
               {[
                 ['F2', 'Search products'],
                 ['F4', 'Payment (cash / credit / online)'],
@@ -3055,18 +3033,12 @@ function POS() {
                 </div>
               ))}
             </dl>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* Held Carts Modal */}
       {showHeldCarts && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-fg">⏸️ Held Bills</h2>
-              <button onClick={() => setShowHeldCarts(false)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-            <div className="max-height-[400px] overflow-y-auto space-y-3">
+        <Modal open onClose={() => setShowHeldCarts(false)} title="⏸️ Held Bills" maxWidth="max-w-md">
+          <div className="max-height-[400px] overflow-y-auto space-y-3">
               {heldCarts.map(held => (
                 <div key={held.id} className="p-4 border rounded-xl hover:border-primary hover:bg-primary-soft transition cursor-pointer group" onClick={() => handleResumeCart(held)}>
                   <div className="flex justify-between items-start mb-2">
@@ -3093,15 +3065,24 @@ function POS() {
                 <div className="text-center py-10 text-fg-subtle italic">{t('No held bills found')}</div>
               )}
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* Split Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold text-fg mb-4">🔀 Split Payment</h2>
-            <div className="space-y-3 mb-4 max-h-[340px] overflow-y-auto">
+        <Modal open onClose={() => setShowPaymentModal(false)} title="🔀 Split Payment" maxWidth="max-w-sm" dismissible={false}
+          footer={<>
+            <button
+                onClick={() => {
+                  const remaining = total - payments.reduce((s, p) => s + Number(p.amount), 0)
+                  setPayments([...payments, { method: 'jazzcash', amount: Math.max(0, remaining), ref: '' }])
+                }}
+                className="flex-1 py-1.5 border border-info-line text-info-fg rounded-lg text-xs font-bold hover:bg-info-soft"
+              >
+                + Add Payment
+              </button>
+              <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-1.5 bg-primary text-white rounded-lg text-xs font-bold">{t('Done')}</button>
+          </>}>
+          <div className="space-y-3 mb-4 max-h-[340px] overflow-y-auto">
               {payments.map((p, idx) => (
                 <div key={idx} className="flex flex-col gap-1.5 bg-surface-2 p-2.5 rounded-lg border border-line">
                   <div className="flex gap-2 items-center">
@@ -3169,35 +3150,13 @@ function POS() {
                 </span>
               </div>
             </div>
-
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => {
-                  const remaining = total - payments.reduce((s, p) => s + Number(p.amount), 0)
-                  setPayments([...payments, { method: 'jazzcash', amount: Math.max(0, remaining), ref: '' }])
-                }}
-                className="flex-1 py-1.5 border border-info-line text-info-fg rounded-lg text-xs font-bold hover:bg-info-soft"
-              >
-                + Add Payment
-              </button>
-              <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-1.5 bg-primary text-white rounded-lg text-xs font-bold">{t('Done')}</button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
       {/* Quick View Modal */}
       {showQuickView && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <h2 className="text-xl font-bold text-fg flex items-center gap-2">
-                <span>🔍 Cart Quick View</span>
-                <span className="text-sm font-normal text-fg-muted">({cart.length} items)</span>
-              </h2>
-              <button onClick={() => setShowQuickView(false)} className="text-fg-subtle hover:text-fg-3 text-2xl">×</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto mb-4 border rounded-xl">
+        <Modal open onClose={() => setShowQuickView(false)} title={<><span>🔍 Cart Quick View</span>
+                <span className="text-sm font-normal text-fg-muted">({cart.length} items)</span></>} maxWidth="max-w-4xl" dismissible={false}>
+          <div className="flex-1 overflow-y-auto mb-4 border rounded-xl">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-surface-2 sticky top-0 border-b">
                   <tr>
@@ -3250,8 +3209,7 @@ function POS() {
               </div>
               <button onClick={() => setShowQuickView(false)} className="px-8 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl shadow-lg shadow-primary-muted transition">Return to POS</button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )
