@@ -4,7 +4,7 @@ import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { db, addToSyncQueue, moveToTrash } from '../services/db'
-import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly, saleUnpaidAmount, splitReturnRefund, toIntId, applyLocalDelta, runTx, txErrorMessage } from '../services/integrity'
+import { adjustStock, adjustCustomerBalance, isNetworkError, applySaleEffects, saleRowOnly, saleUnpaidAmount, splitReturnRefund, toIntId, applyLocalDelta, runTx, txMaybeAvailable, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import PasswordModal from '../components/PasswordModal'
 import { printHTML } from '../utils/printUtils'
@@ -201,7 +201,7 @@ function Sales() {
     // The database applies the same refund rules; reports then count the return on the
     // day it happened instead of changing the original sale's day.
     const allSynced = toIntId(selectedSale.id) != null && itemsToReturn.every(it => toIntId(it.id) != null)
-    if (navigator.onLine && allSynced) {
+    if (navigator.onLine && allSynced && txMaybeAvailable()) {
       const tx = await runTx('process_sale_return', {
         p_return: {
           client_ref: crypto.randomUUID(),

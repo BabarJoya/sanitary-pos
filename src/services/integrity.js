@@ -78,7 +78,7 @@ export async function runDeltaRpc(fn, params) {
   if (id == null) return { ok: false, error: new Error(`${fn}: record not synced yet`), pendingRef: true }
   if (delta === 0) return { ok: true }
 
-  if (v2Available !== false && params.p_op_id) {
+  if (v2Available !== false && params.p_op_id && txMaybeAvailable()) {
     const v2Params = { [target.idParam]: id, p_delta: delta }
     for (const k of V2_EXTRA[fn]) if (params[k] != null) v2Params[k] = params[k]
     const { error } = await supabase.rpc(`${fn}_v2`, v2Params)
@@ -145,8 +145,25 @@ export const adjustSupplierBalance = (supplierId, delta) => adjust('adjust_suppl
 // Availability is remembered on this device so an offline action can be queued
 // as one transaction when the database is known to support it.
 const TX_FLAG = 'edgex_tx_rpc'
-export const txKnownAvailable = () => { try { return localStorage.getItem(TX_FLAG) === '1' } catch { return false } }
-const setTxFlag = (v) => { try { localStorage.setItem(TX_FLAG, v ? '1' : '0') } catch { /* storage unavailable */ } }
+const TX_RECHECK_MS = 30 * 60 * 1000 // after "not migrated", ask the server again only every 30 min
+function readTxFlag() {
+  try {
+    const raw = localStorage.getItem(TX_FLAG)
+    if (raw === '1') return { v: 1, at: 0 }
+    if (raw === '0' || !raw) return raw ? { v: 0, at: 0 } : null
+    const f = JSON.parse(raw)
+    return f && (f.v === 1 || f.v === 0) ? f : null
+  } catch { return null }
+}
+// Database confirmed to have the transaction functions (offline actions may be queued as one transaction)
+export const txKnownAvailable = () => readTxFlag()?.v === 1
+// Worth calling the functions online: known to exist, never checked, or the "missing" answer is old.
+// Avoids an extra failing request on every sale while the migration has not been run.
+export const txMaybeAvailable = () => {
+  const f = readTxFlag()
+  return !f || f.v === 1 || Date.now() - (f.at || 0) > TX_RECHECK_MS
+}
+const setTxFlag = (v) => { try { localStorage.setItem(TX_FLAG, JSON.stringify({ v: v ? 1 : 0, at: Date.now() })) } catch { /* storage unavailable */ } }
 
 /**
  * Returns { ok: true, data } | { ok: false, missing: true } (not migrated: use the

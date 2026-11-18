@@ -31,6 +31,7 @@ function computeTierSplit(sales, items) {
   return split
 }
 import { printHTML, getShopBranding, brandedA4Header } from '../utils/printUtils'
+import { txMaybeAvailable } from '../services/integrity'
 
 function Reports() {
   const { user } = useAuth()
@@ -165,8 +166,8 @@ function Reports() {
         fetchAllRows(() => supabase.from('purchases').select('*').eq('shop_id', user.shop_id).gte('created_at', startISO)),
         supabase.from('categories').select('id, name').eq('shop_id', user.shop_id),
         // Dated return documents (empty until sql/transactions_migration.sql has run)
-        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', startISO)),
-        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', startISO)),
+        (txMaybeAvailable() ? fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', startISO)) : Promise.resolve({ data: [], error: null })),
+        (txMaybeAvailable() ? fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', startISO)) : Promise.resolve({ data: [], error: null })),
       ])
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000))

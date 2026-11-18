@@ -10,6 +10,7 @@ import { summarizeSales, summarizeCashBook, isCompletedSale, periodStart, applyR
 import { isLowStock } from '../utils/stockRules'
 import { todayLocal } from '../utils/dates'
 import { useLang } from '../context/LanguageContext'
+import { txMaybeAvailable } from '../services/integrity'
 
 const StatCard = ({ title, value, icon, color, subValue }) => (
   <div className="bg-surface p-6 rounded-2xl shadow-sm border border-line-subtle hover:shadow-md transition">
@@ -81,8 +82,8 @@ function Dashboard() {
         supabase.from('categories').select('id, low_stock_threshold').eq('shop_id', user.shop_id),
         supabase.rpc('get_shop_config', { p_shop_id: user.shop_id }),
         // Dated returns (empty until sql/transactions_migration.sql has run)
-        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())),
-        fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', today.toISOString())),
+        (txMaybeAvailable() ? fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, created_at').eq('shop_id', user.shop_id).gte('created_at', today.toISOString())) : Promise.resolve({ data: [], error: null })),
+        (txMaybeAvailable() ? fetchAllRows(() => supabase.from('sale_returns').select('refund_total, cost_total, sales!inner(created_at)').eq('shop_id', user.shop_id).gte('sales.created_at', today.toISOString())) : Promise.resolve({ data: [], error: null })),
       ])
 
       // Mobile data can be slow: wait longer before falling back to this device's copy

@@ -240,7 +240,9 @@ function EditProduct() {
     for (const k of ['c_rate', 'cost_price', 'sale_price', 'wholesale_price']) {
       if (k in updatedProductData) updatedProductData[k] = Number(updatedProductData[k]) || 0
     }
-    updatedProductData.low_stock_threshold = updatedProductData.low_stock_threshold === '' ? null : Number(updatedProductData.low_stock_threshold)
+    // Blank alert level: keep what is stored (never send null — the column may be NOT NULL)
+    if (updatedProductData.low_stock_threshold === '' || updatedProductData.low_stock_threshold == null) delete updatedProductData.low_stock_threshold
+    else updatedProductData.low_stock_threshold = Number(updatedProductData.low_stock_threshold)
     // Pack fields only when filled in (columns added by sql/units_decimals_migration.sql)
     const packSize = Number(updatedProductData.pack_size) || 0
     const packName = String(updatedProductData.pack_name || '').trim()
@@ -540,7 +542,7 @@ function EditProduct() {
                 value={form.low_stock_threshold}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-line-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Blank = category level (or 10)"
+                placeholder="10"
               />
             </div>
           </div>

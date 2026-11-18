@@ -104,7 +104,16 @@ DROP POLICY IF EXISTS "Tenant Isolation" ON purchase_returns;
 CREATE POLICY "Tenant Isolation" ON purchase_returns AS PERMISSIVE FOR ALL TO anon, authenticated
   USING (is_valid_session(shop_id)) WITH CHECK (is_valid_session(shop_id));
 
--- ── 4. Idempotency keys on ledger rows written by the offline queue ─────────
+-- ── 4. Idempotency keys ──────────────────────────────────────────────────
+-- Also created by sql/data_integrity_migration.sql and sql/purchase_discount_migration.sql;
+-- repeated here so this file works even if those were skipped.
+ALTER TABLE sales     ADD COLUMN IF NOT EXISTS client_ref UUID;
+ALTER TABLE purchases ADD COLUMN IF NOT EXISTS client_ref UUID;
+ALTER TABLE purchases ADD COLUMN IF NOT EXISTS discount NUMERIC(15,2) DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS sales_client_ref_key     ON sales (client_ref)     WHERE client_ref IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS purchases_client_ref_key ON purchases (client_ref) WHERE client_ref IS NOT NULL;
+
+-- Ledger rows written by the offline queue
 ALTER TABLE customer_payments ADD COLUMN IF NOT EXISTS client_ref UUID;
 ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS client_ref UUID;
 ALTER TABLE expenses          ADD COLUMN IF NOT EXISTS client_ref UUID;

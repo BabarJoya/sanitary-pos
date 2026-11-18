@@ -4,7 +4,7 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db, addToSyncQueue } from '../services/db'
-import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance, applyLocalDelta, runTx, txKnownAvailable, txErrorMessage } from '../services/integrity'
+import { toIntId, isTempId, isNetworkError, isMissingColumn, adjustStock, adjustCustomerBalance, applyLocalDelta, runTx, txMaybeAvailable, txKnownAvailable, txErrorMessage } from '../services/integrity'
 import { recordAuditLog } from '../services/auditService'
 import { buildBillHTML } from '../utils/billTemplates'
 import { hasFeature } from '../utils/featureGate'
@@ -976,7 +976,7 @@ function POS() {
     let txHandled = false
     let txNetworkFail = false
     let itemsSaved = false
-    if (navigator.onLine && !hasUnsyncedRef) {
+    if (navigator.onLine && !hasUnsyncedRef && txMaybeAvailable()) {
       const tx = await runTx('complete_sale', {
         p_sale: saleData,
         p_items: lineRows.map(it => ({ ...it, product_id: toIntOrNull(it.product_id) })),
