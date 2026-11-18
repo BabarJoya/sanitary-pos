@@ -10,6 +10,7 @@ import { db, addToSyncQueue, moveToTrash } from '../services/db'
 import PasswordModal from '../components/PasswordModal'
 import { getShopSettings, isWholesaleEnabled, normalizeTier } from '../utils/businessPresets'
 import { openingRow } from '../utils/ledgerMath'
+import EmptyState from '../components/EmptyState'
 
 function Customers() {
   const { user } = useAuth()
@@ -157,6 +158,23 @@ function Customers() {
       setLoading(false)
     }
     reader.readAsBinaryString(file)
+  }
+
+  // WhatsApp payment reminder using the shop's template
+  const sendReminder = async (c) => {
+    const { data: shop } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
+    const phone = c.phone.replace(/[^0-9]/g, '')
+    let formattedPhone = phone
+    if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
+    else if (phone.length === 10) formattedPhone = '92' + phone
+
+    const template = shop?.wa_reminder_template || "Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!"
+    const msg = template
+      .replace(/\[Name\]/g, c.name)
+      .replace(/\[Amount\]/g, (c.outstanding_balance || 0).toLocaleString())
+      .replace(/\[Shop Name\]/g, shop?.name || 'our shop')
+
+    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   const handleEdit = (c) => {
@@ -496,11 +514,52 @@ function Customers() {
       {loading ? (
         <p className="text-fg-muted">Loading...</p>
       ) : customers.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-fg-subtle text-lg">No customers yet</p>
-        </div>
+        <EmptyState
+          icon="👥"
+          title="No customers yet"
+          text="Add the customers who buy on credit (udhaar) to track their balance, send reminders and print statements."
+          action={!showForm ? { label: '+ Add first customer', onClick: () => setShowForm(true) } : null}
+        />
       ) : (
-        <div className="bg-surface rounded-xl shadow overflow-hidden">
+        <>
+        {/* Phones: one card per customer, balance and main actions visible without sideways scrolling */}
+        <ul className="md:hidden space-y-2" aria-label="Customers">
+          {customers.map((c) => {
+            const bal = Number(c.outstanding_balance || 0)
+            const seg = getSegment(c)
+            return (
+              <li key={c.id} className={`card p-3 ${selected.includes(c.id) ? 'ring-2 ring-primary' : ''}`}>
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggleSelect(c.id)} className="mt-1 w-5 h-5 rounded shrink-0" aria-label={`Select ${c.name}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-bold text-fg truncate">{c.name}</p>
+                      {wholesaleEnabled && c.price_tier === 'wholesale' && (
+                        <span className="rounded bg-wholesale-muted px-1.5 py-0.5 text-[10px] font-black uppercase text-wholesale-strong">Wholesale</span>
+                      )}
+                      {seg && <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${seg.bg}`}>{seg.label}</span>}
+                    </div>
+                    <p className="text-xs text-fg-muted truncate">{c.phone || 'No phone'}{c.address ? ` · ${c.address}` : ''}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[10px] uppercase font-bold text-fg-subtle">Balance</p>
+                    <p className={`font-black ${bal > 0 ? 'text-danger-fg' : 'text-success-fg'}`}>Rs. {bal.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  <Link to={`/customers/${c.id}`} className="btn btn-primary btn-sm col-span-2">📒 Ledger</Link>
+                  {c.phone
+                    ? <button type="button" onClick={() => sendReminder(c)} className="btn btn-secondary btn-sm" aria-label={`Send WhatsApp reminder to ${c.name}`}>💬</button>
+                    : <span />}
+                  <button type="button" onClick={() => handleEdit(c)} className="btn btn-secondary btn-sm">Edit</button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+
+        {/* Tablets and computers: full table */}
+        <div className="hidden md:block bg-surface rounded-xl shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-surface-2 border-b">
@@ -554,21 +613,7 @@ function Customers() {
                       {c.phone && (
                         <button
                           title="Send WhatsApp Reminder"
-                          onClick={async () => {
-                            const { data: shop } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
-                            const phone = c.phone.replace(/[^0-9]/g, '')
-                            let formattedPhone = phone
-                            if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-                            else if (phone.length === 10) formattedPhone = '92' + phone
-
-                            const template = shop?.wa_reminder_template || "Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!"
-                            const msg = template
-                              .replace(/\[Name\]/g, c.name)
-                              .replace(/\[Amount\]/g, (c.outstanding_balance || 0).toLocaleString())
-                              .replace(/\[Shop Name\]/g, shop?.name || 'our shop')
-
-                            window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
-                          }}
+                          onClick={() => sendReminder(c)}
                           className="text-success-fg hover:text-success-strong text-lg"
                         >
                           💬
@@ -583,6 +628,7 @@ function Customers() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {showPasswordModal && (

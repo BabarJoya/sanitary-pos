@@ -12,6 +12,7 @@ import BarcodeLabelModal from '../components/BarcodeLabelModal'
 import { hasFeature } from '../utils/featureGate'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { getLowStockThreshold, isLowStock } from '../utils/stockRules'
+import EmptyState from '../components/EmptyState'
 
 function Products() {
   const [products, setProducts] = useState([])
@@ -698,12 +699,13 @@ function Products() {
       )}
 
       {/* Empty state */}
-      {!loading && filteredProducts.length === 0 && (
-        <div className="text-center py-12 bg-surface rounded-xl border border-line-subtle">
-          <p className="text-fg-subtle text-lg">No products found</p>
-          <p className="text-fg-subtle">Try adjusting your filters or click "Add Product" to create a new one</p>
-        </div>
-      )}
+      {!loading && filteredProducts.length === 0 && (products.length === 0 ? (
+        <EmptyState icon="📦" title="No products yet" text="Add your products with cost and sale price, or import them all at once from Excel."
+          action={{ label: '+ Add product', to: '/add-product' }} />
+      ) : (
+        <EmptyState icon="🔍" title="No products match these filters"
+          action={{ label: 'Clear filters', onClick: () => { setSearch(''); setSelectedCategory(''); setShowLowStockOnly(false) } }} />
+      ))}
 
       {/* Products Table */}
       {!loading && filteredProducts.length > 0 && (

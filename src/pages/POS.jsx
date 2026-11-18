@@ -1648,8 +1648,20 @@ function POS() {
                   <span>👤 {selectedCust.name}</span>
                   {selectedCust.phone && <span className="text-[10px] text-fg-muted">({selectedCust.phone})</span>}
                 </span>
-                <span className="font-mono font-black shrink-0">
+                <span className="font-mono font-black shrink-0 text-right">
                   {bal > 0 ? `🔴 Udhaar: Rs. ${bal.toLocaleString()}` : `🟢 Previous Due: Clean`}
+                  {Number(selectedCust.credit_limit) > 0 && (() => {
+                    // Credit limit: how much more can go on credit (this bill's unpaid part included)
+                    const limit = Number(selectedCust.credit_limit)
+                    const paidNow = receivedAmount === '' ? total : Number(receivedAmount) || 0
+                    const unpaid = paymentType === 'split' ? 0 : Math.max(0, total - paidNow)
+                    const left = limit - bal - unpaid
+                    return (
+                      <span className={`block text-[10px] font-bold ${left < 0 ? 'text-danger-strong' : 'text-fg-muted'}`}>
+                        Limit Rs. {limit.toLocaleString()} · {left < 0 ? `over by Rs. ${Math.round(-left).toLocaleString()}` : `Rs. ${Math.round(left).toLocaleString()} left`}
+                      </span>
+                    )
+                  })()}
                 </span>
               </div>
             )
@@ -2120,9 +2132,9 @@ function POS() {
                 </div>
 
                 {receivedAmount !== '' && Number(receivedAmount) > total && (
-                  <div className="flex items-center justify-between bg-success text-white px-2 py-0.5 rounded-lg text-xs font-bold shadow-2xs">
-                    <span>🟢 Change Due:</span>
-                    <span className="text-sm font-black">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
+                  <div role="status" className="flex items-center justify-between bg-success text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-2xs">
+                    <span>🟢 Change to return (wapsi):</span>
+                    <span className="text-xl font-black">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
                   </div>
                 )}
                 {receivedAmount !== '' && Number(receivedAmount) < total && (
@@ -2134,19 +2146,19 @@ function POS() {
 
                 <div className="grid grid-cols-4 gap-1">
                   <button onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                    className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'cash' ? 'bg-success text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
+                    className={`min-h-11 py-2 rounded-lg font-bold text-xs uppercase transition flex items-center justify-center gap-1 ${paymentType === 'cash' ? 'bg-success text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
                     💵 Cash
                   </button>
                   <button onClick={() => { setPaymentType('online'); setReceivedAmount(total.toString()) }}
-                    className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'online' ? 'bg-primary text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
+                    className={`min-h-11 py-2 rounded-lg font-bold text-xs uppercase transition flex items-center justify-center gap-1 ${paymentType === 'online' ? 'bg-primary text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
                     📱 Online
                   </button>
                   <button onClick={() => { setPaymentType('credit'); setReceivedAmount('0') }}
-                    className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'credit' ? 'bg-warning text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
+                    className={`min-h-11 py-2 rounded-lg font-bold text-xs uppercase transition flex items-center justify-center gap-1 ${paymentType === 'credit' ? 'bg-warning text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
                     📒 Credit
                   </button>
                   <button onClick={() => { setPaymentType('split'); setShowPaymentModal(true); if (payments.length === 0) setPayments([{ method: 'cash', amount: total }]) }}
-                    className={`py-1 rounded-lg font-bold text-[10px] uppercase transition flex items-center justify-center gap-1 ${paymentType === 'split' ? 'bg-info text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
+                    className={`min-h-11 py-2 rounded-lg font-bold text-xs uppercase transition flex items-center justify-center gap-1 ${paymentType === 'split' ? 'bg-info text-white shadow-xs' : 'bg-surface text-fg-2 border border-line hover:bg-surface-2'}`}>
                     🔀 Split
                   </button>
                 </div>
@@ -2304,7 +2316,7 @@ function POS() {
                   {receivedAmount !== '' && Number(receivedAmount) > total && (
                     <div className="bg-success-soft border border-success-line text-success-strong px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 shadow-2xs">
                       <span>🟢 Change:</span>
-                      <span className="font-mono font-black text-success-strong text-sm">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
+                      <span className="font-mono font-black text-success-strong text-base">Rs. {(Number(receivedAmount) - total).toFixed(0)}</span>
                     </div>
                   )}
                   {receivedAmount !== '' && Number(receivedAmount) < total && (
@@ -2323,28 +2335,28 @@ function POS() {
                     <button
                       type="button"
                       onClick={() => { setPaymentType('cash'); setReceivedAmount(total.toString()) }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'cash' ? 'bg-success text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
+                      className={`min-h-10 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'cash' ? 'bg-success text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
                     >
                       💵 Cash
                     </button>
                     <button
                       type="button"
                       onClick={() => { setPaymentType('online'); setReceivedAmount(total.toString()) }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'online' ? 'bg-primary text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
+                      className={`min-h-10 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'online' ? 'bg-primary text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
                     >
                       📱 Online
                     </button>
                     <button
                       type="button"
                       onClick={() => { setPaymentType('credit'); setReceivedAmount('0') }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'credit' ? 'bg-warning text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
+                      className={`min-h-10 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'credit' ? 'bg-warning text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
                     >
                       📒 Credit
                     </button>
                     <button
                       type="button"
                       onClick={() => { setPaymentType('split'); setShowPaymentModal(true); if (payments.length === 0) setPayments([{ method: 'cash', amount: total }]) }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'split' ? 'bg-info text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
+                      className={`min-h-10 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1 ${paymentType === 'split' ? 'bg-info text-white shadow-xs' : 'text-fg-3 hover:text-fg hover:bg-surface-2'}`}
                     >
                       🔀 Split
                     </button>
@@ -2867,7 +2879,7 @@ function POS() {
               {lastReceipt.changeDue > 0 && (
                 <div className="bg-gradient-to-r from-success via-success to-success-hover text-white rounded-2xl p-3.5 text-center shadow-xl my-3 border-2 border-success-edge transform transition">
                   <p className="text-[11px] uppercase font-black tracking-widest text-white/80">🟢 WAPIS KAREIN (CHANGE DUE)</p>
-                  <p className="text-3xl font-black font-mono mt-1 tracking-tight">Rs. {lastReceipt.changeDue.toFixed(0)}</p>
+                  <p className="text-5xl font-black font-mono mt-1 tracking-tight">Rs. {lastReceipt.changeDue.toFixed(0)}</p>
                   <div className="flex justify-center gap-3 text-[10px] text-white/80 mt-1 font-semibold pt-1 border-t border-success/50">
                     <span>Paid: Rs. {lastReceipt.receivedAmount}</span>
                     <span>•</span>
