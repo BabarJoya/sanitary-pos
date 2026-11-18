@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
-import { db } from '../services/db'
+import { db, addToSyncQueue } from '../services/db'
 import { printHTML, getShopBranding } from '../utils/printUtils'
 import { getShopSettings, isWholesaleEnabled } from '../utils/businessPresets'
 import { summarizeSales, summarizeCashBook, isCompletedSale, periodStart, applyReturns } from '../utils/salesSummary'
@@ -14,6 +14,8 @@ import { useLang } from '../context/LanguageContext'
 import { txMaybeAvailable } from '../services/integrity'
 import { openWhatsApp } from '../utils/whatsapp'
 import { can } from '../utils/permissions'
+import toast from '../utils/toast'
+import { toIntId } from '../services/integrity'
 
 // Tones used by TodayTile / AttentionRow (listed so Tailwind keeps the classes):
 // bg-success-soft border-success-line text-success-strong bg-primary-soft border-primary-line text-primary-strong
@@ -85,6 +87,11 @@ function Dashboard() {
   const [eodLoading, setEodLoading] = useState(false)
   const [eodOpening, setEodOpening] = useState('')
   const [eodCounted, setEodCounted] = useState('')
+  // Shift close saved on the server (sql/cash_shifts_migration.sql)
+  const [shiftNote, setShiftNote] = useState('')
+  const [savingShift, setSavingShift] = useState(false)
+  const [savedShift, setSavedShift] = useState(null)
+  const [recentShifts, setRecentShifts] = useState(null) // null = not available
   const [fromCache, setFromCache] = useState(false)
 
   useEffect(() => {
@@ -256,6 +263,9 @@ function Dashboard() {
     setEodData(null)
     setEodOpening(readOpening())
     setEodCounted('')
+    setShiftNote('')
+    setSavedShift(null)
+    loadRecentShifts()
     const startISO = periodStart('today').toISOString()
     try {
       let sales, customerPayments, supplierPayments, expenses, purchases
@@ -292,6 +302,62 @@ function Dashboard() {
       console.error('EOD fetch error:', e)
     } finally {
       setEodLoading(false)
+    }
+  }
+
+  const loadRecentShifts = async () => {
+    setRecentShifts(null)
+    if (!navigator.onLine) return
+    try {
+      const { data, error } = await supabase.from('cash_shifts')
+        .select('id, shift_date, username, expected_cash, counted_cash, difference, closed_at, note')
+        .eq('shop_id', user.shop_id).order('closed_at', { ascending: false }).limit(10)
+      if (!error) setRecentShifts(data || [])
+    } catch { /* table not created yet or offline */ }
+  }
+
+  // One row per close: who, opening, expected, counted (difference is worked out by the database)
+  const saveShiftClose = async () => {
+    if (!eodData || eodCounted === '') { toast.warning('Pehle drawer ka cash gin kar "Counted cash" likhein.'); return }
+    setSavingShift(true)
+    const row = {
+      shop_id: user.shop_id,
+      user_id: toIntId(user.id),
+      username: user.username || user.name || '',
+      shift_date: todayLocal(),
+      opening_cash: Number(eodOpening || 0),
+      cash_in: Number(eodData.cashIn || 0),
+      cash_out: Number(eodData.cashOut || 0),
+      expected_cash: Math.round(eodExpected * 100) / 100,
+      counted_cash: Number(eodCounted),
+      total_sales: Number(eodData.totalSales || 0),
+      credit_sales: Number(eodData.salesCredit || 0),
+      online_in: Number(eodData.salesOnline || 0) + Number(eodData.recoveriesOnline || 0),
+      note: shiftNote.trim() || null,
+      client_ref: crypto.randomUUID(),
+      closed_at: new Date().toISOString(),
+    }
+    try {
+      let offline = !navigator.onLine
+      if (!offline) {
+        const { error } = await supabase.from('cash_shifts').insert(row)
+        if (error) {
+          if (/Failed to fetch|NetworkError|Load failed/i.test(error.message || '')) offline = true
+          else if (['42P01', 'PGRST205'].includes(error.code) || /cash_shifts/.test(error.message || '')) {
+            toast.warning('Shift history needs a database update first (sql/cash_shifts_migration.sql). The Close Day print and WhatsApp still work.')
+            return
+          } else throw error
+        }
+      }
+      if (offline) await addToSyncQueue('cash_shifts', 'INSERT', row)
+      setSavedShift({ at: row.closed_at, offline })
+      const diff = row.counted_cash - row.expected_cash
+      toast.success(`Shift closed${Math.abs(diff) >= 1 ? ` — ${diff > 0 ? 'extra' : 'short'} Rs. ${Math.round(Math.abs(diff)).toLocaleString()}` : ' — cash matches'}${offline ? ' (saved on this device, will sync)' : ''}`)
+      if (!offline) loadRecentShifts()
+    } catch (e) {
+      toast.error('Shift close save nahi hua: ' + (e?.message || e))
+    } finally {
+      setSavingShift(false)
     }
   }
 
@@ -683,7 +749,32 @@ function Dashboard() {
                       <span>{eodDifference >= 0 ? '+' : '−'}{rs(Math.abs(eodDifference))}</span>
                     </div>
                   )}
+                  <input type="text" value={shiftNote} onChange={e => setShiftNote(e.target.value)} maxLength={200}
+                    className="input w-full text-sm" placeholder="Note (optional) — e.g. Rs. 500 given to owner" aria-label="Shift note" />
+                  {savedShift ? (
+                    <p className="text-sm font-bold text-success-fg">✓ Shift close saved {new Date(savedShift.at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })} by {user.username}{savedShift.offline ? ' — will sync when online' : ''}</p>
+                  ) : (
+                    <button type="button" onClick={saveShiftClose} disabled={savingShift || eodCounted === ''} className="btn btn-primary w-full min-h-11">
+                      {savingShift ? 'Saving…' : eodCounted === '' ? 'Count the cash to close the shift' : '💾 Save shift close'}
+                    </button>
+                  )}
                 </div>
+                {recentShifts && recentShifts.length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold text-fg-subtle uppercase tracking-wider mb-1">Recent closes</p>
+                    <ul className="divide-y divide-line-subtle text-sm">
+                      {recentShifts.map(sh => {
+                        const d = Number(sh.difference || 0)
+                        return (
+                          <li key={sh.id} className="flex items-center justify-between gap-2 py-1.5">
+                            <span className="min-w-0 truncate text-fg-2">{new Date(sh.closed_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} · {sh.username || '—'}{sh.note ? ` · ${sh.note}` : ''}</span>
+                            <span className={`shrink-0 font-bold tabular-nums ${Math.abs(d) < 1 ? 'text-success-fg' : 'text-danger-fg'}`}>{Math.abs(d) < 1 ? '✓' : `${d > 0 ? '+' : '−'}${rs(Math.abs(d))}`}</span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
                 <p className="text-[11px] text-fg-subtle">Expenses are counted as cash. Supplier and customer payments count as cash unless their payment mode says otherwise.</p>
               </div>
             ) : <div className="p-8 text-center text-danger-fg">Could not load data.</div>}

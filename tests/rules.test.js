@@ -57,3 +57,8 @@ test('bill code: QR link, bare code and invoice numbers are understood', () => {
   assert.equal(saleMatchesNumber({ id: 5021 }, '5021'), true)
   assert.equal(saleMatchesNumber({ id: 5021 }, '502'), false)
 })
+
+test('sync label: an offline shift close', () => {
+  const d = describeSyncItem({ table: 'cash_shifts', action: 'INSERT', data: { username: 'ali', counted_cash: 4800 } })
+  assert.deepEqual(d, { title: 'New shift close', detail: 'ali', amount: 4800 })
+})

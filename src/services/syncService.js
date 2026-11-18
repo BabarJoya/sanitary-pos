@@ -285,6 +285,11 @@ async function processQueue() {
                 error = err;
                 returnedData = resData;
 
+                // Server-only tables (e.g. cash_shifts) have no local copy to refresh
+                if (!error && returnedData && !db[item.table]) {
+                    await db.sync_queue.delete(item.id)
+                    continue
+                }
                 if (!error && returnedData) {
                     if (isArray) {
                         const originalIds = processedData.map(d => d.id).filter(id => typeof id === 'string' && id.includes('-'));

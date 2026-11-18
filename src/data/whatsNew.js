@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-06',
+    date: '6 Dec 2026',
+    title: 'Shift close saved on the server',
+    items: [
+      { text: "Close Day → count the cash → 💾 Save shift close: opening, expected, counted and short/extra are saved with the cashier's name", module: 'Dashboard', to: '/dashboard' },
+      { text: 'See the last closes and who was short or extra — from any phone or computer', module: 'Dashboard', to: '/dashboard' },
+      { text: 'Saved closes cannot be changed or deleted later; offline closes send when the internet is back', module: 'Safety' },
+    ],
+  },
+  {
     id: '2026-12-05',
     date: '5 Dec 2026',
     title: 'Returns by scanning the bill',

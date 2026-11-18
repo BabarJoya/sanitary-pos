@@ -8,6 +8,7 @@ const TABLE_LABELS = {
   customers: 'Customer', customer_payments: 'Customer payment', suppliers: 'Supplier',
   supplier_payments: 'Supplier payment', products: 'Product', expenses: 'Expense', brands: 'Brand',
   units: 'Unit', shops: 'Shop settings', audit_logs: 'Activity log', categories: 'Category',
+  cash_shifts: 'Shift close',
 }
 const TX_LABELS = {
   complete_sale: 'Sale (bill)', complete_purchase: 'Purchase (bill)',
@@ -44,8 +45,8 @@ export function describeSyncItem(item) {
   }
   const rows = Array.isArray(data) ? data : [data]
   const first = rows[0] || {}
-  const name = first.name || first.product_name || first.customer_name || first.supplier_name || first.description || first.note || ''
-  const amount = num(first.amount ?? first.total_amount ?? first.paid_amount)
+  const name = first.name || first.product_name || first.customer_name || first.supplier_name || first.description || first.username || first.note || ''
+  const amount = num(first.amount ?? first.total_amount ?? first.paid_amount ?? first.counted_cash)
   const base = TABLE_LABELS[table] || table
   return {
     title: ACTION_LABELS[action] ? `${ACTION_LABELS[action]} ${base.toLowerCase()}` : base,
