@@ -860,7 +860,7 @@ Customer balance transaction ledger ke mutabiq sync ho jayega.`)
                 const payAmt = parseFloat(txForm.payment_amount) || 0
                 const newBalance = prevBalance + saleAmt - payAmt
                 return (
-                    <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+                    <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
                         <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-md">
                             <h2 className="text-xl font-bold text-fg mb-1">➕ Add Transaction</h2>
                             <p className="text-xs text-fg-subtle mb-4">Sale aur payment ek saath ya alag alag darj karein</p>

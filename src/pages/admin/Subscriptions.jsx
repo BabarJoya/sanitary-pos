@@ -535,7 +535,7 @@ export default function Subscriptions() {
 
             {/* Payment Modal */}
             {paymentModalOpen && selectedShop && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div className="fixed inset-0 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center-safe justify-center p-4 z-50">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                         <div className="p-6 border-b border-gray-100 bg-slate-50 flex justify-between items-center">
                             <div>
@@ -646,7 +646,7 @@ export default function Subscriptions() {
 
             {/* Ledger Modal */}
             {ledgerModalOpen && selectedShop && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div className="fixed inset-0 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center-safe justify-center p-4 z-50">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                         <div className="p-6 border-b border-gray-100 bg-slate-50 flex justify-between items-center shrink-0">
                             <div>
@@ -706,7 +706,7 @@ export default function Subscriptions() {
 
             {/* WhatsApp Reminder Modal */}
             {whatsAppModalOpen && whatsAppShop && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div className="fixed inset-0 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center-safe justify-center p-4 z-50">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="p-6 border-b border-gray-100 bg-slate-50 flex justify-between items-center">
                             <div>

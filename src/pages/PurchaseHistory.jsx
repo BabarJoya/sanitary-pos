@@ -639,7 +639,7 @@ function PurchaseHistory() {
 
                 {/* Detail Modal */}
                 {selectedPurchase && (
-                    <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+                    <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
                         <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90dvh] overflow-y-auto">
                             <div className="flex justify-between items-start mb-4">
                                 <div>

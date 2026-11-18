@@ -181,7 +181,7 @@ export function NotificationPopup({ item, role, onClose }) {
   if (!item) return null
   const close = () => onClose(item.id)
   return (
-    <div className="fixed inset-0 bg-black/50 z-[90] flex items-end sm:items-center justify-center p-3 sm:p-4" onClick={close}>
+    <div className="fixed inset-0 bg-black/50 z-[90] flex items-end sm:items-center-safe justify-center p-3 sm:p-4" onClick={close}>
       <div
         role="dialog"
         aria-modal="true"

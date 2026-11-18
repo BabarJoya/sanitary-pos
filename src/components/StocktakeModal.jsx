@@ -92,7 +92,7 @@ export default function StocktakeModal({ products, user, onClose, onDone }) {
   }
 
   return (
-    <div className="modal-backdrop fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="stocktake-title">
+    <div className="modal-backdrop fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center-safe justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="stocktake-title">
       <div className="modal-panel bg-surface w-full max-w-3xl max-h-[90dvh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl">
         <div className="p-4 border-b border-line flex items-start justify-between gap-3">
           <div>

@@ -1642,7 +1642,7 @@ function Settings() {
 
       {/* ── Billing Template Quick View Modal ── */}
       {previewTemplateId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center-safe justify-center p-4">
           <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-line-subtle">
             {/* Header */}
             <div className="bg-contrast text-white px-6 py-4 flex items-center justify-between">
