@@ -1,15 +1,11 @@
 import { useState } from 'react'
 import { supabase } from '../services/supabase'
 import { Modal } from './ui'
+import { openWhatsApp } from '../utils/whatsapp'
 
 // Private statement link for one customer (sql/customer_portal_migration.sql).
 // The customer opens it without logging in and sees only their own account.
 const isMissingFn = (e) => e && (e.code === 'PGRST202' || e.code === '42883')
-const waPhone = (p) => {
-  let phone = String(p || '').replace(/[^0-9]/g, '')
-  if (phone.startsWith('03')) phone = '92' + phone.slice(1)
-  return phone
-}
 
 export default function CustomerLinkButton({ customer, user }) {
   const [open, setOpen] = useState(false)
@@ -55,7 +51,7 @@ export default function CustomerLinkButton({ customer, user }) {
   const sendWhatsApp = () => {
     const shopName = localStorage.getItem(`shop_name_${user?.shop_id}`) || 'our shop'
     const text = `Assalam-o-Alaikum ${customer.name}!\n\n${shopName} mein aap ka account (bills, payments aur baqaya) yahan dekhein:\n${link.url}\n\nYeh link sirf aap ke liye hai. Shukriya!`
-    window.open(`https://wa.me/${waPhone(customer.phone)}?text=${encodeURIComponent(text)}`, '_blank')
+    openWhatsApp({ shopId: user?.shop_id, kind: 'link', phone: customer.phone, name: customer.name, text })
   }
 
   const until = link?.expires_at ? new Date(link.expires_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : ''

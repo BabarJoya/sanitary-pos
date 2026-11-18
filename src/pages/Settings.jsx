@@ -14,6 +14,7 @@ import { syncOfflineData, getSyncQueueStatus, retryFailedSyncItems } from '../se
 import { BUSINESS_PRESETS } from '../utils/businessPresets'
 import { Store, Tag, Receipt, ShieldCheck, Printer, MessageCircle, Database, BarChart3, CreditCard, AlertTriangle, Palette } from 'lucide-react'
 import AppearanceSection from '../components/settings/AppearanceSection'
+import WhatsAppTemplateEditor from '../components/WhatsAppTemplateEditor'
 
 // Sidebar sections. `form: true` sections share the single profile form and its Save button.
 const SETTINGS_SECTIONS = [
@@ -36,6 +37,8 @@ function Settings() {
   const [shop, setShop] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [billPageSaving, setBillPageSaving] = useState(false)
+  const [billPageMsg, setBillPageMsg] = useState('')
   const [activeSection, setActiveSection] = useState(() => {
     const h = (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '')
     return SECTION_IDS.includes(h) ? h : 'profile'
@@ -69,8 +72,8 @@ function Settings() {
       quotation_footer: 'یہ صرف قیمت نامہ ہے',
       print_size: 'thermal',
       print_mode: 'manual',
-      wa_reminder_template: 'Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!',
-      wa_bill_template: 'Hello [Name], thank you for shopping at [Shop Name]! Your bill summary for Invoice #[ID] is Rs. [Amount]. Thank you for your business!',
+      wa_reminder_template: '',
+      wa_bill_template: '',
       wa_reorder_template: 'Assalam-o-Alaikum *[Supplier Name]*! 🙏\n\n*[Shop Name]* se order:\n\n[Items]\n\nMeharbani farma kar jald supply karein. Shukriya!',
       invoice_prefix: '',
       business_preset: 'general',
@@ -80,6 +83,7 @@ function Settings() {
       cost_method: 'last',
       owner_whatsapp: '',
       bill_qr: true,
+      bill_page_full: true,
       tax_number: '',
       pos_layout: 'two_stage'
     }
@@ -187,6 +191,26 @@ function Settings() {
     change: 0
   }
 
+  // QR page: show the printed bill (receipt / A4) — stored on the shop row, so the
+  // customer's phone sees it (sql/bill_page_options_migration.sql)
+  const saveBillPageFull = async (on) => {
+    setBillPageSaving(true); setBillPageMsg('')
+    try {
+      if (!navigator.onLine) throw new Error('Internet chahiye — yeh setting server par save hoti hai.')
+      const { error } = await supabase.rpc('set_bill_page_options', { p_shop_id: user.shop_id, p_show_full: on })
+      if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883') throw new Error('Database update needed: run sql/bill_page_options_migration.sql in Supabase.')
+        throw error
+      }
+      setForm(prev => ({ ...prev, bill_page_full: on }))
+      setBillPageMsg(on ? 'Saved ✓ Customers can view the printed bill.' : 'Saved ✓ Customers see the summary only.')
+    } catch (err) {
+      setBillPageMsg(err?.message || String(err))
+    } finally {
+      setBillPageSaving(false)
+    }
+  }
+
   const getPreviewHTML = (templateId, size) => {
     const tempSettings = {
       name: form.name || 'EdgeX POS Demo',
@@ -275,6 +299,7 @@ function Settings() {
         cost_method:          saved.cost_method  || prev.cost_method  || 'last',
         owner_whatsapp:       saved.owner_whatsapp ?? prev.owner_whatsapp ?? '',
         bill_qr:              saved.bill_qr ?? prev.bill_qr ?? true,
+        bill_page_full:       typeof data.bill_page_full === 'boolean' ? data.bill_page_full : (prev.bill_page_full ?? true),
         // Appearance is a local, per-shop preference (not stored in the shops table) — keep it.
         theme_mode:           saved.theme_mode   || prev.theme_mode,
         theme_accent:         saved.theme_accent || prev.theme_accent,
@@ -984,6 +1009,17 @@ function Settings() {
                 <span className="block text-xs text-fg-muted">The customer scans it to open the bill on their phone — handy for warranty and when the paper fades. Needs sql/bill_link_migration.sql. Saved on this device.</span>
               </span>
             </label>
+            <label className="md:col-span-2 flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={form.bill_page_full !== false} disabled={billPageSaving} onChange={e => saveBillPageFull(e.target.checked)}
+                className="mt-1 h-5 w-5 rounded border-line-strong text-primary-fg focus:ring-2 focus:ring-primary disabled:opacity-50" />
+              <span>
+                <span className="block text-sm font-bold text-fg-2">Show the printed bill on the QR page</span>
+                <span className="block text-xs text-fg-muted">
+                  When a customer scans the QR, they can also open the actual bill as an 80mm receipt or an A4 invoice (with the QR), print it or download a PDF. Off = they only see the summary. Saved for all devices.
+                </span>
+                {billPageMsg && <span role="status" className="block text-xs font-semibold text-fg-2 mt-1">{billPageMsg}</span>}
+              </span>
+            </label>
           </div>
 
           </div>
@@ -992,42 +1028,14 @@ function Settings() {
           {activeSection === 'whatsapp' && (
           <div className={SECTION_GROUP}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-            <div className="md:col-span-2">
-              <h3 className="text-sm font-black text-primary-fg uppercase tracking-wider mb-3">WhatsApp Messaging Templates</h3>
-              <p className="text-[10px] text-fg-subtle mb-4">
-                Customer templates: <code className="bg-surface-3 px-1 rounded">[Name]</code> <code className="bg-surface-3 px-1 rounded">[Amount]</code> <code className="bg-surface-3 px-1 rounded">[Shop Name]</code> <code className="bg-surface-3 px-1 rounded">[ID]</code>
-                &nbsp;·&nbsp; Reorder template: <code className="bg-surface-3 px-1 rounded">[Supplier Name]</code> <code className="bg-surface-3 px-1 rounded">[Shop Name]</code> <code className="bg-surface-3 px-1 rounded">[Items]</code>
-              </p>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-fg-3 mb-1">💬 Debt Reminder Template</label>
-              <textarea
-                value={form.wa_reminder_template}
-                onChange={e => setForm({ ...form, wa_reminder_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-20"
-                placeholder="Hello [Name], your balance is Rs. [Amount]..."
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-fg-3 mb-1">🧾 New Bill / Sale Template</label>
-              <textarea
-                value={form.wa_bill_template}
-                onChange={e => setForm({ ...form, wa_bill_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-20"
-                placeholder="Hello [Name], thank you for shopping! Bill #[ID] for Rs. [Amount]..."
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-bold text-fg-3 mb-1">📦 Low Stock Reorder Template (Inventory → Reorder WA)</label>
-              <textarea
-                value={form.wa_reorder_template}
-                onChange={e => setForm({ ...form, wa_reorder_template: e.target.value })}
-                className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm h-24"
-                placeholder="Assalam-o-Alaikum *[Supplier Name]*!&#10;&#10;*[Shop Name]* se order:&#10;&#10;[Items]&#10;&#10;Meharbani farma kar supply karein."
-              />
-              <p className="text-[10px] text-fg-subtle mt-1">
-                <code className="bg-surface-3 px-1 rounded">[Items]</code> is auto-filled with low stock product names, current stock and suggested reorder quantity.
-              </p>
+            <div className="md:col-span-2 space-y-4">
+              <div>
+                <h3 className="text-sm font-black text-primary-fg uppercase tracking-wider">WhatsApp message templates</h3>
+                <p className="text-xs text-fg-muted mt-1">Click a [placeholder] to insert it. The preview shows how the message will look in WhatsApp. Press Save Settings below to keep changes. Every message sent appears in WhatsApp → Outbox.</p>
+              </div>
+              <WhatsAppTemplateEditor kind="bill" value={form.wa_bill_template} onChange={v => setForm(prev => ({ ...prev, wa_bill_template: v }))} />
+              <WhatsAppTemplateEditor kind="reminder" value={form.wa_reminder_template} onChange={v => setForm(prev => ({ ...prev, wa_reminder_template: v }))} />
+              <WhatsAppTemplateEditor kind="reorder" value={form.wa_reorder_template} onChange={v => setForm(prev => ({ ...prev, wa_reorder_template: v }))} />
             </div>
           </div>
 

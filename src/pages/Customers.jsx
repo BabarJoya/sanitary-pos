@@ -12,6 +12,7 @@ import { getShopSettings, isWholesaleEnabled, normalizeTier } from '../utils/bus
 import { openingRow } from '../utils/ledgerMath'
 import EmptyState from '../components/EmptyState'
 import { can, notAllowed } from '../utils/permissions'
+import { openWhatsApp, templateFor, fillTemplate } from '../utils/whatsapp'
 
 function Customers() {
   const { user } = useAuth()
@@ -161,21 +162,18 @@ function Customers() {
     reader.readAsBinaryString(file)
   }
 
-  // WhatsApp payment reminder using the shop's template
-  const sendReminder = async (c) => {
-    const { data: shop } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
-    const phone = c.phone.replace(/[^0-9]/g, '')
-    let formattedPhone = phone
-    if (phone.startsWith('03')) formattedPhone = '92' + phone.substring(1)
-    else if (phone.length === 10) formattedPhone = '92' + phone
-
-    const template = shop?.wa_reminder_template || "Hello [Name], this is a reminder from [Shop Name] regarding your outstanding balance of Rs. [Amount]. Please clear your dues at your earliest convenience. Thank you!"
-    const msg = template
-      .replace(/\[Name\]/g, c.name)
-      .replace(/\[Amount\]/g, (c.outstanding_balance || 0).toLocaleString())
-      .replace(/\[Shop Name\]/g, shop?.name || 'our shop')
-
-    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank')
+  // WhatsApp payment reminder from the shop's template (Settings → WhatsApp).
+  // No server call before opening WhatsApp, so phone browsers do not block it.
+  const sendReminder = (c) => {
+    const settings = getShopSettings(user?.shop_id)
+    const text = fillTemplate(templateFor('reminder', settings), {
+      Name: c.name,
+      'Shop Name': localStorage.getItem(`shop_name_${user?.shop_id}`) || settings.name || 'our shop',
+      Amount: Math.round(Number(c.outstanding_balance) || 0).toLocaleString('en-PK'),
+      Days: '',
+      Link: '',
+    })
+    openWhatsApp({ shopId: user.shop_id, kind: 'reminder', phone: c.phone, name: c.name, text })
   }
 
   const handleEdit = (c) => {

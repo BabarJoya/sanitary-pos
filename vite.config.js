@@ -78,7 +78,10 @@ export default defineConfig({
         ],
         // Don't cache these (they change dynamically)
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/]
+        // Customer-facing links (bill QR /b/…, customer link /c/…) always load the
+        // latest app from the server, so a phone with an old cached app never shows
+        // a blank page for them.
+        navigateFallbackDenylist: [/^\/api/, /^\/b\//, /^\/c\//]
       },
       devOptions: {
         // Enable SW in dev mode so you can test offline locally

@@ -920,7 +920,7 @@ function Inventory() {
 
       {/* Adjust Stock Modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-fg">Manual Adjustment</h2>
@@ -972,7 +972,7 @@ function Inventory() {
       )}
       {/* Record Return Modal */}
       {returnProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-fg">Record Product Return</h2>
@@ -1036,7 +1036,7 @@ function Inventory() {
 
       {/* Bulk Price Update Modal */}
       {showBulkPriceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-fg">Bulk Price Update</h2>
@@ -1125,7 +1125,7 @@ function Inventory() {
 
       {/* History Modal */}
       {historyProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <div>
@@ -1185,7 +1185,7 @@ function Inventory() {
 
       {/* Bulk Price Editor Modal */}
       {showBulkEditor && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-4xl flex flex-col">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <div>
@@ -1300,7 +1300,7 @@ function Inventory() {
           p.brand === arBrand && (arCategory ? String(p.category_id) === String(arCategory) : true)
         ).length
         return (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+          <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
             <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-fg">🎯 Adjust Rates</h2>

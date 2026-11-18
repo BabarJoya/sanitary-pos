@@ -252,7 +252,7 @@ function Layout({ children }) {
               <NavItem to="/customer-ledger" icon={<BookOpen size={18} />} label="Customer Ledger" active={location.pathname === '/customer-ledger'} locked={!hasFeature('customer_ledger')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('customers', ['admin', 'manager', 'cashier']) && (
-              <NavItem to="/whatsapp" icon={<MessageSquare size={18} />} label="WhatsApp Reminders" active={location.pathname === '/whatsapp'} locked={!hasFeature('whatsapp')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
+              <NavItem to="/whatsapp" icon={<MessageSquare size={18} />} label="WhatsApp" active={location.pathname === '/whatsapp'} locked={!hasFeature('whatsapp')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />
             )}
             {hasAccess('sales', ['admin', 'manager', 'accountant']) && (
               <NavItem to="/sales" icon={<Receipt size={18} />} label="Sales History" active={location.pathname === '/sales'} locked={!hasFeature('sales_history')} onClick={() => setSidebarOpen(false)} collapsed={sidebarCollapsed} />

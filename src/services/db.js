@@ -158,6 +158,11 @@ db.version(12).stores({
   held_purchases: '++id, supplier_id, shop_id, saved_at'
 });
 
+// v13: WhatsApp Outbox — every WhatsApp message the app prepared (src/utils/whatsapp.js)
+db.version(13).stores({
+  wa_outbox: '++id, shop_id, kind, created_at'
+});
+
 export const addToSyncQueue = async (table, action, data) => {
   await db.sync_queue.add({
     table,

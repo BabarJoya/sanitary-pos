@@ -665,8 +665,13 @@ function billQrBlock(r, s, isPurchase, thermal) {
     ? `<div style="text-align:center;margin:10px 0 4px;page-break-inside:avoid">${q.svg(110)}
          <p style="margin:2px 0;font-size:10px;font-weight:bold">Scan to view this bill online</p>
          <p style="margin:0;font-size:9px;word-break:break-all;color:#333">${q.short}</p></div>`
-    : `<div style="display:flex;align-items:center;gap:12px;margin-top:18px;page-break-inside:avoid">${q.svg(96)}
-         <div style="font-size:12px;color:#334155"><b>Scan to view this bill online</b><br><span style="font-size:11px;word-break:break-all">${q.short}</span></div></div>`
+    : `<div style="display:flex;align-items:center;gap:14px;margin-top:18px;padding:12px 14px;border:1.5px solid #cbd5e1;border-radius:12px;max-width:380px;page-break-inside:avoid;background:#fff">
+         <div style="flex:none;padding:4px;border:1px solid #e2e8f0;border-radius:8px">${q.svg(108)}</div>
+         <div style="font-size:12px;color:#334155;line-height:1.45">
+           <div style="font-size:13px;font-weight:800;color:#0f172a">Scan to view this bill online</div>
+           <div>Open your phone camera and point it at the code to see, save or share this invoice.</div>
+           <div style="margin-top:4px;font-size:10.5px;color:#64748b;word-break:break-all">${q.short}</div>
+         </div></div>`
 }
 
 // ── TEMPLATE 5 — SMART (recommended) ─────────────────────────

@@ -4,6 +4,8 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { db } from '../services/db'
 import { ageBalance, customerLedgerDelta, paymentRowType, isLedgerSale } from '../utils/ledgerMath'
+import { openWhatsApp, templateFor, fillTemplate } from '../utils/whatsapp'
+import { getShopSettings } from '../utils/businessPresets'
 
 // ============================================================================
 // Payment reminders: customers who owe money, oldest dues first, with a one-tap
@@ -14,12 +16,6 @@ import { ageBalance, customerLedgerDelta, paymentRowType, isLedgerSale } from '.
 
 const DAY = 86400000
 const rs = (n) => `Rs. ${Math.round(Number(n) || 0).toLocaleString()}`
-const waPhone = (p) => {
-  let phone = String(p || '').replace(/[^0-9]/g, '')
-  if (phone.startsWith('03')) phone = '92' + phone.slice(1)
-  else if (phone.length === 10 && phone.startsWith('3')) phone = '92' + phone
-  return phone
-}
 
 export default function PaymentReminders({ customers, user }) {
   const [rows, setRows] = useState(null) // per-customer ageing
@@ -88,11 +84,15 @@ export default function PaymentReminders({ customers, user }) {
 
   const sendReminder = (r) => {
     const shopName = localStorage.getItem(`shop_name_${user?.shop_id}`) || 'our shop'
-    const msg = `Assalam-o-Alaikum ${r.c.name}!\n\n${shopName} se yaad dehani: aap ka baqaya *${rs(r.balance)}* hai`
-      + (r.oldestDays > 30 ? ` (sab se purana bill ${r.oldestDays} din purana).` : '.')
-      + `\n\nMeharbani farma kar jald ada kar dein. Shukriya!`
-    const phone = waPhone(r.c.phone)
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    // Shop's reminder template (Settings → WhatsApp); the "[Days]" line only when older than a month
+    const msg = fillTemplate(templateFor('reminder', getShopSettings(user?.shop_id)), {
+      Name: r.c.name,
+      'Shop Name': shopName,
+      Amount: Math.round(r.balance).toLocaleString('en-PK'),
+      Days: r.oldestDays > 30 ? String(r.oldestDays) : '',
+      Link: '',
+    })
+    openWhatsApp({ shopId: user?.shop_id, kind: 'reminder', phone: r.c.phone, name: r.c.name, text: msg })
     const now = new Date().toISOString()
     try { localStorage.setItem(remindKey(r.c.id), now) } catch { /* storage unavailable */ }
     setReminded(prev => ({ ...prev, [r.c.id]: now }))
