@@ -718,7 +718,7 @@ function Purchases() {
 
       {/* Quick View Modal */}
       {quickViewProduct && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setQuickViewProduct(null)}>
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setQuickViewProduct(null)}>
           <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h3 className="text-lg font-bold text-fg">📋 Product Details & Price History</h3>
@@ -805,7 +805,7 @@ function Purchases() {
 
       {/* Held Purchases Modal */}
       {showHeldPurchases && (
-        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowHeldPurchases(false)}>
+        <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4" onClick={() => setShowHeldPurchases(false)}>
           <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-fg">⏸️ Held Purchases</h3>

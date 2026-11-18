@@ -214,7 +214,7 @@ export default function BarcodeLabelModal({ isOpen, onClose, products = [], defa
   const labelList = Array.from({ length: Math.max(1, parseInt(quantity) || 1) }, (_, i) => i)
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center-safe justify-center p-3 sm:p-5 overflow-y-auto">
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-line-subtle animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}

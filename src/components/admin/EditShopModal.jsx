@@ -82,7 +82,7 @@ export default function EditShopModal({ shop, onClose, onUpdated }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 overflow-y-auto bg-slate-900/40 backdrop-blur-sm flex items-center-safe justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
           <div>

@@ -150,7 +150,7 @@ export default function CreateShopModal({ onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 overflow-y-auto bg-slate-900/40 backdrop-blur-sm flex items-center-safe justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50 shrink-0">
           <div>

@@ -829,7 +829,7 @@ Supplier balance transaction ledger ke mutabiq sync ho jayega.`)
 
             {/* ── Add Transaction Modal ── */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+                <div className="fixed inset-0 bg-black/40 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
                     <div className="bg-surface rounded-2xl shadow-2xl p-4 sm:p-6 w-full max-w-md">
                         <h2 className="text-xl font-bold text-fg mb-1">➕ Add Transaction</h2>
                         <p className="text-xs text-fg-subtle mb-4">Purchase aur payment ek saath darj kar saktay hain</p>

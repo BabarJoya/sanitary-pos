@@ -62,7 +62,7 @@ export default function SaleCompleteModal({ receipt, invoicePrefix = 'INV', canS
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-[2px] p-0 sm:p-4"
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center-safe justify-center bg-black/50 backdrop-blur-[2px] p-0 sm:p-4"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="sale-done-title"
         className="outline-none w-full sm:max-w-md max-h-[92dvh] flex flex-col bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl border border-line overflow-hidden">

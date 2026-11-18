@@ -587,7 +587,7 @@ function Dashboard() {
 
       {/* EOD Modal */}
       {showEOD && (
-        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
+        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center-safe justify-center z-50 overflow-y-auto py-4 px-2 sm:px-4">
           <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-md">
             <div className="p-6 border-b border-line-subtle">
               <div className="flex justify-between items-center">

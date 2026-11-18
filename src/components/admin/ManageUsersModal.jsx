@@ -237,7 +237,7 @@ export default function ManageUsersModal({ shop, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 overflow-y-auto bg-slate-900/40 backdrop-blur-sm flex items-center-safe justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
 
         {/* Header */}
@@ -476,7 +476,7 @@ export default function ManageUsersModal({ shop, onClose }) {
 
       {/* ── RESET & REVEAL PASSWORD MODAL ── */}
       {resetModalUser && (
-        <div className="fixed inset-0 bg-black/50 z-60 flex items-center justify-center p-4">
+        <div className="fixed inset-0 overflow-y-auto bg-black/50 z-60 flex items-center-safe justify-center p-4">
           <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">

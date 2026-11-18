@@ -10,6 +10,15 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-11-25',
+    date: '25 Nov 2026',
+    title: 'Pop-up windows fit the screen',
+    items: [
+      { text: 'Fixed: the brand price editor in Inventory no longer opens with its top hidden — you can always see the title and close button', module: 'Inventory', to: '/inventory' },
+      { text: 'Fixed: tall pop-ups on every screen now start at the top and scroll inside, on computers and phones', module: 'Fix' },
+    ],
+  },
+  {
     id: '2026-11-24',
     date: '24 Nov 2026',
     title: 'Real bill with QR for your customers',
