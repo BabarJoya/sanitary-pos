@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState, useRef } from 'react'
 import { Modal } from '../components/ui'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
@@ -19,6 +19,7 @@ import { useLang } from '../context/LanguageContext'
 import { can, notAllowed } from '../utils/permissions'
 import SaleCompleteModal from '../components/SaleCompleteModal'
 import QuickAddProduct from '../components/QuickAddProduct'
+import { buildSearchIndex, searchProducts } from '../utils/productSearch'
 import toast from '../utils/toast'
 const PAKISTANI_PAYMENT_PROVIDERS = [
   { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
@@ -288,6 +289,16 @@ function POS() {
   const [showRecentBills, setShowRecentBills] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [lastAddedId, setLastAddedId] = useState(null)
+  const [soldCount, setSoldCount] = useState({})
+  useEffect(() => {
+    let alive = true
+    db.sale_items.toArray().then(rows => {
+      const c = {}
+      for (const r of rows) if (r.product_id != null) c[String(r.product_id)] = (c[String(r.product_id)] || 0) + (Number(r.quantity) || 1)
+      if (alive) setSoldCount(c)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [lastReceipt])
   const [showQuickView, setShowQuickView] = useState(false)
   const [showMobileCart, setShowMobileCart] = useState(false)
 
@@ -605,24 +616,16 @@ function POS() {
     return acc
   }, {})
 
-  const filtered = products.filter(p => {
-    const q = search.trim().toLowerCase()
-    let matchSearch = true
-    if (q) {
-      const tokens = q.split(/\s+/).filter(Boolean)
-      const pName = String(p.name || '').toLowerCase()
-      const pBrand = String(p.brand || '').toLowerCase()
-      const pSku = String(p.sku || '').toLowerCase()
-      const pId = String(p.id || '').toLowerCase()
-      const pCat = String(categoryNameMap[String(p.category_id)] || p.categories?.name || '').toLowerCase()
-      const searchTarget = `${pName} ${pBrand} ${pSku} ${pId} ${pCat}`
-
-      matchSearch = tokens.every(token => searchTarget.includes(token))
-    }
-    const matchCat = selectedCategory ? String(p.category_id) === String(selectedCategory) : true
-    const matchBrand = selectedBrand ? String(p.brand) === String(selectedBrand) : true
-    return matchSearch && matchCat && matchBrand
-  })
+  // Smart search (typos, Roman-Urdu words, sounds-alike) with best sellers first
+  const searchIndex = useMemo(
+    () => buildSearchIndex(products, p => categoryNameMap[String(p.category_id)] || p.categories?.name || ''),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, categories])
+  const deferredSearch = useDeferredValue(search)
+  const filtered = useMemo(() => searchProducts(searchIndex, deferredSearch, soldCount).filter(p =>
+    (!selectedCategory || String(p.category_id) === String(selectedCategory)) &&
+    (!selectedBrand || String(p.brand) === String(selectedBrand))
+  ), [searchIndex, deferredSearch, soldCount, selectedCategory, selectedBrand])
 
   const addToCart = (product, qty = 1) => {
     const parsedQty = parseFloat(qty)
@@ -1446,9 +1449,10 @@ function POS() {
               if (!q) return
               e.preventDefault()
               const exact = findByCode(q)
-              const pick = exact || (filtered.length === 1 ? filtered[0] : null)
+              const live = searchProducts(searchIndex, q, soldCount).filter(p => (!selectedCategory || String(p.category_id) === String(selectedCategory)) && (!selectedBrand || String(p.brand) === String(selectedBrand)))
+              const pick = exact || (live.length === 1 ? live[0] : null)
               if (pick) { addToCart(pick); setSearch(''); return }
-              if (filtered.length === 0 && looksLikeBarcode(q)) {
+              if (live.length === 0 && looksLikeBarcode(q)) {
                 if (canQuickAdd) setQuickAddCode(q)
                 else toast.error(`❌ Barcode "${q}" — product not found. Ask the shop admin to add it.`)
               }
