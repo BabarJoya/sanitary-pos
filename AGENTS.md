@@ -15,7 +15,7 @@ Root: `npm run dev`, `npm run build`, `npm run lint`, `npm test`, `npm run previ
 Standalone admin: `cd superadmin`, then the same npm scripts.
 
 - Root lint is clean (0 errors, 0 warnings): keep it that way. Loader effects that intentionally list only their inputs carry an `eslint-disable-next-line react-hooks/exhaustive-deps -- reason` comment; window-level key handlers use a ref to the latest handler (see POS) instead of a dependency list.
-- Latest root build compiled, but the command exited nonzero during PWA/temp dependency initialization with Windows `EPERM` resolving `C:\Users\...\AppData`; Vite also warned that the 500.86 kB shared JS chunk exceeds its 500 kB threshold. Recheck in the deployment/CI environment before treating this as a code build failure.
+- Build splits React, Supabase, Dexie and icons into `vendor-*` chunks (`manualChunks` in `vite.config.js`); the app entry is ~105 kB. `npm run build` refuses to run without `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (placeholders are fine for a local check); `vite preview` does not need them.
 - Route chunks and action-time PDF/XLSX loading are already in use; do not assume the app is one monolithic entry bundle.
 
 ## Data, Auth, Offline
