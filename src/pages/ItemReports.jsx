@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
 import { db } from '../services/db'
+import { isDemoMode } from '../utils/demoFlag'
 import { hasFeature } from '../utils/featureGate'
 import UpgradeWall from '../components/UpgradeWall'
 import EmptyState from '../components/EmptyState'
@@ -40,7 +41,7 @@ export default function ItemReports() {
       const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (days - 1))
       const startISO = start.toISOString()
       try {
-        if (!navigator.onLine) throw new Error('Offline')
+        if (!navigator.onLine || isDemoMode()) throw new Error('Offline')
         const [pRes, iRes] = await Promise.all([
           fetchAllRows(() => supabase.from('products').select('id, name, brand, sku, stock_quantity, cost_price, sale_price').eq('shop_id', user.shop_id)),
           fetchAllRows(() => supabase.from('sale_items')
@@ -59,7 +60,7 @@ export default function ItemReports() {
         const sales = lS.filter(s => String(s.shop_id) === sid && s.sale_type !== 'quotation' && new Date(s.created_at) >= start)
         const saleDates = Object.fromEntries(sales.map(s => [String(s.id), new Date(s.created_at)]))
         const items = lI.filter(i => saleDates[String(i.sale_id)])
-        if (alive) { setData({ products: lP.filter(p => String(p.shop_id) === sid), items, saleDates }); setFromCache(true) }
+        if (alive) { setData({ products: lP.filter(p => String(p.shop_id) === sid), items, saleDates }); setFromCache(!isDemoMode()) }
       }
     }
     load()
