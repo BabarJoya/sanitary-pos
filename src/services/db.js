@@ -1,6 +1,9 @@
 import Dexie from 'dexie';
+import { isDemoMode, DEMO_DB_NAME } from '../utils/demoFlag';
 
-export const db = new Dexie('SanitaryPOS_Local');
+// "Try demo" uses its own database, so a real shop's data on this device is never touched
+const LOCAL_DB_NAME = isDemoMode() ? DEMO_DB_NAME : 'SanitaryPOS_Local';
+export const db = new Dexie(LOCAL_DB_NAME);
 
 db.version(1).stores({
   products: 'id, name, brand, category_id, shop_id',
@@ -199,7 +202,7 @@ const QUEUE_BACKUP_KEY = 'edgex_sync_queue_backup'
 
 async function backupQueueBeforeRebuild() {
   try {
-    const raw = new Dexie('SanitaryPOS_Local') // dynamic mode: opens whatever schema exists
+    const raw = new Dexie(LOCAL_DB_NAME) // dynamic mode: opens whatever schema exists
     await raw.open()
     const table = raw.tables.find(t => t.name === 'sync_queue')
     const items = table ? await table.toArray() : []

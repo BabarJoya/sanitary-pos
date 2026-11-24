@@ -1,6 +1,7 @@
 import { db } from './db';
 import { supabase } from './supabase';
 import { isTempId, runDeltaRpc, isMissingColumn, runTx } from './integrity';
+import { isDemoMode } from '../utils/demoFlag';
 
 // Tables that only exist locally and should NOT be synced to Supabase
 const LOCAL_ONLY_TABLES = ['held_carts', 'held_purchases']
@@ -43,6 +44,7 @@ function stripColumns(payload, cols) {
 let inFlight = null
 
 export const syncOfflineData = () => {
+    if (isDemoMode()) return Promise.resolve() // demo shop: nothing is sent
     if (inFlight) return inFlight
     const run = async () => {
         // Also serialise across browser tabs where supported
@@ -379,7 +381,7 @@ export async function retrySyncItem(id) {
 
 // Discard never loses data silently: the item is kept in a local backup
 // (newest 50) and can be put back from the Sync status page.
-const DISCARD_KEY = 'edgex_sync_discarded'
+const DISCARD_KEY = isDemoMode() ? 'edgex_sync_discarded_demo' : 'edgex_sync_discarded'
 export function getDiscardedSyncItems() {
     try { return JSON.parse(localStorage.getItem(DISCARD_KEY) || '[]') } catch { return [] }
 }
