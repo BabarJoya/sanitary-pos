@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-09',
+    date: '9 Dec 2026',
+    title: "Update cost prices from a supplier's rate list",
+    items: [
+      { text: "Inventory → 📥 Supplier rate list: upload the supplier's Excel or CSV price list and see which cost prices went up or down", module: 'Inventory', to: '/inventory' },
+      { text: 'Tick the items to update — matched by barcode or name, even with spelling mistakes', module: 'Inventory', to: '/inventory' },
+      { text: '\'Keep my margin\' moves the sale price too, so your profit stays the same', module: 'Inventory', to: '/inventory' },
+    ],
+  },
+  {
     id: '2026-12-08',
     date: '8 Dec 2026',
     title: 'Item report: profit, reorder and dead stock',

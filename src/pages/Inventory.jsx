@@ -16,6 +16,7 @@ import StocktakeModal from '../components/StocktakeModal'
 import ReorderModal from '../components/ReorderModal'
 import toast from '../utils/toast'
 import FilterBar from '../components/FilterBar'
+import RateListImport from '../components/RateListImport'
 
 function Inventory() {
   const { user } = useAuth()
@@ -29,6 +30,7 @@ function Inventory() {
   const [selectedBrand, setSelectedBrand] = useState('')
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
+  const [showRateList, setShowRateList] = useState(false)
 
   // Bulk Price Update
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false)
@@ -703,6 +705,13 @@ function Inventory() {
 
       {/* Inventory actions */}
       <div className="flex flex-wrap gap-2 items-center" aria-label="Inventory actions">
+            {(user.role === 'admin' || user.role === 'manager') && (
+              <button type="button" onClick={() => setShowRateList(true)}
+                className="px-3 py-1.5 bg-success-soft hover:bg-success-muted text-success-strong border border-success-line rounded-lg transition font-bold text-xs flex items-center gap-1.5"
+                title="Import a supplier's price list and update cost prices">
+                📥 Supplier rate list
+              </button>
+            )}
             <button
               onClick={() => setShowBarcodeModal(true)}
               className="px-3 py-1.5 bg-primary-soft hover:bg-primary-muted text-primary-strong border border-primary-line rounded-lg transition font-bold text-xs flex items-center gap-1.5"
@@ -1362,6 +1371,8 @@ function Inventory() {
           </Modal>
         )
       })()}
+
+      <RateListImport open={showRateList} onClose={() => setShowRateList(false)} products={products} user={user} onApplied={fetchInventory} />
 
       {/* Barcode Label Printing Modal */}
       {showBarcodeModal && (
