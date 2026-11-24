@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import './services/syncService'
+import { db } from './services/db'
+import { ensureDemoSeeded, isDemoMode } from './services/demoMode'
 
 // ── RLS error interceptor ─────────────────────────────────────────────────
 if (typeof window !== 'undefined') {
@@ -31,7 +33,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 const VERSION_KEY = 'edgex_app_version'
 
 async function checkForForceUpdate() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !navigator.onLine) return
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !navigator.onLine || isDemoMode()) return
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/system_configs?key=eq.force_refresh_version&select=value`,
@@ -89,8 +91,13 @@ setTimeout(checkForForceUpdate, 3000)
 // Then every 5 minutes
 setInterval(checkForForceUpdate, 5 * 60 * 1000)
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Demo shop: seed its local database first (no-op outside demo mode)
+ensureDemoSeeded(db)
+  .catch(e => console.error('Demo data could not be prepared', e))
+  .finally(() => {
+    createRoot(document.getElementById('root')).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    )
+  })

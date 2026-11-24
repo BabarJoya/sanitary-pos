@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Sparkles, X, ArrowRight } from 'lucide-react'
 import WHATS_NEW, { LATEST_WHATS_NEW_ID } from '../data/whatsNew'
+import { isDemoMode } from '../utils/demoFlag'
 
 // Header ✨ button + the full-screen "What's new" page.
 // - A dot shows until this device has opened the newest entry (per device).
@@ -120,7 +121,8 @@ export default function WhatsNewButton() {
 
   // Opens by itself once per new release, but never over the POS screen.
   useEffect(() => {
-    if (hasNew && !open && !location.pathname.startsWith('/pos')) openPanel()
+    // Not in the demo shop: visitors should land on the dashboard (the ✨ button still opens it)
+    if (hasNew && !open && !isDemoMode() && !location.pathname.startsWith('/pos')) openPanel()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname])
 

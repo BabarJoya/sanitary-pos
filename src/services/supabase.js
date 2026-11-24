@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { isDemoMode } from '../utils/demoFlag'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -14,6 +15,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     },
     global: {
         fetch: (url, options) => {
+            // Demo shop never reaches the server: every request behaves like no internet
+            if (isDemoMode()) return Promise.reject(new TypeError('Failed to fetch'))
             const token = localStorage.getItem('session_token') || ''
             options = options || {}
             options.headers = options.headers || {}
