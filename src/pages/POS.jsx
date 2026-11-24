@@ -118,7 +118,7 @@ function POS() {
     if (saved) {
       try {
         return JSON.parse(saved)
-      } catch (e) { /* fallback */ }
+      } catch (_e) { /* fallback */ }
     }
     return {
       name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'EdgeX POS',
@@ -142,7 +142,7 @@ function POS() {
       try {
         const parsed = JSON.parse(saved)
         if (parsed.pos_layout) return parsed.pos_layout
-      } catch (_) {}
+      } catch { /* not critical */ }
     }
     return 'two_stage'
   })
@@ -158,7 +158,7 @@ function POS() {
         current.pos_layout = newLayout
         localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(current))
         window.dispatchEvent(new Event('storage'))
-      } catch (_) {}
+      } catch { /* not critical */ }
     }
   }
 
@@ -173,7 +173,7 @@ function POS() {
           if (parsed.pos_layout && parsed.pos_layout !== posLayout) {
             setPosLayout(parsed.pos_layout)
           }
-        } catch (_) {}
+        } catch { /* not critical */ }
       }
     }
     window.addEventListener('storage', handleStorageChange)
@@ -263,7 +263,7 @@ function POS() {
         osc.connect(beep.destination)
         osc.frequency.value = 200
         osc.start(); osc.stop(beep.currentTime + 0.15)
-      } catch (_) {}
+      } catch { /* not critical */ }
       if (canQuickAdd) setQuickAddCode(rawSku)
       else toast.error(`❌ Barcode "${rawSku}" — product not found. Ask the shop admin to add it.`)
     }
@@ -306,6 +306,7 @@ function POS() {
 
   useEffect(() => {
     if (user?.shop_id) fetchAll()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   // Auto-load quotation if ID is in URL
@@ -314,6 +315,7 @@ function POS() {
     if (qId && products.length > 0) {
       handleAutoConvert(qId)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- convert a quotation once the products have loaded
   }, [searchParams, products])
 
   useEffect(() => {
@@ -332,6 +334,7 @@ function POS() {
       window.removeEventListener('storage', handleSync)
       window.removeEventListener('focus', handleSync)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [])
 
   const fetchHeldCarts = async () => {
@@ -340,7 +343,7 @@ function POS() {
   }
 
   const handleAutoConvert = async (id) => {
-    const { data: sale, error } = await supabase
+    const { data: sale } = await supabase
       .from('sales')
       .select('*, sale_items(*)')
       .eq('id', id)
@@ -464,7 +467,7 @@ function POS() {
       setCustomers(myCustomers)
       setBrands(myBrands)
       setBrandCategoryMap(bcMap)
-    } catch (e) {
+    } catch (_e) {
       console.log('POS: Fetching from local DB (Offline Fallback)')
       try {
         const [lProds, lCats, lCustomers, lBrands, lBrandCats] = await Promise.all([
@@ -537,11 +540,14 @@ function POS() {
       const allowed = brandCategoryMap[brandObj.id].map(String)
       if (!allowed.includes(String(selectedCategory))) setSelectedCategory('')
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset the category when the brand changes
   }, [selectedBrand])
 
   // Counter Keyboard Shortcuts (F2: search, F4: tender, F8: retail/wholesale, F9 / Ctrl+Enter: complete sale, Esc: clear/dismiss)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
+  // The listener is added once and always runs this render's handler, so F9 uses the
+  // current customer, payment and cart (a dependency list here went stale).
+  const keyHandlerRef = useRef(null)
+  keyHandlerRef.current = (e) => {
       // Don't intercept when typing in active text inputs except for function keys & Ctrl+Enter
       const activeEl = document.activeElement
       const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')
@@ -596,9 +602,11 @@ function POS() {
         setLastReceipt(null)
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [total, cart, saving, showTenderSheet, showPaymentModal, showQuickView, showBrandDiscount, showSaveCustomer, showQuotationSearch, showHeldCarts, lastReceipt, search, receivedAmount, wholesaleEnabled, isWholesale, priceTier, products, saleType, barcodeMode, lastAddedId, showRecentBills, showShortcuts])
+  useEffect(() => {
+    const onKey = (e) => keyHandlerRef.current?.(e)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // Remember each completed bill (newest first, 5 max) for the Recent bills list
   useEffect(() => {
@@ -1273,7 +1281,7 @@ function POS() {
 
     // If it's a number, try exact match first for performance
     if (!isNaN(qId)) {
-      const { data, error } = await query.eq('id', parseInt(qId)).maybeSingle()
+      const { data } = await query.eq('id', parseInt(qId)).maybeSingle()
       if (data) {
         loadSaleToCart(data)
         return
@@ -1300,7 +1308,7 @@ function POS() {
     // Uses shop_id-scoped keys for full multitenancy.
     const sid = user?.shop_id
     let saved = {}
-    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) {}
+    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch { /* not critical */ }
 
     const freshLogo = (sid ? localStorage.getItem(`shop_logo_${sid}`) : null)
       || saved.logo_url || form.logo_url || ''
@@ -1371,15 +1379,6 @@ function POS() {
   }
   const printReceipt = () => printReceiptOf(lastReceipt)
 
-  const printQuotation = () => {
-    const customer = customers.find(c => String(c.id) === String(customerId))
-    // Same figures as the cart (percent mode included), never a stale typed amount
-    const sub = subtotal
-    const disc = totalDiscount
-    const tot = total
-    const fakeSale = { id: Date.now(), created_at: new Date().toISOString(), created_by: user?.username || 'Staff', payment_type: paymentType, payment_details: null, paid_amount: tot }
-    printHTML(buildReceiptHTML({ sale: fakeSale, items: cart, customer, subtotal: sub, totalDiscount: disc, total: tot, paymentType }, true))
-  }
 
   const waQuotation = async (e) => {
     const btn = e?.currentTarget

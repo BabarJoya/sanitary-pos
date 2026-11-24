@@ -51,6 +51,7 @@ function AddProduct() {
 
   useEffect(() => {
     fetchData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [])
 
   const fetchData = async () => {
@@ -69,7 +70,7 @@ function AddProduct() {
       const [catResult, supResult, brandResult, unitResult] = await Promise.race([fetchPromise, timeoutPromise])
 
       if (catResult.error || supResult.error || brandResult.error) throw new Error('Fetch failed')
-      if (unitResult?.data) { try { await db.units.bulkPut(JSON.parse(JSON.stringify(unitResult.data))) } catch (_) {} }
+      if (unitResult?.data) { try { await db.units.bulkPut(JSON.parse(JSON.stringify(unitResult.data))) } catch { /* not critical */ } }
 
       const sid = String(user.shop_id)
 
@@ -106,7 +107,7 @@ function AddProduct() {
       })
       setBrandCategoryMap(bcMap)
 
-    } catch (e) {
+    } catch (_e) {
       console.log('AddProduct: Fetching from local DB (Offline)')
       try {
         const [lCats, lSups, lBrands, lUnits] = await Promise.all([

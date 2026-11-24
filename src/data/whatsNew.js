@@ -10,6 +10,15 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-11',
+    date: '11 Dec 2026',
+    title: 'Faster start and a POS fix',
+    items: [
+      { text: "Fixed: choosing the customer last and pressing F9 now always saves the bill on that customer's account", module: 'Fix' },
+      { text: 'The app opens faster on phones and loads less after each update', module: 'All screens' },
+    ],
+  },
+  {
     id: '2026-12-10',
     date: '10 Dec 2026',
     title: 'Print bills straight to the thermal printer',

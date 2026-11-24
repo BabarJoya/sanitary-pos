@@ -24,7 +24,6 @@ function PurchaseHistory() {
     const [purchaseItems, setPurchaseItems] = useState([])
     const [loadingItems, setLoadingItems] = useState(false)
     const [search, setSearch] = useState('')
-    const [filterType, setFilterType] = useState('')
     const [paymentFilter, setPaymentFilter] = useState('all')
     const [dateFilter, setDateFilter] = useState('')
     const [selected, setSelected] = useState([])
@@ -42,18 +41,19 @@ function PurchaseHistory() {
             fetchPurchases()
             fetchShopSettings()
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
     }, [user?.shop_id])
 
     const fetchShopSettings = async () => {
         // Load from shop-scoped localStorage first, then refresh from Supabase
         const sid = user?.shop_id
         const cached = sid ? localStorage.getItem(`shop_settings_${sid}`) : null
-        if (cached) { try { setShopSettings(JSON.parse(cached)) } catch (_) {} }
+        if (cached) { try { setShopSettings(JSON.parse(cached)) } catch { /* not critical */ } }
         try {
             if (!navigator.onLine) throw new Error('Offline')
             const { data } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
             if (data) setShopSettings(prev => ({ ...prev, ...data }))
-        } catch (e) {
+        } catch (_e) {
             console.log('PurchaseHistory: Using cached settings')
         }
     }
@@ -84,7 +84,7 @@ function PurchaseHistory() {
             const filtered = localData.filter(x => String(x.shop_id) === sid)
             const sorted = filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
             setPurchases(sorted)
-        } catch (e) {
+        } catch (_e) {
             console.log('Purchases: Fetching from local DB (Offline Fallback)')
             try {
                 const localData = await db.purchases.toArray()
@@ -119,7 +119,7 @@ function PurchaseHistory() {
             // Render from local for consistency
             const localItems = await db.purchase_items.where({ purchase_id: purchase.id }).toArray()
             setPurchaseItems(localItems)
-        } catch (e) {
+        } catch (_e) {
             console.log('Purchase Items: Fetching from local DB')
             const localItems = await db.purchase_items.where({ purchase_id: purchase.id }).toArray().catch(() => [])
             if (localItems.length === 0) {

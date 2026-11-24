@@ -59,9 +59,9 @@ function Layout({ children }) {
     const saved = localStorage.getItem('compact_mode')
     return saved === null ? true : saved === 'true'
   })
-  const [planInfo, setPlanInfo] = useState(null)
+  const [, setPlanInfo] = useState(null)
   const notifications = useShopNotifications(user?.shop_id, user?.role)
-  const [productCount, setProductCount] = useState(0)
+  const [, setProductCount] = useState(0)
   const dropdownRef = useRef(null)
   const userDropdownRef = useRef(null)
 
@@ -95,6 +95,7 @@ function Layout({ children }) {
       fetchPlanInfo()
     }, 5 * 60 * 1000)
     return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchShopName = async () => {
@@ -115,7 +116,7 @@ function Layout({ children }) {
         setShopLogo(data.logo_url)
         localStorage.setItem(`shop_logo_${sid}`, data.logo_url)
       }
-    } catch (e) {
+    } catch (_e) {
       const cachedName = localStorage.getItem(`shop_name_${sid}`)
       if (cachedName) setShopName(cachedName)
       const cachedLogo = localStorage.getItem(`shop_logo_${sid}`) || ''
@@ -154,7 +155,7 @@ function Layout({ children }) {
       document.removeEventListener('mousedown', handleClickOutside)
       window.removeEventListener('storage', handleStorage)
     }
-  }, [])
+  }, [user?.shop_id])
 
   const fetchLowStock = async () => {
     if (!user?.shop_id) return

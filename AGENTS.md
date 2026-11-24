@@ -14,7 +14,7 @@ Read this first, then inspect only the modules needed. Treat this as the compact
 Root: `npm run dev`, `npm run build`, `npm run lint`, `npm test`, `npm run preview`. `npm test` runs `tests/*.test.js` with Node's built-in runner (no install; also in `.github/workflows/test.yml`) — add a case whenever a money, ledger or stock rule changes.
 Standalone admin: `cd superadmin`, then the same npm scripts.
 
-- Root lint currently exits successfully with 0 errors and 113 warnings (hook dependencies, unused values, empty catches, and related cleanup).
+- Root lint is clean (0 errors, 0 warnings): keep it that way. Loader effects that intentionally list only their inputs carry an `eslint-disable-next-line react-hooks/exhaustive-deps -- reason` comment; window-level key handlers use a ref to the latest handler (see POS) instead of a dependency list.
 - Latest root build compiled, but the command exited nonzero during PWA/temp dependency initialization with Windows `EPERM` resolving `C:\Users\...\AppData`; Vite also warned that the 500.86 kB shared JS chunk exceeds its 500 kB threshold. Recheck in the deployment/CI environment before treating this as a code build failure.
 - Route chunks and action-time PDF/XLSX loading are already in use; do not assume the app is one monolithic entry bundle.
 

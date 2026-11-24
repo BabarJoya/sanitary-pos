@@ -168,7 +168,7 @@ export const db = {
     /**
      * INSERT with automatic shop_id injection and session check
      */
-    async insert(table, data, options = {}) {
+    async insert(table, data, _options = {}) {
         await rlsSession.ensureSession()
 
         const user = JSON.parse(localStorage.getItem('user') || '{}')

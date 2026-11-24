@@ -30,6 +30,7 @@ function Expenses() {
 
   useEffect(() => {
     if (user?.shop_id) fetchExpenses()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchExpenses = async () => {
@@ -53,7 +54,7 @@ function Expenses() {
         const cleanData = JSON.parse(JSON.stringify(data))
         await db.expenses.bulkPut(cleanData)
       }
-    } catch (e) {
+    } catch (_e) {
       console.log('Expenses: Fetching from local DB (Offline Fallback)')
       try {
         const localData = await db.expenses.toArray()

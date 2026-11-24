@@ -56,6 +56,7 @@ function Products() {
 
   useEffect(() => {
     if (user?.shop_id) fetchProducts()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchProducts = async () => {
@@ -306,7 +307,7 @@ function Products() {
               .select()
             if (!error && newCat?.[0]) currentCategories.push(newCat[0])
           }
-        } catch (err) { /* skip */ }
+        } catch (_err) { /* skip */ }
       }
 
       // Re-map category IDs after creating
@@ -347,7 +348,7 @@ function Products() {
               .select()
             if (!error && newBrand?.[0]) currentBrands.push(newBrand[0])
           }
-        } catch (err) { /* skip */ }
+        } catch (_err) { /* skip */ }
       }
 
       // Re-map brandMatched after creating

@@ -34,6 +34,7 @@ export default function ManageUsersModal({ shop, onClose }) {
   const [newPasswordInput, setNewPasswordInput] = useState('')
   const [resetting, setResetting] = useState(false)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   useEffect(() => { if (shop) fetchUsers() }, [shop])
 
   const fetchUsers = async () => {

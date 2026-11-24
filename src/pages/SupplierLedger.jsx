@@ -47,6 +47,7 @@ function SupplierLedger() {
 
     useEffect(() => {
         if (id && user?.shop_id) fetchSupplierData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
     }, [id, user?.shop_id])
 
     const fetchSupplierData = async () => {
@@ -64,7 +65,7 @@ function SupplierLedger() {
 
             setSupplier(supRes.data)
             buildLedger(purchasesRes.data || [], paymentsRes.data || [])
-        } catch (e) {
+        } catch (_e) {
             console.log('SupplierLedger: Reconstructing from local DB (Offline)')
             try {
                 const [lSups, lPurchases, lItems, lPayments] = await Promise.all([

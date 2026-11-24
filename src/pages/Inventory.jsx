@@ -212,6 +212,7 @@ function Inventory() {
 
   useEffect(() => {
     if (user?.shop_id) fetchInventory()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchInventory = async () => {

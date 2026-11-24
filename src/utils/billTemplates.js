@@ -21,7 +21,7 @@ window.onload = function() {
   for (var i = 0; i < imgs.length; i++) {
     if (imgs[i].complete) done(); else { imgs[i].onload = done; imgs[i].onerror = done; }
   }
-};<\/script>`
+};</${"script"}>`
 
 // Build item rows for both sizes
 function itemRows(items, thermal) {
@@ -926,6 +926,6 @@ export function buildSalesReportHTML(sales, saleItems, period, shopSettings) {
       </tr>
     </tbody>
   </table>
-  <script>window.onload = function(){ window.print(); };<\/script>
+  <script>window.onload = function(){ window.print(); };</${"script"}>
   </body></html>`
 }

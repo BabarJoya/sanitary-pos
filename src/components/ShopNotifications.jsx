@@ -39,6 +39,7 @@ async function showSystemAlert(item, onClick) {
   } catch { /* alerts are best-effort */ }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared helper next to its component
 export function useShopNotifications(shopId, role) {
   const navigate = useNavigate()
   const [items, setItems] = useState(() => (cache.shopId === shopId ? cache.items : []))

@@ -26,6 +26,7 @@ export default function EmailBroadcast() {
 
     useEffect(() => {
         fetchInitialData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
     }, [])
 
     const fetchInitialData = async () => {

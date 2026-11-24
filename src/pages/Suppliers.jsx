@@ -31,7 +31,6 @@ function Suppliers() {
     outstanding_balance: 0
   })
   const [brands, setBrands] = useState([])
-  const fileInputRef = useRef(null)
   const [selected, setSelected] = useState([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [pendingDeleteIds, setPendingDeleteIds] = useState([])
@@ -59,6 +58,7 @@ function Suppliers() {
       fetchSuppliers()
       fetchBrands()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   // ─── Build ledger from purchases + supplier_payments ─────────────────────
@@ -294,7 +294,7 @@ function Suppliers() {
         await db.brands.bulkPut(JSON.parse(JSON.stringify(data))).catch(() => {})
         setBrands(data)
       }
-    } catch (e) {
+    } catch (_e) {
       try {
         const localBrands = await db.brands.toArray()
         const sid = String(user.shop_id)
@@ -358,67 +358,7 @@ function Suppliers() {
     }
   }
 
-  const handleExport = () => {
-    const exportData = suppliers.map(s => ({
-      'Name': s.name,
-      'Phone': s.phone || '-',
-      'Address': s.address || '-',
-      'Outstanding Balance': s.outstanding_balance || 0
-    }))
 
-    const ws = XLSX.utils.json_to_sheet(exportData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Suppliers')
-    XLSX.writeFile(wb, `Suppliers_Export_${new Date().toLocaleDateString()}.xlsx`)
-  }
-
-  const handleImport = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = async (evt) => {
-      const bstr = evt.target.result
-      const wb = XLSX.read(bstr, { type: 'binary' })
-      const wsname = wb.SheetNames[0]
-      const ws = wb.Sheets[wsname]
-      const data = XLSX.utils.sheet_to_json(ws)
-
-      if (data.length === 0) {
-        toast.warning('Empty file!')
-        return
-      }
-
-      if (!confirm(`Import ${data.length} suppliers ? `)) return
-
-      setLoading(true)
-      const formatted = data.map(row => ({
-        shop_id: user.shop_id,
-        name: row['Name'] || row['name'] || 'New Supplier',
-        phone: row['Phone'] || row['phone'] || '',
-        address: row['Address'] || row['address'] || '',
-        outstanding_balance: parseFloat(row['Outstanding Balance'] || row['balance'] || 0)
-      }))
-
-      const { data: inserted, error } = await supabase.from('suppliers').insert(formatted).select('id, outstanding_balance')
-      if (!error) {
-        // Imported balances are old dues: record each as an opening ledger entry
-        const obRows = (inserted || []).filter(x => Number(x.outstanding_balance) !== 0)
-          .map(x => openingRow({ table: 'supplier_payments', shopId: user.shop_id, partyId: x.id, amount: Number(x.outstanding_balance) }))
-        for (let k = 0; k < obRows.length; k += 500) {
-          const { error: obErr } = await supabase.from('supplier_payments').insert(obRows.slice(k, k + 500))
-          if (obErr) { toast.error('Suppliers imported, but opening balance ledger entries failed: ' + obErr.message); break }
-        }
-      }
-      if (error) toast.error(error.message)
-      else {
-        toast.success('Suppliers imported successfully! ✅')
-        fetchSuppliers()
-      }
-      setLoading(false)
-    }
-    reader.readAsBinaryString(file)
-  }
 
   const handleEdit = (sup) => {
     setForm({

@@ -36,7 +36,7 @@ const SECTION_GROUP = 'space-y-4 [&>*:first-child]:border-t-0 [&>*:first-child]:
 
 function Settings() {
   const { user } = useAuth()
-  const [shop, setShop] = useState(null)
+  const [, setShop] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [billPageSaving, setBillPageSaving] = useState(false)
@@ -63,7 +63,7 @@ function Settings() {
     if (saved) {
       try {
         return JSON.parse(saved)
-      } catch (e) { /* fallback */ }
+      } catch (_e) { /* fallback */ }
     }
     return {
       name: (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || 'EdgeX POS',
@@ -239,6 +239,7 @@ function Settings() {
   useEffect(() => {
     fetchShop()
     fetchPlanInfo()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [])
 
   const fetchShop = async () => {
@@ -257,7 +258,7 @@ function Settings() {
         // Store in local DB for offline access
         await db.shops.put(JSON.parse(JSON.stringify(data)))
       }
-    } catch (e) {
+    } catch (_e) {
       console.log('Settings: Loading from local DB (Offline)')
       try {
         const sid = Number(user.shop_id)
@@ -276,7 +277,7 @@ function Settings() {
     // Read the full saved settings from localStorage — this is what the user last saved.
     let saved = {}
     const sid = user?.shop_id
-    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) {}
+    try { saved = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch { /* not critical */ }
 
     setForm(prev => {
       const updated = {
@@ -339,7 +340,7 @@ function Settings() {
     if (cached) {
       try {
         setPlanInfo(JSON.parse(cached))
-      } catch (e) { /* ignore */ }
+      } catch (_e) { /* ignore */ }
     }
 
     if (!navigator.onLine || !sid) return
@@ -969,7 +970,7 @@ function Settings() {
               <input
                 type="text"
                 value={form.invoice_prefix}
-                onChange={e => setForm({ ...form, invoice_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g, '').slice(0, 10) })}
+                onChange={e => setForm({ ...form, invoice_prefix: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 10) })}
                 className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none font-mono"
                 placeholder="e.g. MALIK or INV"
                 maxLength={10}
@@ -1418,7 +1419,7 @@ function Settings() {
                     localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', t.id)
                     if (sid) {
                       let saved = {}
-                      try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch (_) {}
+                      try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch { /* not critical */ }
                       saved.print_template = t.id
                       localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(saved))
                       if (navigator.onLine) {
@@ -1713,7 +1714,7 @@ function Settings() {
                       localStorage.setItem(sid ? `print_template_${sid}` : 'print_template', previewTemplateId)
                       if (sid) {
                         let saved = {}
-                        try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch (_) {}
+                        try { saved = JSON.parse(localStorage.getItem(`shop_settings_${sid}`) || '{}') } catch { /* not critical */ }
                         saved.print_template = previewTemplateId
                         localStorage.setItem(`shop_settings_${sid}`, JSON.stringify(saved))
                         if (navigator.onLine) {

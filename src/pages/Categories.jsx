@@ -27,6 +27,7 @@ function Categories() {
       fetchCategories()
       fetchProducts()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchProducts = async () => {
@@ -71,7 +72,7 @@ function Categories() {
 
       const sorted = [...(data || [])].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
       setCategories(sorted)
-    } catch (err) {
+    } catch (_err) {
       console.log('Categories: Fetching from local DB (Offline)')
       try {
         const localData = await db.categories.toArray()
