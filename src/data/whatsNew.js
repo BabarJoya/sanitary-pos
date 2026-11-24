@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-07',
+    date: '7 Dec 2026',
+    title: 'Search finds items even with spelling mistakes',
+    items: [
+      { text: 'POS search understands spelling mistakes — \'mixar\', \'shwoer\' and \'comode\' still find the item', module: 'POS', to: '/pos' },
+      { text: 'Type in Roman Urdu: \'tonti\' finds taps, \'paip\' finds pipes, \'kamod\' finds commodes, \'wal\' finds valves', module: 'POS', to: '/pos' },
+      { text: 'Items you sell the most now show first in POS', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
     id: '2026-12-06',
     date: '6 Dec 2026',
     title: 'Shift close saved on the server',
