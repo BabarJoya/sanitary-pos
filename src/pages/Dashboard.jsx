@@ -600,7 +600,7 @@ function Dashboard() {
         </div>
       )}
 
-      {fromCache && !loading && (
+      {fromCache && !loading && !user?.isDemo && (
         <div className="mt-3 bg-warning-soft border border-warning-line text-warning-strong rounded-xl px-4 py-2 text-sm flex justify-between items-center gap-3">
           <span>Figures are from this device's saved data (no connection to the server).</span>
           <button onClick={fetchDashboardStats} className="font-bold underline shrink-0">Try again</button>

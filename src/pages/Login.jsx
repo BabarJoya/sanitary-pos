@@ -6,11 +6,13 @@ import { db as localDB } from '../services/db'
 import { hashPassword } from '../utils/authUtils'
 // eslint-disable-next-line no-unused-vars -- used as <motion.div> (JSX member)
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShieldCheck, Zap, PhoneCall, Eye, EyeOff } from 'lucide-react'
+import { ShieldCheck, Zap, PhoneCall, Eye, EyeOff, PlayCircle } from 'lucide-react'
+import { startDemo } from '../services/demoMode'
 
 const IMPERSONATION_HANDOFF_KEY = 'edgex_impersonation_handoff'
 
 function Login() {
+  const [demoStarting, setDemoStarting] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -584,6 +586,25 @@ function Login() {
               )}
             </button>
           </form>
+
+          {/* Try demo: a sample shop on this device only; logging out resets it */}
+          <div className="mt-6">
+            <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-fg-subtle" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
+            </div>
+            <button
+              type="button"
+              disabled={demoStarting}
+              onClick={async () => { setDemoStarting(true); try { await startDemo() } catch { setDemoStarting(false) } }}
+              className="mt-4 w-full h-14 rounded-xl border-2 border-primary text-primary-fg font-bold hover:bg-primary-soft transition flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <PlayCircle size={20} aria-hidden="true" />
+              {demoStarting ? 'Opening demo shop…' : 'Try demo — no sign-up'}
+            </button>
+            <p className="mt-2 text-center text-xs text-fg-muted">
+              A sample sanitary shop with products, customers and sales. Try anything — it all resets when you log out.
+            </p>
+          </div>
 
           <div className="mt-10 lg:hidden text-center">
             <div className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-contrast-hover/50 rounded-xl border border-contrast-hover">

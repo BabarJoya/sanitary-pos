@@ -1,6 +1,7 @@
 import { createContext, useState, useContext, useEffect } from 'react'
 import { db } from '../services/db'
 import { adminCall } from '../services/adminApi'
+import { endDemo, isDemoMode } from '../services/demoMode'
 
 const AuthContext = createContext(null)
 
@@ -89,6 +90,8 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
+    // Demo shop: delete everything it saved and reload (next demo starts fresh)
+    if (user?.isDemo || isDemoMode()) { setUser(null); await endDemo(db); return }
     // Revoke the superadmin session server-side (best effort; it also expires on its own).
     if (user?.role === 'superadmin' && localStorage.getItem('session_token')) {
       adminCall('logout').catch(() => {})

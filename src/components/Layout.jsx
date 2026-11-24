@@ -515,6 +515,12 @@ function Layout({ children }) {
         {/* Main Content Area */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-app custom-scrollbar relative">
           <div className="mx-auto w-full h-full p-4 md:p-6 lg:p-8">
+            {user?.isDemo && (
+              <div role="status" className="mb-4 rounded-xl border border-warning-line bg-warning-soft text-warning-strong px-4 py-2.5 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span><b>🎮 Demo shop</b> — sample data on this device only. Try anything; it is all deleted when you log out.</span>
+                <button type="button" onClick={handleLogout} className="btn btn-secondary btn-sm shrink-0">Exit demo</button>
+              </div>
+            )}
             {children}
           </div>
         </main>
