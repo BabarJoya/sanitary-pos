@@ -25,9 +25,9 @@ export default defineConfig(({ mode, command }) => (checkEnv(mode, command), {
         // update only re-downloads the app code (and the entry stays under 500 kB).
         manualChunks(id) {
           if (!id.includes('node_modules')) return
-          if (/[\/]node_modules[\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run)[\/]/.test(id)) return 'vendor-react'
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run)[\\/]/.test(id)) return 'vendor-react'
           if (id.includes('@supabase')) return 'vendor-supabase'
-          if (/[\/]node_modules[\/]dexie[\/]/.test(id)) return 'vendor-dexie'
+          if (/[\\/]node_modules[\\/]dexie[\\/]/.test(id)) return 'vendor-dexie'
           if (id.includes('lucide-react')) return 'vendor-icons'
         },
       },
