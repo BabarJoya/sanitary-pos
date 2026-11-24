@@ -15,6 +15,7 @@ function CustomerLedgerOverview() {
 
     useEffect(() => {
         if (user?.shop_id) fetchCustomers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
     }, [user?.shop_id])
 
     const fetchCustomers = async () => {
@@ -29,7 +30,7 @@ function CustomerLedgerOverview() {
 
             if (error) throw error
             setCustomers(data || [])
-        } catch (e) {
+        } catch (_e) {
             try {
                 const local = await db.customers.toArray()
                 const shopCustomers = local

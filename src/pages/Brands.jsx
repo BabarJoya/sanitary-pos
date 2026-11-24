@@ -39,6 +39,7 @@ function Brands() {
       fetchBrands()
       fetchCategories()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchCategories = async () => {
@@ -159,7 +160,7 @@ function Brands() {
       const sorted = filtered.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
       setBrands(sorted)
       detectMissingBrands(sorted)
-    } catch (err) {
+    } catch (_err) {
       console.log('Brands: Fetching from local DB (Offline)')
       try {
         const localData = await db.brands.toArray()
@@ -185,7 +186,7 @@ function Brands() {
         const local = await db.brand_categories.where('brand_id').equals(brand.id).toArray()
         setSelectedCategoryIds(local.map(r => r.category_id))
       }
-    } catch (e) { setSelectedCategoryIds([]) }
+    } catch (_e) { setSelectedCategoryIds([]) }
   }
 
   const handleSubmit = async (e) => {

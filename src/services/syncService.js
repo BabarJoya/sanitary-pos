@@ -347,7 +347,7 @@ async function processQueue() {
 
     try {
         window.dispatchEvent(new CustomEvent('sync_completed'));
-    } catch (_) {}
+    } catch { /* not critical */ }
 }
 
 // ── Queue status / recovery (Settings → Data & Backup) ─────────────

@@ -14,8 +14,8 @@ Read this first, then inspect only the modules needed. Treat this as the compact
 Root: `npm run dev`, `npm run build`, `npm run lint`, `npm test`, `npm run preview`. `npm test` runs `tests/*.test.js` with Node's built-in runner (no install; also in `.github/workflows/test.yml`) — add a case whenever a money, ledger or stock rule changes.
 Standalone admin: `cd superadmin`, then the same npm scripts.
 
-- Root lint currently exits successfully with 0 errors and 113 warnings (hook dependencies, unused values, empty catches, and related cleanup).
-- Latest root build compiled, but the command exited nonzero during PWA/temp dependency initialization with Windows `EPERM` resolving `C:\Users\...\AppData`; Vite also warned that the 500.86 kB shared JS chunk exceeds its 500 kB threshold. Recheck in the deployment/CI environment before treating this as a code build failure.
+- Root lint is clean (0 errors, 0 warnings): keep it that way. Loader effects that intentionally list only their inputs carry an `eslint-disable-next-line react-hooks/exhaustive-deps -- reason` comment; window-level key handlers use a ref to the latest handler (see POS) instead of a dependency list.
+- Build splits React, Supabase, Dexie and icons into `vendor-*` chunks (`manualChunks` in `vite.config.js`); the app entry is ~105 kB. `npm run build` refuses to run without `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` (placeholders are fine for a local check); `vite preview` does not need them.
 - Route chunks and action-time PDF/XLSX loading are already in use; do not assume the app is one monolithic entry bundle.
 
 ## Data, Auth, Offline
@@ -32,6 +32,8 @@ Standalone admin: `cd superadmin`, then the same npm scripts.
 
 - Keep the app shell full-screen; let `Layout` own available height and pages scroll inside `<main>`. Prefer flex + `min-h-0`/`h-full`, and `dvh` when viewport sizing is unavoidable. Avoid page-local `100vh` subtraction.
 - Modals should fit phones: backdrop `items-start sm:items-center-safe` (never plain `items-center` — a tall panel loses its top), `w-full max-w-*`, bounded `max-h-[90dvh]`, internal scroll, visible close affordance, and stacked actions. For data-heavy mobile workflows prefer compact card/list views over horizontal-only tables.
+- Direct thermal printing: `src/utils/escpos.js` (pure ESC/POS bytes, tested) + `src/services/thermalPrinter.js` (Web Serial / WebUSB / Web Bluetooth, per-device settings `edgex_thermal`); POS `printReceiptOf` falls back to `printHTML` on any error. Raw mode prints ASCII only.
+- POS search uses `src/utils/productSearch.js` (`buildSearchIndex` + `searchProducts`: typos, Roman-Urdu synonyms, sounds-alike keys, best sellers first from local `sale_items`); add words to `SYNONYMS` there and a case in `tests/search.test.js`.
 - POS is the primary repeated-action workflow: keep barcode/search, quantity, cart/totals, customer, tender, and completion reachable with touch and keyboard. Use semantic controls, explicit labels, visible focus, and generous tap targets; do not nest interactive controls.
 - Keep changes scoped because business rules are often embedded in page components. Document genuinely new shared patterns here.
 - Price tiers: products carry `cost_price`, `c_rate`, `sale_price` (retail) and optional `wholesale_price`. Resolve selling prices with `getUnitPrice(product, tier)` from `src/utils/businessPresets.js`; gate wholesale UI/data with `isWholesaleEnabled(getShopSettings(shopId))` (plan feature `wholesale` AND shop setting `wholesale_enabled`; `hasFeature` alone defaults to allowed). Only send `wholesale_price`/`price_tier` columns when enabled so un-migrated databases keep working. Schema: `sql/wholesale_mode_migration.sql`.

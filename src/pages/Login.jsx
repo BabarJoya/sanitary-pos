@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase, rlsSession } from '../services/supabase'
 import { db as localDB } from '../services/db'
 import { hashPassword } from '../utils/authUtils'
+// eslint-disable-next-line no-unused-vars -- used as <motion.div> (JSX member)
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShieldCheck, Zap, PhoneCall, Eye, EyeOff, PlayCircle } from 'lucide-react'
 import { startDemo } from '../services/demoMode'
@@ -18,11 +19,11 @@ function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const [logoUrl, setLogoUrl] = useState(() => {
+  const [logoUrl] = useState(() => {
     const lastShopId = localStorage.getItem('last_shop_id')
     return lastShopId ? localStorage.getItem(`shop_logo_${lastShopId}`) || '/edgex_pos_logo_platform.png' : '/edgex_pos_logo_platform.png'
   })
-  const [platformName, setPlatformName] = useState(() => {
+  const [platformName] = useState(() => {
     const lastShopId = localStorage.getItem('last_shop_id')
     return lastShopId ? localStorage.getItem(`shop_name_${lastShopId}`) || 'EdgeX POS' : 'EdgeX POS'
   })
@@ -33,7 +34,7 @@ function Login() {
 
   const { login, impersonate } = useAuth()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   // Handle impersonation from the superadmin portal.
   // Security: impersonation used to be accepted from any URL (`?impersonateId=5&sessionToken=…`),
@@ -46,7 +47,7 @@ function Login() {
     if (!legacyId && !handoffFlag) return
 
     // Always remove any credentials from the address bar / history first
-    try { window.history.replaceState(null, '', window.location.pathname) } catch (_) {}
+    try { window.history.replaceState(null, '', window.location.pathname) } catch { /* not critical */ }
 
     if (legacyId) {
       setError('Impersonation links are no longer accepted. Please start impersonation from the Superadmin portal.')
@@ -107,13 +108,14 @@ function Login() {
       }
 
       // Also update React context (best-effort — page will reload anyway)
-      try { impersonate(impId, { name: shopName, logo_url: logoUrl }) } catch (_) {}
+      try { impersonate(impId, { name: shopName, logo_url: logoUrl }) } catch { /* not critical */ }
 
 
       // Full reload so AuthContext re-initialises cleanly from the new localStorage state
       window.location.href = '/dashboard'
     })()
-  }, [searchParams])  // intentionally omit `impersonate` — we write localStorage directly above
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- impersonate is not needed: localStorage is written directly above
+  }, [searchParams])
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -156,7 +158,7 @@ function Login() {
             const localShop = await localDB.shops.get(localUser.shop_id)
             if (localShop?.name) localStorage.setItem(`shop_name_${localUser.shop_id}`, localShop.name)
             if (localShop?.logo_url) localStorage.setItem(`shop_logo_${localUser.shop_id}`, localShop.logo_url)
-          } catch (_) {}
+          } catch { /* not critical */ }
         }
 
         login({
@@ -170,7 +172,7 @@ function Login() {
 
         setError('✅ Logged in offline. Some features (sync, reports) require internet.')
         setTimeout(() => navigate('/dashboard'), 1500)
-      } catch (err) {
+      } catch (_err) {
         setError('Offline login failed. Please connect to internet.')
       } finally {
         setLoading(false)

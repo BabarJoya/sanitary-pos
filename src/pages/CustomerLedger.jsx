@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Modal } from '../components/ui'
 import { useParams, useNavigate } from 'react-router-dom'
-import * as XLSX from 'xlsx'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
@@ -22,7 +21,6 @@ function CustomerLedger() {
     const { user } = useAuth()
     const navigate = useNavigate()
 
-    const importRef = useRef()
     const [customer, setCustomer] = useState(null)
     const [loading, setLoading] = useState(true)
     const [ledger, setLedger] = useState([])
@@ -45,6 +43,7 @@ function CustomerLedger() {
 
     useEffect(() => {
         if (id && user?.shop_id) fetchCustomerData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
     }, [id, user?.shop_id])
 
     const fetchCustomerData = async () => {
@@ -102,10 +101,9 @@ function CustomerLedger() {
             const withBalance = withRunningBalance(combined, customerLedgerDelta)
 
             setLedger(withBalance.reverse()) // newest first for display
-        } catch (e) {
+        } catch (_e) {
             console.log('CustomerLedger: Reconstructing from local DB (Offline)')
             try {
-                const sid = String(user.shop_id)
                 const [lCusts, lSales, lItems, lPayments] = await Promise.all([
                     db.customers.toArray(),
                     db.sales.toArray(),
@@ -185,106 +183,8 @@ function CustomerLedger() {
     }
 
     // ── Excel Export ──────────────────────────────────────────────────────────
-    const handleExport = () => {
-        if (!ledger.length) return toast.warning('Koi transaction nahi hai export karne ke liye.')
-        const rows = [...ledger].reverse().map((item, idx) => ({
-            'Sr#': idx + 1,
-            'Date': new Date(item.date).toLocaleDateString('en-PK'),
-            'Bill #': item.bill_number || (item.type === 'sale' ? `INV-${String(item.id).slice(-8)}` : ''),
-            'Description': item.note,
-            'Type': item.type === 'sale' ? 'Sale' : item.type === 'debit' ? 'Manual Sale' : item.type === 'return' ? 'Return' : 'Payment',
-            'Debit (Sale)': (item.type === 'sale' || item.type === 'debit') ? Number(item.amount) : '',
-            'Credit (Payment)': (item.type === 'payment' || item.type === 'return') ? Math.abs(Number(item.amount)) : '',
-            'Balance': Number(item.balance),
-            'Details': item.details || '',
-            'Payment Mode': item.payment_mode || '',
-            'Transaction Ref': item.transaction_ref || '',
-        }))
-        const ws = XLSX.utils.json_to_sheet(rows)
-        ws['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, { wch: 14 }, { wch: 18 }]
-        const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, 'Ledger')
-        const safeName = (customer?.name || 'customer').replace(/[^a-z0-9]/gi, '_')
-        XLSX.writeFile(wb, `${safeName}_ledger.xlsx`)
-    }
 
     // ── Excel Import ──────────────────────────────────────────────────────────
-    const handleImport = async (e) => {
-        const file = e.target.files[0]
-        e.target.value = ''
-        if (!file) return
-
-        try {
-            const data = await file.arrayBuffer()
-            const wb = XLSX.read(data, { cellDates: true })
-            const ws = wb.Sheets[wb.SheetNames[0]]
-            const rows = XLSX.utils.sheet_to_json(ws, { raw: false, dateNF: 'yyyy-mm-dd' })
-
-            if (!rows.length) { toast.warning('File mein koi data nahi mila.'); return }
-
-            const confirmed = window.confirm(`${rows.length} transactions import karein?\n\nNote: "Debit (Sale)" column se sale entries aur "Credit (Payment)" column se payment entries banegi.`)
-            if (!confirmed) return
-
-            const insertRows = []
-            let balanceDelta = 0
-
-            for (const row of rows) {
-                const debit = parseFloat(row['Debit (Sale)'] ?? row['Debit'] ?? row['debit'] ?? 0) || 0
-                const credit = parseFloat(row['Credit (Payment)'] ?? row['Credit'] ?? row['credit'] ?? 0) || 0
-                const dateVal = row['Date'] || row['date'] || new Date().toLocaleDateString('en-PK')
-                const billNo = String(row['Bill #'] ?? row['bill_number'] ?? '').trim() || null
-                const note = String(row['Description'] ?? row['Note'] ?? row['note'] ?? '').trim()
-                const details = String(row['Details'] ?? row['details'] ?? '').trim() || null
-                const paymentMode = String(row['Payment Mode'] ?? row['payment_mode'] ?? '').trim() || null
-                const txRef = String(row['Transaction Ref'] ?? row['transaction_ref'] ?? '').trim() || null
-
-                let parsedDate
-                try {
-                    if (dateVal instanceof Date && !isNaN(dateVal)) {
-                        parsedDate = dateVal.toISOString()
-                    } else if (typeof dateVal === 'number') {
-                        parsedDate = new Date(Math.round((dateVal - 25569) * 86400 * 1000)).toISOString()
-                    } else {
-                        parsedDate = new Date(dateVal).toISOString()
-                    }
-                } catch { parsedDate = new Date().toISOString() }
-
-                const common = { shop_id: user.shop_id, customer_id: id, bill_number: billNo, details, payment_mode: paymentMode, transaction_ref: txRef, created_at: parsedDate }
-                if (debit > 0) {
-                    insertRows.push({ ...common, amount: debit, payment_type: 'debit', note: note || 'Imported Sale Entry' })
-                    balanceDelta += debit
-                }
-                if (credit > 0) {
-                    insertRows.push({ ...common, amount: credit, payment_type: 'payment', note: note || 'Imported Payment' })
-                    balanceDelta -= credit
-                }
-            }
-
-            if (!insertRows.length) { toast.warning('Koi valid row nahi mili (Debit/Credit columns check karein).'); return }
-
-            if (navigator.onLine) {
-                const { error } = await supabase.from('customer_payments').insert(insertRows)
-                if (error) throw error
-                const r = await adjustCustomerBalance(id, balanceDelta)
-                if (r.ok) setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + balanceDelta } : c)
-                else toast.error('Entries saved, but customer balance update failed: ' + (r.error?.message || 'unknown error'))
-            } else {
-                for (const row of insertRows) {
-                    const rec = { ...row, id: crypto.randomUUID() }
-                    await db.customer_payments.add(rec)
-                    await db.sync_queue.add({ table: 'customer_payments', action: 'INSERT', data: rec, timestamp: rec.created_at })
-                }
-                await adjustCustomerBalance(id, balanceDelta) // queued while offline
-                setCustomer(c => c ? { ...c, outstanding_balance: (Number(c.outstanding_balance) || 0) + balanceDelta } : c)
-            }
-
-            toast.success(`${insertRows.length} entries import ho gayi! ✅`)
-            fetchCustomerData()
-        } catch (err) {
-            console.error('Import error:', err)
-            toast.error('Import failed: ' + err.message)
-        }
-    }
 
     const resetTxForm = () => {
         setTxForm({ date: todayLocal(), bill_number: '', sale_amount: '', payment_amount: '', details: '', payment_mode: 'cash', transaction_ref: '', note: '' })

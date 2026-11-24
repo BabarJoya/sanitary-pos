@@ -35,6 +35,7 @@ function Customers() {
 
   useEffect(() => {
     if (user?.shop_id) fetchCustomers()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchCustomers = async () => {

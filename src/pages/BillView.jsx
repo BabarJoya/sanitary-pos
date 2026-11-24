@@ -117,7 +117,7 @@ export default function BillView() {
   const printBill = () => {
     const w = window.open('', '_blank')
     if (!w) return
-    w.document.write(printedHtml.replace('</body>', '<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script></body>'))
+    w.document.write(printedHtml.replace('</body>', '<script>window.onload=function(){setTimeout(function(){window.print()},400)}</' + 'script></body>'))
     w.document.close()
   }
 

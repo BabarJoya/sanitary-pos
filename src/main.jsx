@@ -61,7 +61,7 @@ async function checkForForceUpdate() {
         try {
           const cacheKeys = await caches.keys()
           await Promise.all(cacheKeys.map(k => caches.delete(k)))
-        } catch (_) {}
+        } catch { /* not critical */ }
       }
 
       // Ask the waiting SW to take control immediately, then reload
@@ -77,7 +77,7 @@ async function checkForForceUpdate() {
           } else if (reg?.update) {
             await reg.update()
           }
-        } catch (_) {}
+        } catch { /* not critical */ }
       }
       window.location.reload()
     }

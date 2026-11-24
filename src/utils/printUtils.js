@@ -29,7 +29,7 @@ export function printHTML(html) {
   // Wait for images to load before printing
   const win = frame.contentWindow
   const doprint = () => {
-    try { win.focus(); win.print() } catch (_) {}
+    try { win.focus(); win.print() } catch { /* not critical */ }
   }
 
   const imgs = doc.images
@@ -54,7 +54,7 @@ export function printHTML(html) {
 export function getShopBranding(shopId) {
   const sid = shopId ? String(shopId) : null
   let settings = {}
-  try { settings = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch (_) {}
+  try { settings = JSON.parse((sid ? localStorage.getItem(`shop_settings_${sid}`) : null) || '{}') } catch { /* not critical */ }
   const name     = (sid ? localStorage.getItem(`shop_name_${sid}`) : null) || settings.name     || 'Our Shop'
   const logo_url = (sid ? localStorage.getItem(`shop_logo_${sid}`)  : null) || settings.logo_url || ''
   const phone    = settings.phone   || ''

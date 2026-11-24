@@ -32,7 +32,6 @@ function Sales() {
   const [returnQtys, setReturnQtys] = useState({})
   const [search, setSearch] = useState('')
   const [searchDate, setSearchDate] = useState('')
-  const [filterType, setFilterType] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [tierFilter, setTierFilter] = useState('all') // 'all' | 'retail' | 'wholesale'
@@ -92,6 +91,7 @@ function Sales() {
       fetchShopSettings()
       fetchSales()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchShopSettings = async () => {
@@ -99,13 +99,13 @@ function Sales() {
     const sid = user?.shop_id
     const cached = sid ? localStorage.getItem(`shop_settings_${sid}`) : null
     if (cached) {
-      try { setShopSettings(JSON.parse(cached)) } catch (_) {}
+      try { setShopSettings(JSON.parse(cached)) } catch { /* not critical */ }
     }
     try {
       if (!navigator.onLine) throw new Error('Offline')
       const { data } = await supabase.from('shops').select('*').eq('id', user.shop_id).maybeSingle()
       if (data) setShopSettings(prev => ({ ...prev, ...data }))
-    } catch (e) {
+    } catch (_e) {
       console.log('Sales: Using cached shop settings')
     }
   }
@@ -188,7 +188,7 @@ function Sales() {
       // Render from local for consistency
       const localItems = await db.sale_items.where({ sale_id: sale.id }).toArray()
       setSaleItems(localItems)
-    } catch (e) {
+    } catch (_e) {
       console.log('Sale Items: Fetching from local DB (Offline Fallback)')
       const localItems = await db.sale_items.where({ sale_id: sale.id }).toArray().catch(() => [])
       // fallback if composite index is weird, just get all and filter
@@ -240,7 +240,6 @@ function Sales() {
       unpaidOnSale: saleUnpaidAmount(selectedSale),
     })
     const totalReturnAmount = plan.refund
-    const newSaleTotal = plan.newTotal
     const invoiceTag = `Invoice #${String(selectedSale.id).slice(-6)}`
     const refundRows = []
     if (plan.creditPart > 0) refundRows.push({ shop_id: user.shop_id, customer_id: selectedSale.customer_id, amount: -plan.creditPart, payment_type: 'return', note: `Return from ${invoiceTag} (Credited to Balance)` })

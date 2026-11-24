@@ -10,6 +10,55 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-11',
+    date: '11 Dec 2026',
+    title: 'Faster start and a POS fix',
+    items: [
+      { text: "Fixed: choosing the customer last and pressing F9 now always saves the bill on that customer's account", module: 'Fix' },
+      { text: 'The app opens faster on phones and loads less after each update', module: 'All screens' },
+    ],
+  },
+  {
+    id: '2026-12-10',
+    date: '10 Dec 2026',
+    title: 'Print bills straight to the thermal printer',
+    items: [
+      { text: 'Settings → POS & Receipts → Direct thermal printer: connect a USB, COM or Bluetooth receipt printer — bills print instantly with no print window', module: 'Settings', to: '/settings#pos' },
+      { text: 'Open the cash drawer automatically on cash sales', module: 'Settings', to: '/settings#pos' },
+      { text: '58 mm and 80 mm paper, with the bill QR code; if the printer is off, the normal print opens instead', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
+    id: '2026-12-09',
+    date: '9 Dec 2026',
+    title: "Update cost prices from a supplier's rate list",
+    items: [
+      { text: "Inventory → 📥 Supplier rate list: upload the supplier's Excel or CSV price list and see which cost prices went up or down", module: 'Inventory', to: '/inventory' },
+      { text: 'Tick the items to update — matched by barcode or name, even with spelling mistakes', module: 'Inventory', to: '/inventory' },
+      { text: '\'Keep my margin\' moves the sale price too, so your profit stays the same', module: 'Inventory', to: '/inventory' },
+    ],
+  },
+  {
+    id: '2026-12-08',
+    date: '8 Dec 2026',
+    title: 'Item report: profit, reorder and dead stock',
+    items: [
+      { text: 'Reports → 📦 Item report: profit and margin on every product for the last 30, 60 or 90 days', module: 'Reports', to: '/item-reports' },
+      { text: 'Reorder list: items running out, with how many to order for the next 30 days', module: 'Reports', to: '/item-reports' },
+      { text: 'Slow and dead stock: what has not sold, and how much money is stuck on the shelf', module: 'Reports', to: '/item-reports' },
+    ],
+  },
+  {
+    id: '2026-12-07-2',
+    date: '7 Dec 2026',
+    title: 'Search finds items even with spelling mistakes',
+    items: [
+      { text: 'POS search understands spelling mistakes — \'mixar\', \'shwoer\' and \'comode\' still find the item', module: 'POS', to: '/pos' },
+      { text: 'Type in Roman Urdu: \'tonti\' finds taps, \'paip\' finds pipes, \'kamod\' finds commodes, \'wal\' finds valves', module: 'POS', to: '/pos' },
+      { text: 'Items you sell the most now show first in POS', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
     id: '2026-12-07',
     date: '7 Dec 2026',
     title: 'Try EdgeX without an account',

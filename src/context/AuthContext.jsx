@@ -134,6 +134,7 @@ export function AuthProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared helper next to its component
 export function useAuth() {
   return useContext(AuthContext)
 }

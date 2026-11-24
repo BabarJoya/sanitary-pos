@@ -7,17 +7,32 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Settings → Environment Variables), not a committed .env. Fail the build
 // instead of shipping an app that cannot reach the database. Also refuse to
 // build if a server secret was given a VITE_ name (it would be made public).
-function checkEnv(mode) {
+function checkEnv(mode, command) {
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env }
-  if (mode !== 'production') return
+  if (mode !== 'production' || command !== 'build') return
   const missing = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'].filter(k => !env[k])
   if (missing.length) throw new Error(`Missing ${missing.join(', ')} for the production build. Add them in your hosting provider's environment variables.`)
   const leaked = Object.keys(env).filter(k => k.startsWith('VITE_') && /SERVICE_ROLE|SECRET|RESEND/i.test(k))
   if (leaked.length) console.warn(`[security] ${leaked.join(', ')} has a VITE_ name. Rename it without VITE_ (server-only); it is not used by the app.`)
 }
 
-export default defineConfig(({ mode }) => (checkEnv(mode), {
+export default defineConfig(({ mode, command }) => (checkEnv(mode, command), {
   base: '/',
+  build: {
+    rollupOptions: {
+      output: {
+        // Libraries every page needs get their own long-cached chunks, so an app
+        // update only re-downloads the app code (and the entry stays under 500 kB).
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run)[\\/]/.test(id)) return 'vendor-react'
+          if (id.includes('@supabase')) return 'vendor-supabase'
+          if (/[\\/]node_modules[\\/]dexie[\\/]/.test(id)) return 'vendor-dexie'
+          if (id.includes('lucide-react')) return 'vendor-icons'
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

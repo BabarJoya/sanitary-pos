@@ -30,6 +30,7 @@ const Sales = lazy(() => import('./pages/Sales'))
 const Expenses = lazy(() => import('./pages/Expenses'))
 const Users = lazy(() => import('./pages/Users'))
 const Reports = lazy(() => import('./pages/Reports'))
+const ItemReports = lazy(() => import('./pages/ItemReports'))
 const Settings = lazy(() => import('./pages/Settings'))
 const PurchaseHistory = lazy(() => import('./pages/PurchaseHistory'))
 const TrashBin = lazy(() => import('./pages/TrashBin'))
@@ -121,6 +122,7 @@ function App() {
             <Route path="/expenses" element={<ProtectedRoute requiredModule="expenses" allowedRoles={['admin']}><Layout><Expenses /></Layout></ProtectedRoute>} />
             <Route path="/inventory" element={<ProtectedRoute requiredModule="inventory" allowedRoles={['admin']}><Layout><Inventory /></Layout></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute requiredModule="reports" allowedRoles={['admin']}><Layout><Reports /></Layout></ProtectedRoute>} />
+            <Route path="/item-reports" element={<ProtectedRoute requiredModule="reports" allowedRoles={['admin']}><Layout><ItemReports /></Layout></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute requiredModule="users" allowedRoles={['admin']}><Layout><Users /></Layout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute requiredModule="settings" allowedRoles={['admin']}><Layout><Settings /></Layout></ProtectedRoute>} />
             <Route path="/trash" element={<ProtectedRoute requiredModule="trash" allowedRoles={['admin']}><Layout><TrashBin /></Layout></ProtectedRoute>} />

@@ -17,7 +17,7 @@ function Purchases() {
   const [products, setProducts] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [brands, setBrands] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedBrand, setSelectedBrand] = useState('')
   const [cart, setCart] = useState([])
@@ -40,17 +40,19 @@ function Purchases() {
 
   useEffect(() => {
     if (user?.shop_id) fetchData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   useEffect(() => {
     if (user?.shop_id) fetchHeldPurchases()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchHeldPurchases = async () => {
     try {
       const carts = await db.held_purchases.where('shop_id').equals(user.shop_id).toArray()
       setHeldPurchases(carts)
-    } catch (e) { console.warn('No held_purchases table yet') }
+    } catch (_e) { console.warn('No held_purchases table yet') }
   }
 
   const fetchData = async () => {
@@ -91,7 +93,7 @@ function Purchases() {
       setProducts(lProds.filter(x => String(x.shop_id) === sid))
       setSuppliers(lSups.filter(x => String(x.shop_id) === sid))
       setBrands(lBrands.filter(x => String(x.shop_id) === sid))
-    } catch (e) {
+    } catch (_e) {
       console.log('Purchases: Fetching from local DB (Offline Fallback)')
       try {
         const [lProds, lSups, lBrands] = await Promise.all([

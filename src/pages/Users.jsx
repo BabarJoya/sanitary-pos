@@ -47,6 +47,7 @@ function Users() {
 
   useEffect(() => {
     if (user?.shop_id) fetchUsers()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [user?.shop_id])
 
   const fetchUsers = async () => {
@@ -69,7 +70,7 @@ function Users() {
         const cleanData = JSON.parse(JSON.stringify(data))
         await db.users.bulkPut(cleanData)
       }
-    } catch (e) {
+    } catch (_e) {
       console.log('Users: Fetching from local DB (Offline Fallback)')
       try {
         const localData = await db.users.toArray()

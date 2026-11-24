@@ -55,6 +55,7 @@ function EditProduct() {
 
   useEffect(() => {
     fetchData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when these inputs change; the fetch functions read current state (listing them would refetch every render)
   }, [id])
 
   const fetchData = async () => {
@@ -76,7 +77,7 @@ function EditProduct() {
       if (prodResult.error || !prodResult.data) throw new Error('Product not found')
 
       const product = prodResult.data
-      if (unitResult?.data) { setUnits(unitResult.data); try { await db.units.bulkPut(JSON.parse(JSON.stringify(unitResult.data))) } catch (_) {} }
+      if (unitResult?.data) { setUnits(unitResult.data); try { await db.units.bulkPut(JSON.parse(JSON.stringify(unitResult.data))) } catch { /* not critical */ } }
       setForm({
         name: product.name || '',
         sku: product.sku || '',
@@ -96,7 +97,6 @@ function EditProduct() {
       })
       setLoadedStock(product.stock_quantity ?? null)
 
-      const sid = String(user.shop_id)
 
       if (catResult.data) {
         setCategories(catResult.data)
@@ -122,7 +122,7 @@ function EditProduct() {
       })
       setBrandCategoryMap(bcMap)
 
-    } catch (e) {
+    } catch (_e) {
       console.log('EditProduct: Fetching from local DB (Offline)')
       try {
         const localProd = await db.products.get(id)
