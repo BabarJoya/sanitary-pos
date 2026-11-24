@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-08',
+    date: '8 Dec 2026',
+    title: 'Item report: profit, reorder and dead stock',
+    items: [
+      { text: 'Reports → 📦 Item report: profit and margin on every product for the last 30, 60 or 90 days', module: 'Reports', to: '/item-reports' },
+      { text: 'Reorder list: items running out, with how many to order for the next 30 days', module: 'Reports', to: '/item-reports' },
+      { text: 'Slow and dead stock: what has not sold, and how much money is stuck on the shelf', module: 'Reports', to: '/item-reports' },
+    ],
+  },
+  {
     id: '2026-12-07',
     date: '7 Dec 2026',
     title: 'Search finds items even with spelling mistakes',

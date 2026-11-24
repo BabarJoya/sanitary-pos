@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { fetchAllRows } from '../services/fetchAll'
 import { useAuth } from '../context/AuthContext'
@@ -291,6 +292,7 @@ function Reports() {
         <div>
           <h1 className="text-2xl font-bold text-fg">📊 Business Analytics</h1>
           <p className="text-fg-muted text-sm">Profit, Loss and Sales performance</p>
+          <Link to="/item-reports" className="inline-block mt-1 text-sm font-bold text-primary-fg underline">📦 Item report — profit per item, reorder, dead stock →</Link>
         </div>
         <div className="flex bg-surface rounded-xl shadow-sm border p-1">
           {['today', 'week', 'month', 'year', 'all'].map(r => (
