@@ -10,6 +10,15 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-07',
+    date: '7 Dec 2026',
+    title: 'Try EdgeX without an account',
+    items: [
+      { text: 'New \'Try demo\' button on the login page: a sample sanitary shop with products, customers, udhaar and two weeks of sales', module: 'Login' },
+      { text: 'Anything tried in the demo stays on that phone or computer only and is deleted on logout — your real shop data is never touched', module: 'Safety' },
+    ],
+  },
+  {
     id: '2026-12-06',
     date: '6 Dec 2026',
     title: 'Shift close saved on the server',
