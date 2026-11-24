@@ -10,6 +10,16 @@
 
 const WHATS_NEW = [
   {
+    id: '2026-12-10',
+    date: '10 Dec 2026',
+    title: 'Print bills straight to the thermal printer',
+    items: [
+      { text: 'Settings → POS & Receipts → Direct thermal printer: connect a USB, COM or Bluetooth receipt printer — bills print instantly with no print window', module: 'Settings', to: '/settings#pos' },
+      { text: 'Open the cash drawer automatically on cash sales', module: 'Settings', to: '/settings#pos' },
+      { text: '58 mm and 80 mm paper, with the bill QR code; if the printer is off, the normal print opens instead', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
     id: '2026-12-09',
     date: '9 Dec 2026',
     title: "Update cost prices from a supplier's rate list",

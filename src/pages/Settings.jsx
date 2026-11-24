@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ThermalPrinterSettings from '../components/ThermalPrinterSettings'
 import { Link, useLocation } from 'react-router-dom'
 import { SUPPORT_WHATSAPP_URL, SUPPORT_PHONE } from '../utils/shopNotifications'
 import { supabase } from '../services/supabase'
@@ -1021,6 +1022,7 @@ function Settings() {
                 {billPageMsg && <span role="status" className="block text-xs font-semibold text-fg-2 mt-1">{billPageMsg}</span>}
               </span>
             </label>
+            <ThermalPrinterSettings shopName={form.name} />
           </div>
 
           </div>

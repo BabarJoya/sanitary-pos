@@ -12,7 +12,9 @@ import { newBillToken, billLinksKnown, noteBillLinks, billUrl } from '../utils/b
 import { openWhatsApp, logWhatsApp, templateFor, fillTemplate, billVars, waPhone, waUrl } from '../utils/whatsapp'
 import { hasFeature } from '../utils/featureGate'
 import { generateBillPDF, shareOrDownloadPDF } from '../utils/pdfShare'
-import { printHTML } from '../utils/printUtils'
+import { printHTML, getShopBranding } from '../utils/printUtils'
+import { buildEscposReceipt } from '../utils/escpos'
+import { getThermalSettings, printBytes } from '../services/thermalPrinter'
 import { getPricingConfig, getShopSettings, isWholesaleEnabled, getUnitPrice, normalizeTier } from '../utils/businessPresets'
 import { isLowStock as isLowStockRule } from '../utils/stockRules'
 import { useLang } from '../context/LanguageContext'
@@ -1346,9 +1348,28 @@ function POS() {
     }
   }
 
-  const printReceipt = () => {
-    printHTML(buildReceiptHTML(lastReceipt, false))
+  // Direct thermal printer (Settings → POS & Receipts) when switched on for this
+  // device; otherwise, or if it fails, the normal print dialog.
+  const printReceiptOf = async (r) => {
+    const th = getThermalSettings()
+    if (th.enabled && r) {
+      try {
+        const link = r.sale?.bill_token && r.showBillQr !== false ? billUrl(r.sale.bill_token) : ''
+        const pt = String(r.paymentType || '').toLowerCase()
+        const footer = /^[ -~]*$/.test(form.invoice_footer || '') && form.invoice_footer ? form.invoice_footer : 'Thank you for shopping!'
+        await printBytes(buildEscposReceipt(r, {
+          shop: getShopBranding(user?.shop_id), width: th.width, qrUrl: link, footer,
+          invoicePrefix: form.invoice_prefix || 'INV',
+          drawer: th.drawer && (pt === 'cash' || pt === 'split'),
+        }))
+        return
+      } catch (e) {
+        toast.warning(`Thermal printer: ${e?.message || e} — using normal print.`)
+      }
+    }
+    printHTML(buildReceiptHTML(r, false))
   }
+  const printReceipt = () => printReceiptOf(lastReceipt)
 
   const printQuotation = () => {
     const customer = customers.find(c => String(c.id) === String(customerId))
@@ -3035,7 +3056,7 @@ function POS() {
                       <p className="font-black text-primary-fg shrink-0">Rs. {Number(r.total || 0).toFixed(0)}</p>
                     </div>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" onClick={() => printHTML(buildReceiptHTML(r, false))} className="btn btn-secondary btn-sm flex-1 min-h-10">🖨️ {t('Print')}</button>
+                      <button type="button" onClick={() => printReceiptOf(r)} className="btn btn-secondary btn-sm flex-1 min-h-10">🖨️ {t('Print')}</button>
                       <button type="button" onClick={() => { setShowRecentBills(false); setLastReceipt(r) }} className="btn btn-primary btn-sm flex-1 min-h-10">{t('Open')}</button>
                     </div>
                   </li>

@@ -32,6 +32,7 @@ Standalone admin: `cd superadmin`, then the same npm scripts.
 
 - Keep the app shell full-screen; let `Layout` own available height and pages scroll inside `<main>`. Prefer flex + `min-h-0`/`h-full`, and `dvh` when viewport sizing is unavoidable. Avoid page-local `100vh` subtraction.
 - Modals should fit phones: backdrop `items-start sm:items-center-safe` (never plain `items-center` — a tall panel loses its top), `w-full max-w-*`, bounded `max-h-[90dvh]`, internal scroll, visible close affordance, and stacked actions. For data-heavy mobile workflows prefer compact card/list views over horizontal-only tables.
+- Direct thermal printing: `src/utils/escpos.js` (pure ESC/POS bytes, tested) + `src/services/thermalPrinter.js` (Web Serial / WebUSB / Web Bluetooth, per-device settings `edgex_thermal`); POS `printReceiptOf` falls back to `printHTML` on any error. Raw mode prints ASCII only.
 - POS search uses `src/utils/productSearch.js` (`buildSearchIndex` + `searchProducts`: typos, Roman-Urdu synonyms, sounds-alike keys, best sellers first from local `sale_items`); add words to `SYNONYMS` there and a case in `tests/search.test.js`.
 - POS is the primary repeated-action workflow: keep barcode/search, quantity, cart/totals, customer, tender, and completion reachable with touch and keyboard. Use semantic controls, explicit labels, visible focus, and generous tap targets; do not nest interactive controls.
 - Keep changes scoped because business rules are often embedded in page components. Document genuinely new shared patterns here.
