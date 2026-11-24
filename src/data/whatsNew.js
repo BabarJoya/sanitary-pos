@@ -40,13 +40,22 @@ const WHATS_NEW = [
     ],
   },
   {
-    id: '2026-12-07',
+    id: '2026-12-07-2',
     date: '7 Dec 2026',
     title: 'Search finds items even with spelling mistakes',
     items: [
       { text: 'POS search understands spelling mistakes — \'mixar\', \'shwoer\' and \'comode\' still find the item', module: 'POS', to: '/pos' },
       { text: 'Type in Roman Urdu: \'tonti\' finds taps, \'paip\' finds pipes, \'kamod\' finds commodes, \'wal\' finds valves', module: 'POS', to: '/pos' },
       { text: 'Items you sell the most now show first in POS', module: 'POS', to: '/pos' },
+    ],
+  },
+  {
+    id: '2026-12-07',
+    date: '7 Dec 2026',
+    title: 'Try EdgeX without an account',
+    items: [
+      { text: 'New \'Try demo\' button on the login page: a sample sanitary shop with products, customers, udhaar and two weeks of sales', module: 'Login' },
+      { text: 'Anything tried in the demo stays on that phone or computer only and is deleted on logout — your real shop data is never touched', module: 'Safety' },
     ],
   },
   {
